@@ -1,0 +1,78 @@
+name: Application build and test
+on:
+    push:
+        paths-ignore:
+            - '.github/**'
+            - "deployment/services.yml"
+env:
+    java_version: '17'
+    mvn_parameter: '-B -ntp'
+    image_name: 'europe-west4-docker.pkg.dev/mms-vtl-vaultree-x-1337/images/technolinator'
+jobs:
+    ci:
+        name: Application Build
+        runs-on: ubuntu-latest
+        if: github.actor != 'dependabot[bot]'
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v3
+
+            - name: Setup Java
+              uses: actions/setup-java@v3
+              with:
+                  java-version: '${{ env.java_version }}'
+                  distribution: 'temurin'
+
+            - name: Install requirements
+              run: |
+                  npm install -g @appthreat/cdxgen
+                  npm install -g @ngcloudsec/cdxgen-plugins-bin
+
+            - name: Application Build and Test
+              env:
+                  QUARKUS_GITHUB_APP_APP_ID: 32168
+                  QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
+                  QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  DTRACK_APIKEY: theres-nothing-to-see-here
+              run: |
+                  mvn ${{ env.mvn_parameter }} clean verify -Pnative
+                  VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
+                  echo VERSION="$VERSION" >> $GITHUB_ENV
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v2
+
+            - name: Docker build
+              uses: docker/build-push-action@v3
+              with:
+                  context: .
+                  file: src/main/docker/Dockerfile
+                  tags: ${{ env.image_name }}:${{ env.VERSION }}
+                  load: true
+
+            - name: Docker structure test
+              run: |
+                  sudo curl -Lso /usr/local/bin/container-structure-test https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
+                  sudo chmod a+x /usr/local/bin/container-structure-test
+
+                  container-structure-test test --config src/main/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
+
+            - uses: 'google-github-actions/auth@v1'
+              if: github.ref == 'refs/heads/main'
+              with:
+                  credentials_json: '${{ secrets.GCP_CONTAINER_REGISTRY_SERVICE_ACCOUNT }}'
+
+            - name: Setup gcloud CLI
+              if: github.ref == 'refs/heads/main'
+              uses: google-github-actions/setup-gcloud@v1
+              with:
+                  version: '412.0.0'
+
+            - name: Docker push
+              if: github.ref == 'refs/heads/main'
+              run: |
+                  # configure docker to use Google Container Registry
+                  gcloud auth configure-docker europe-west4-docker.pkg.dev
+                  # upload image
+                  docker push ${{ env.image_name }}:${{ env.VERSION }}

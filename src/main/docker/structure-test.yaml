@@ -1,0 +1,55 @@
+schemaVersion: 2.0.0
+
+fileExistenceTests:
+    - name: 'App folder exists and has the right permissions'
+      path: /app
+      shouldExist: true
+      permissions: 'drwxrwxr-x'
+
+    - name: 'App executable exists and has the right permissions'
+      path: /app/technolinator
+      shouldExist: true
+      permissions: '-rwxr-xr-x'
+
+commandTests:
+    - name: 'Timezone is UTC'
+      command: 'date'
+      args: ['+%Z']
+      expectedOutput:
+          - 'UTC'
+    - name: "Cdxgen installed"
+      command: 'cdxgen'
+      args: ['-h']
+      expectedOutput:
+          - '.*SBoM.*'
+    - name: "Java installed"
+      command: 'java'
+      args: ["-version"]
+      expectedError:
+          - '.*OpenJDK Runtime Environment.*'
+    - name: "Maven installed"
+      command: 'mvn'
+      args: ["--version"]
+      expectedOutput:
+          - '.*Apache Maven 3.8.*'
+
+metadataTest:
+    labels:
+        - key: 'maintainer'
+          value: 'MediaMarktSaturn Technology'
+    envVars:
+        - key: MAVEN_HOME
+          value: '/root/.sdkman/candidates/maven/current'
+        - key: GRADLE_HOME
+          value: '/root/.sdkman/candidates/gradle/current'
+        - key: FETCH_LICENSE
+          value: 'true'
+        - key: MVN_CMD
+          value: 'mvn'
+        - key: GRADLE_CMD
+          value: 'gradle'
+        - key: USE_GOSUM
+          value: 'true'
+    cmd: ['/app/technolinator']
+    entrypoint: []
+    workdir: '/app'
