@@ -1,0 +1,67 @@
+name: Application build and test
+on:
+    push:
+        paths-ignore:
+            - '.github/**'
+            - "deployment/services.yml"
+env:
+    java_version: '17'
+    mvn_parameter: '-B -ntp'
+    image_name: 'technolinator'
+jobs:
+    ci:
+        name: Application Build
+        runs-on: ubuntu-latest
+        if: github.actor != 'dependabot[bot]'
+        steps:
+            - name: Checkout Code
+              uses: actions/checkout@v3
+
+            - name: Setup Java
+              uses: actions/setup-java@v3
+              with:
+                  java-version: '${{ env.java_version }}'
+                  distribution: 'temurin'
+
+            - name: Application Build and Test
+              run: |
+                  mvn ${{ env.mvn_parameter }} clean verify -Pnative
+                  VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.1.0:evaluate -Dexpression=project.version -q -DforceStdout)
+                  echo VERSION="$VERSION" >> $GITHUB_ENV
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v2
+
+            - name: Docker build
+              uses: docker/build-push-action@v3
+              with:
+                  context: .
+                  file: src/main/docker/Dockerfile
+                  tags: ${{ env.image_name }}:${{ env.VERSION }}
+                  load: true
+
+#            - uses: 'google-github-actions/auth@v1'
+#              if: github.ref == 'refs/heads/main'
+#              with:
+#                  credentials_json: '${{ secrets.GCP_CONTAINER_REGISTRY_SERVICE_ACCOUNT }}'
+#
+#            - name: Setup gcloud CLI
+#              if: github.ref == 'refs/heads/main'
+#              uses: google-github-actions/setup-gcloud@v1
+#              with:
+#                  version: '412.0.0'
+#
+#            - name: Docker push
+#              if: github.ref == 'refs/heads/main'
+#              run: |
+#                  # configure docker to use Google Container Registry
+#                  gcloud auth configure-docker europe-west4-docker.pkg.dev
+#                  # upload image
+#                  docker push ${{ env.image_name }}:${{ env.VERSION }}
+#
+#            - name: Notify CD
+#              if: github.ref == 'refs/heads/main'
+#              uses: peter-evans/repository-dispatch@v2
+#              with:
+#                  token: ${{ secrets.DEPLOY_DISPATCH_TOKEN }}
+#                  event-type: deploy
