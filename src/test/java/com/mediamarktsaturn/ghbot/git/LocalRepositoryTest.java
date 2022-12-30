@@ -42,7 +42,7 @@ public class LocalRepositoryTest {
         var type = repo.determineType();
 
         // Then
-        // TODO: we should remove the type inspection completely of check
+        // TODO: we should remove the type inspection completely or check
         //  if we introduce a list of types / multi-mode
         assertThat(type).isEqualTo(LocalRepository.Type.MAVEN);
     }
