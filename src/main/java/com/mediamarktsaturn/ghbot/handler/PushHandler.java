@@ -9,9 +9,10 @@ import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.RepositoryService;
 import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
+
 import io.quarkus.logging.Log;
 import io.quarkus.vertx.ConsumeEvent;
-import io.vertx.core.json.JsonObject;
+import org.cyclonedx.model.Bom;
 
 @ApplicationScoped
 public class PushHandler {
@@ -72,9 +73,6 @@ public class PushHandler {
                 if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
                     var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
                     uploadResult = uploadSBOM(buildProperProjectName(properResult), properResult.version(), properResult.sbom());
-                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
-                    var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) result;
-                    uploadResult = uploadSBOM(buildFallbackProjectName(event), buildFallbackProjectVersion(event), fallbackResult.sbom());
                 } else {
                     var failure = (CdxgenClient.SBOMGenerationResult.Failure) result;
                     Log.errorf(failure.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), event.pushRef());
@@ -88,16 +86,7 @@ public class PushHandler {
         return "%s.%s".formatted(result.group(), result.name());
     }
 
-    String buildFallbackProjectName(PushEvent event) {
-        var path = event.repoUrl().getPath();
-        return path.substring(path.lastIndexOf('/') + 1);
-    }
-
-    String buildFallbackProjectVersion(PushEvent event) {
-        return event.pushRef().replaceFirst("refs/heads/", "");
-    }
-
-    CompletableFuture<DependencyTrackClient.UploadResult> uploadSBOM(String projectName, String projectVersion, JsonObject sbom) {
+    CompletableFuture<DependencyTrackClient.UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
         return dtrackClient.uploadSBOM(projectName, projectVersion, sbom)
             .whenComplete((result, failure) -> {
                 if (failure != null || result instanceof DependencyTrackClient.UploadResult.Failure) {

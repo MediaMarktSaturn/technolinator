@@ -1,10 +1,10 @@
 package com.mediamarktsaturn.ghbot.git;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.io.File;
 
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SuppressWarnings("resource")
 public class LocalRepositoryTest {
@@ -31,5 +31,19 @@ public class LocalRepositoryTest {
 
         // Then
         assertThat(type).isEqualTo(LocalRepository.Type.UNKNOWN);
+    }
+
+    @Test
+    public void testDetermineMixed() {
+        // Given
+        var repo = new LocalRepository(null, new File("src/test/resources/repo/multi-mode"));
+
+        // When
+        var type = repo.determineType();
+
+        // Then
+        // TODO: we should remove the type inspection completely of check
+        //  if we introduce a list of types / multi-mode
+        assertThat(type).isEqualTo(LocalRepository.Type.MAVEN);
     }
 }
