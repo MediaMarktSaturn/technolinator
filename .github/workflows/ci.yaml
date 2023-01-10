@@ -5,6 +5,7 @@ on:
             - '.github/**'
             - "deployment/services.yml"
 env:
+    semantic_version: '19.0.5'
     java_version: '17'
     mvn_parameter: '-B -ntp'
     image_name: 'europe-west4-docker.pkg.dev/mms-vtl-vaultree-x-1337/images/technolinator'
@@ -23,6 +24,15 @@ jobs:
                   java-version: '${{ env.java_version }}'
                   distribution: 'temurin'
 
+            - name: Getting next release version
+              id: semantic
+              uses: cycjimmy/semantic-release-action@v3
+              with:
+                  dry_run: true
+                  semantic_version: ${{ env.semantic_version }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
             - name: Install requirements
               run: |
                   npm install -g @appthreat/cdxgen
@@ -30,12 +40,17 @@ jobs:
 
             - name: Application Build and Test
               env:
+                  sem_ver: ${{ steps.semantic.outputs.new_release_version }}
                   QUARKUS_GITHUB_APP_APP_ID: 32168
                   QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
                   QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
                   DTRACK_APIKEY: theres-nothing-to-see-here
               run: |
+                  if [ -n "$sem_ver" ]; then
+                    mvn -B -ntp versions:set -DnewVersion="$sem_ver"
+                  fi
+
                   mvn ${{ env.mvn_parameter }} clean verify -Pnative
                   VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
                   echo VERSION="$VERSION" >> $GITHUB_ENV
@@ -70,9 +85,17 @@ jobs:
                   version: '412.0.0'
 
             - name: Docker push
-              if: github.ref == 'refs/heads/main'
+              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
               run: |
                   # configure docker to use Google Container Registry
                   gcloud auth configure-docker europe-west4-docker.pkg.dev
                   # upload image
                   docker push ${{ env.image_name }}:${{ env.VERSION }}
+
+            - name: Create Release
+              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+              uses: cycjimmy/semantic-release-action@v3
+              with:
+                  semantic_version: ${{ env.semantic_version }}
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
