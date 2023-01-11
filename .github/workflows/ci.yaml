@@ -5,6 +5,8 @@ on:
             - '.github/**'
             - "deployment/services.yml"
 env:
+    CDXGEN_VERSION: '5.5.6'
+    CDXGEN_PLUGINS_VERSION: '0.3.0'
     semantic_version: '19.0.5'
     java_version: '17'
     mvn_parameter: '-B -ntp'
@@ -35,8 +37,8 @@ jobs:
 
             - name: Install requirements
               run: |
-                  npm install -g @appthreat/cdxgen
-                  npm install -g @ngcloudsec/cdxgen-plugins-bin
+                  npm install -g @appthreat/cdxgen@${{ env.CDXGEN_VERSION }}
+                  npm install -g @ngcloudsec/cdxgen-plugins-bin@${{ env.CDXGEN_PLUGINS_VERSION }}
 
             - name: Application Build and Test
               env:
@@ -65,6 +67,9 @@ jobs:
                   file: src/main/docker/Dockerfile
                   tags: ${{ env.image_name }}:${{ env.VERSION }}
                   load: true
+                  build-args: |
+                    CDXGEN_VERSION=${{ env.CDXGEN_VERSION }}
+                    CDXGEN_PLUGINS_VERSION=${{ env.CDXGEN_PLUGINS_VERSION }}
 
             - name: Docker structure test
               run: |

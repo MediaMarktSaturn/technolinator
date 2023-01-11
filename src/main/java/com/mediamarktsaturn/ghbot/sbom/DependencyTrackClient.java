@@ -8,14 +8,17 @@ import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
+
+import org.cyclonedx.generators.json.BomJsonGenerator14;
+import org.cyclonedx.model.Bom;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
 public class DependencyTrackClient {
@@ -37,8 +40,10 @@ public class DependencyTrackClient {
         this.dtrackUrl = dtrackUrl.trim() + API_PATH;
     }
 
-    public CompletableFuture<UploadResult> uploadSBOM(String projectName, String projectVersion, JsonObject sbom) {
-        var sbomBase64 = Base64.getEncoder().encodeToString(sbom.toString().getBytes(StandardCharsets.UTF_8));
+    public CompletableFuture<UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
+        var objectMapper = new ObjectMapper();
+
+        var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
             "projectVersion", projectVersion,
@@ -109,6 +114,9 @@ public class DependencyTrackClient {
 
     public sealed interface UploadResult {
         record Success() implements UploadResult {
+        }
+
+        record None() implements UploadResult {
         }
 
         record Failure(

@@ -1,19 +1,20 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
 import java.io.File;
-import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import javax.enterprise.context.ApplicationScoped;
 
+import org.cyclonedx.exception.ParseException;
+import org.cyclonedx.model.Bom;
+import org.cyclonedx.parsers.JsonParser;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
-import io.quarkus.logging.Log;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.json.JsonObject;
 
 @ApplicationScoped
 public class CdxgenClient {
@@ -32,7 +33,9 @@ public class CdxgenClient {
         );
     }
 
-    private static final String CDXGEN_CMD = "cdxgen -o " + SBOM_JSON;
+    // option -r: Recurse mode suitable for mono-repos
+    //            Used for projects containing multiple dependency files like pom.xml & yarn.lock
+    private static final String CDXGEN_CMD = "cdxgen -r --fail-on-error -o " + SBOM_JSON;
 
     public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir) {
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
@@ -49,10 +52,11 @@ public class CdxgenClient {
     }
 
     static SBOMGenerationResult readAndParseSBOM(File sbomFile) {
-        if (sbomFile.exists() && sbomFile.canRead()) {
-            try (var fis = new FileInputStream(sbomFile)) {
-                var sbomJson = new JsonObject(Buffer.buffer(fis.readAllBytes()));
-                return parseSBOM(sbomJson);
+        if (!sbomFile.exists()) {
+            return new SBOMGenerationResult.None();
+        } else if (sbomFile.canRead()) {
+            try {
+                return parseSBOM(Files.readAllBytes(sbomFile.toPath()));
             } catch (Exception e) {
                 return new SBOMGenerationResult.Failure("Failed to parse " + sbomFile.getAbsolutePath(), e);
             }
@@ -61,30 +65,42 @@ public class CdxgenClient {
         }
     }
 
-    private static SBOMGenerationResult parseSBOM(JsonObject sbom) {
-        var metadata = sbom.getJsonObject("metadata");
-        if (!sbom.getString("bomFormat").equals("CycloneDX") || metadata == null) {
-            return new SBOMGenerationResult.Failure("Invalid sbom file format", null);
-        }
-        var component = metadata.getJsonObject("component");
-        if (component != null) {
-            var group = component.getString("group");
-            var name = component.getString("name");
-            var version = component.getString("version");
+    private static SBOMGenerationResult parseSBOM(byte[] sbomContent) {
+        try {
+            final var jsonSBOMParser = new JsonParser();
+            final Bom sbom;
+            var validationResult = jsonSBOMParser.validate(sbomContent);
+
+            if (validationResult.isEmpty()) {
+                sbom = jsonSBOMParser.parse(sbomContent);
+            } else {
+                return new SBOMGenerationResult.Failure("SBOM file is invalid", validationResult.stream().findFirst().get());
+            }
+
+            String group = null;
+            String name = null;
+            String version = null;
+            if (sbom.getMetadata() != null && sbom.getMetadata().getComponent() != null) {
+                group = sbom.getMetadata().getComponent().getGroup();
+                name = sbom.getMetadata().getComponent().getName();
+                version = sbom.getMetadata().getComponent().getVersion();
+            }
 
             if (group != null && name != null && version != null) {
-                Log.infof("Proper SBOM file parsed; group: %s, name: %s, version: %s", group, name, version);
                 return new SBOMGenerationResult.Proper(sbom, group, name, version);
+            } else {
+                return new SBOMGenerationResult.Fallback(sbom);
             }
+        } catch (ParseException parseException) {
+            return new SBOMGenerationResult.Failure("SBOM file is invalid", parseException);
+        } catch (IOException ioException) {
+            return new SBOMGenerationResult.Failure("SBOM file could not be read", ioException);
         }
-
-        Log.info("SBOM file is missing component information");
-        return new SBOMGenerationResult.Fallback(sbom);
     }
 
     public sealed interface SBOMGenerationResult {
         record Proper(
-            JsonObject sbom,
+            Bom sbom,
             String group,
             String name,
             String version
@@ -92,8 +108,11 @@ public class CdxgenClient {
         }
 
         record Fallback(
-            JsonObject sbom
+            Bom sbom
         ) implements SBOMGenerationResult {
+        }
+
+        record None() implements SBOMGenerationResult {
         }
 
         record Failure(

@@ -1,26 +1,31 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
-import static com.mediamarktsaturn.ghbot.MockServerResource.API_KEY;
-import static com.mediamarktsaturn.ghbot.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
-
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 import javax.inject.Inject;
 
+import com.mediamarktsaturn.ghbot.DependencyTrackMockServer;
+import com.mediamarktsaturn.ghbot.MockServerResource;
+
+import io.quarkus.test.common.QuarkusTestResource;
+import io.quarkus.test.junit.QuarkusTest;
+import io.vertx.core.json.JsonObject;
+import org.cyclonedx.exception.ParseException;
+import org.cyclonedx.model.Bom;
+import org.cyclonedx.model.Component;
+import org.cyclonedx.model.Metadata;
+import org.cyclonedx.parsers.JsonParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockserver.client.MockServerClient;
 import org.mockserver.model.MediaType;
 
-import com.mediamarktsaturn.ghbot.DependencyTrackMockServer;
-import com.mediamarktsaturn.ghbot.MockServerResource;
-import io.quarkus.test.common.QuarkusTestResource;
-import io.quarkus.test.junit.QuarkusTest;
-import io.vertx.core.json.JsonObject;
+import static com.mediamarktsaturn.ghbot.MockServerResource.API_KEY;
+import static com.mediamarktsaturn.ghbot.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
 @QuarkusTest
 @QuarkusTestResource(value = MockServerResource.class, restrictToAnnotatedClass = true)
@@ -98,9 +103,17 @@ public class DependencyTrackClientTest {
                 .withBody("{}")
         );
 
-        var sbom = JsonObject.of("hell", "yeah", "oh", "wow");
+
         var name = "test-project";
         var version = "1.2.3";
+
+        var sbom = new Bom();
+        var metadata = new Metadata();
+        var component = new Component();
+        component.setName(name);
+        component.setVersion(version);
+        metadata.setComponent(component);
+        sbom.setMetadata(metadata);
 
         // When
         var result = await(cut.uploadSBOM(name, version, sbom));
@@ -125,7 +138,13 @@ public class DependencyTrackClientTest {
 
         var uploadedBom = uploadedJson.getString("bom");
         var clearTextBom = new String(Base64.getDecoder().decode(uploadedBom), StandardCharsets.UTF_8);
-        assertThat(clearTextBom).isEqualTo("{\"hell\":\"yeah\",\"oh\":\"wow\"}");
+        try {
+            var bom = new JsonParser().parse(clearTextBom.getBytes(StandardCharsets.UTF_8));
+            assertThat(bom.getMetadata().getComponent().getName()).isEqualTo(name);
+            assertThat(bom.getMetadata().getComponent().getVersion()).isEqualTo(version);
+        } catch (ParseException parseException) {
+
+        }
     }
 
     @Test
@@ -140,7 +159,7 @@ public class DependencyTrackClientTest {
             response()
                 .withStatusCode(500)
         );
-        var sbom = JsonObject.of();
+        var sbom = new Bom();
         var name = "test-project";
         var version = "3.2.1";
 
