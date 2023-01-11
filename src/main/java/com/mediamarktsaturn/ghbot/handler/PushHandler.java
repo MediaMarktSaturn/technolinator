@@ -59,15 +59,18 @@ public class PushHandler {
         return cdxgenClient.generateSBOM(repo.dir())
             .thenCompose(result -> {
                 final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
-                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper properResult) {
+                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
+                    var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
                     uploadResult = uploadSBOM(buildProperProjectName(properResult), properResult.version(), properResult.sbom());
-                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback fallbackResult) {
+                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
+                    var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) result;
                     Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
                     uploadResult = uploadSBOM(buildFallbackProjectName(event), buildFallbackProjectVersion(event), fallbackResult.sbom());
                 } else if (result instanceof CdxgenClient.SBOMGenerationResult.None) {
                     Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
                     uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
-                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Failure failure) {
+                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Failure) {
+                    var failure = (CdxgenClient.SBOMGenerationResult.Failure) result;
                     Log.errorf(failure.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), event.pushRef());
                     uploadResult = CompletableFuture.failedFuture(failure.cause());
                 } else {
