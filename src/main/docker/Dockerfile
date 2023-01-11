@@ -1,6 +1,9 @@
 FROM redhat/ubi9-minimal:latest
 LABEL maintainer="MediaMarktSaturn Technology"
 
+ARG CDXGEN_VERSION
+ARG CDXGEN_PLUGINS_VERSION
+
 WORKDIR /app
 RUN chown 1001 /app \
     && chmod "g+rwX" /app \
@@ -18,8 +21,8 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 # install cdxgen
 RUN \
-    npm install -g @appthreat/cdxgen && \
-    npm install -g @ngcloudsec/cdxgen-plugins-bin
+    npm install -g @appthreat/cdxgen@"$CDXGEN_VERSION" && \
+    npm install -g @ngcloudsec/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
 
 # install sdkman & sdks
 RUN \
