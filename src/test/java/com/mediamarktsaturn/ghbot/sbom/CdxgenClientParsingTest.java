@@ -1,20 +1,20 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import java.io.File;
 
-import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
 public class CdxgenClientParsingTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-        "src/test/resources/sbom/does-not-exist.json",
         "src/test/resources/sbom/empty.json",
         "src/test/resources/sbom/invalid.json",
         "src/test/resources/sbom/unkown.json"
@@ -28,6 +28,34 @@ public class CdxgenClientParsingTest {
 
         // Then
         assertThat(result).isInstanceOf(CdxgenClient.SBOMGenerationResult.Failure.class);
+    }
+
+    @Test
+    public void testNone() {
+        // Given
+        var file = new File("src/test/resources/sbom/does-not-exist.json");
+
+        // when
+        var result = CdxgenClient.readAndParseSBOM(file);
+
+        // Then
+        assertThat(result).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class);
+    }
+
+    @Test
+    public void testFallbackMavenSBOM() {
+        // Given
+        var file = new File("src/test/resources/sbom/maven/fallback.json");
+
+        // When
+        var result = CdxgenClient.readAndParseSBOM(file);
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            var sbom = fallback.sbom();
+            assertThat(sbom.getBomFormat()).isEqualTo("CycloneDX");
+            assertThat(sbom.getMetadata().getComponent()).isNull();
+        });
     }
 
     @Test

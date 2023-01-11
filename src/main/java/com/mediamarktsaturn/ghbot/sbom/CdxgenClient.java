@@ -9,12 +9,12 @@ import java.util.function.Function;
 
 import javax.enterprise.context.ApplicationScoped;
 
-import com.mediamarktsaturn.ghbot.os.ProcessHandler;
-
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.parsers.JsonParser;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 
 @ApplicationScoped
 public class CdxgenClient {
@@ -35,7 +35,7 @@ public class CdxgenClient {
 
     // option -r: Recurse mode suitable for mono-repos
     //            Used for projects containing multiple dependency files like pom.xml & yarn.lock
-    private static final String CDXGEN_CMD = "cdxgen -r -o " + SBOM_JSON;
+    private static final String CDXGEN_CMD = "cdxgen -r --fail-on-error -o " + SBOM_JSON;
 
     public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir) {
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
@@ -52,7 +52,9 @@ public class CdxgenClient {
     }
 
     static SBOMGenerationResult readAndParseSBOM(File sbomFile) {
-        if (sbomFile.exists() && sbomFile.canRead()) {
+        if (!sbomFile.exists()) {
+            return new SBOMGenerationResult.None();
+        } else if (sbomFile.canRead()) {
             try {
                 return parseSBOM(Files.readAllBytes(sbomFile.toPath()));
             } catch (Exception e) {
@@ -84,7 +86,11 @@ public class CdxgenClient {
                 version = sbom.getMetadata().getComponent().getVersion();
             }
 
-            return new SBOMGenerationResult.Proper(sbom, group, name, version);
+            if (group != null && name != null && version != null) {
+                return new SBOMGenerationResult.Proper(sbom, group, name, version);
+            } else {
+                return new SBOMGenerationResult.Fallback(sbom);
+            }
         } catch (ParseException parseException) {
             return new SBOMGenerationResult.Failure("SBOM file is invalid", parseException);
         } catch (IOException ioException) {
@@ -99,6 +105,14 @@ public class CdxgenClient {
             String name,
             String version
         ) implements SBOMGenerationResult {
+        }
+
+        record Fallback(
+            Bom sbom
+        ) implements SBOMGenerationResult {
+        }
+
+        record None() implements SBOMGenerationResult {
         }
 
         record Failure(

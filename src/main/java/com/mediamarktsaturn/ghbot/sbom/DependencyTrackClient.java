@@ -15,6 +15,7 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
+
 import org.cyclonedx.generators.json.BomJsonGenerator14;
 import org.cyclonedx.model.Bom;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -113,6 +114,9 @@ public class DependencyTrackClient {
 
     public sealed interface UploadResult {
         record Success() implements UploadResult {
+        }
+
+        record None() implements UploadResult {
         }
 
         record Failure(

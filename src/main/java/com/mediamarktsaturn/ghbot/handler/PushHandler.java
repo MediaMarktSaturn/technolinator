@@ -4,15 +4,15 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.enterprise.context.ApplicationScoped;
 
+import org.cyclonedx.model.Bom;
+
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.RepositoryService;
 import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
-
 import io.quarkus.logging.Log;
 import io.quarkus.vertx.ConsumeEvent;
-import org.cyclonedx.model.Bom;
 
 @ApplicationScoped
 public class PushHandler {
@@ -45,7 +45,7 @@ public class PushHandler {
             .thenCompose(result -> {
                 if (result instanceof RepositoryService.CheckoutResult.Success) {
                     final var localRepo = ((RepositoryService.CheckoutResult.Success) result).repo();
-                    return performSBOMAnalysis(event, localRepo)
+                    return analyseAndUploadTypedRepo(event, localRepo)
                         .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
                 } else {
                     var failure = (RepositoryService.CheckoutResult.Failure) result;
@@ -55,31 +55,35 @@ public class PushHandler {
             });
     }
 
-    CompletableFuture<DependencyTrackClient.UploadResult> performSBOMAnalysis(PushEvent event, LocalRepository repo) {
-        var type = repo.determineType();
-        switch (type) {
-            case UNKNOWN:
-                Log.warnf("Unknown project type in repo %s, ref %s", event.repoUrl(), event.pushRef());
-                return CompletableFuture.completedFuture(null);
-            default:
-                return analyseAndUploadTypedRepo(event, repo, type);
-        }
-    }
-
-    CompletableFuture<DependencyTrackClient.UploadResult> analyseAndUploadTypedRepo(PushEvent event, LocalRepository repo, LocalRepository.Type type) {
+    CompletableFuture<DependencyTrackClient.UploadResult> analyseAndUploadTypedRepo(PushEvent event, LocalRepository repo) {
         return cdxgenClient.generateSBOM(repo.dir())
             .thenCompose(result -> {
                 final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
-                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
-                    var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
+                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper properResult) {
                     uploadResult = uploadSBOM(buildProperProjectName(properResult), properResult.version(), properResult.sbom());
-                } else {
-                    var failure = (CdxgenClient.SBOMGenerationResult.Failure) result;
+                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback fallbackResult) {
+                    Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
+                    uploadResult = uploadSBOM(buildFallbackProjectName(event), buildFallbackProjectVersion(event), fallbackResult.sbom());
+                } else if (result instanceof CdxgenClient.SBOMGenerationResult.None) {
+                    Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
+                    uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
+                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Failure failure) {
                     Log.errorf(failure.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), event.pushRef());
                     uploadResult = CompletableFuture.failedFuture(failure.cause());
+                } else {
+                    throw new IllegalStateException("Unknown response type: " + result.getClass());
                 }
                 return uploadResult;
             });
+    }
+
+    String buildFallbackProjectName(PushEvent event) {
+        var path = event.repoUrl().getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
+
+    String buildFallbackProjectVersion(PushEvent event) {
+        return event.pushRef().replaceFirst("refs/heads/", "");
     }
 
     String buildProperProjectName(CdxgenClient.SBOMGenerationResult.Proper result) {
