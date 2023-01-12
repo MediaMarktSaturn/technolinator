@@ -34,6 +34,20 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
+    public void testMavenFallbackProject() {
+        // Given
+        var file = new File("src/test/resources/repo/maven_fallback");
+
+        // When
+        var result = await(cut.generateSBOM(file));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            assertThat(fallback.sbom().getMetadata().getComponent()).isNull();
+        });
+    }
+
+    @Test
     public void testRecurseMixedProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-mode");
