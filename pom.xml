@@ -26,7 +26,7 @@
 
         <testcontainers.version>1.17.6</testcontainers.version>
         <!-- must be same as server version bundled in org.testcontainers.mockserver -->
-        <mockserver.version>5.13.2</mockserver.version>
+        <mockserver.version>5.15.0</mockserver.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.0.0-M7</surefire-plugin.version>
