@@ -26,13 +26,17 @@ public class CdxgenClient {
 
     public CdxgenClient(
         @ConfigProperty(name = "github.token")
-        String githubToken
+        String githubToken,
+        @ConfigProperty(name = "cdxgen.fetch_license")
+        Boolean fetchLicense,
+        @ConfigProperty(name = "cdxgen.use_gosum")
+        Boolean useGosum
     ) {
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
             "GITHUB_TOKEN", githubToken.trim(),
-            "FETCH_LICENSE", "true",
-            "USE_GOSUM", "true"
+            "FETCH_LICENSE", fetchLicense.toString(),
+            "USE_GOSUM", useGosum.toString()
         );
     }
 
@@ -72,6 +76,10 @@ public class CdxgenClient {
         try {
             final var jsonSBOMParser = new JsonParser();
             final var validationResult = jsonSBOMParser.validate(sbomContent);
+            if (!validationResult.isEmpty()) {
+                return new SBOMGenerationResult.Invalid(validationResult);
+            }
+
             final var sbom = jsonSBOMParser.parse(sbomContent);
 
             String group = null;
@@ -83,17 +91,10 @@ public class CdxgenClient {
                 version = sbom.getMetadata().getComponent().getVersion();
             }
 
-            final SBOMGenerationResult result;
             if (group != null && name != null && version != null) {
-                result = new SBOMGenerationResult.Proper(sbom, group, name, version);
+                return new SBOMGenerationResult.Proper(sbom, group, name, version);
             } else {
-                result = new SBOMGenerationResult.Fallback(sbom);
-            }
-
-            if (validationResult.isEmpty()) {
-                return result;
-            } else {
-                return new SBOMGenerationResult.Invalid(result, validationResult);
+                return new SBOMGenerationResult.Fallback(sbom);
             }
         } catch (ParseException parseException) {
             return new SBOMGenerationResult.Failure("SBOM file is invalid", parseException);
@@ -117,7 +118,6 @@ public class CdxgenClient {
         }
 
         record Invalid(
-            SBOMGenerationResult result,
             List<ParseException> validationIssues
         ) implements SBOMGenerationResult {
         }

@@ -8,6 +8,7 @@ import java.io.File;
 import javax.inject.Inject;
 
 import org.cyclonedx.model.Component;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -43,9 +44,11 @@ public class CdxgenClientGenerationTest {
         var result = await(cut.generateSBOM(file));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-            assertThat(fallback.sbom().getMetadata().getComponent()).isNull();
-            assertThat(fallback.sbom().getComponents()).isNotEmpty();
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+            assertThat(proper.sbom().getMetadata().getComponent()).isNotNull();
+            assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
+            assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("cdxgen-test");
+            assertThat(proper.sbom().getComponents()).isNotEmpty();
         });
     }
 
@@ -105,11 +108,24 @@ public class CdxgenClientGenerationTest {
         assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Invalid.class, invalid -> {
             // there are two license issues in this go.sum
             assertThat(invalid.validationIssues()).hasSize(2);
+        });
+    }
 
-            assertThat(invalid.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getMetadata().getComponent()).isNull();
-                assertThat(fallback.sbom().getComponents()).isNotEmpty();
-            });
+    @Test
+    public void testMultiModuleMavenNodeProject() {
+        // Given
+        var file = new File("src/test/resources/repo/multi-module-mode");
+
+        // When
+        var result = await(cut.generateSBOM(file));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+            assertThat(proper.group()).isEqualTo("com.mediamarktsaturn.promotion");
+            assertThat(proper.name()).isEqualTo("promotion-bos");
+            assertThat(proper.version()).isEqualTo("3.2.7");
+
+            assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "gson");
         });
     }
 }

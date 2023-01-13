@@ -1,7 +1,7 @@
 package com.mediamarktsaturn.ghbot.handler;
 
-import java.text.ParseException;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -48,6 +48,7 @@ public class PushHandler {
                 if (result instanceof RepositoryService.CheckoutResult.Success) {
                     final var localRepo = ((RepositoryService.CheckoutResult.Success) result).repo();
                     return analyseAndUploadTypedRepo(event, localRepo)
+                        .completeOnTimeout(new DependencyTrackClient.UploadResult.None(), 5, TimeUnit.MINUTES)
                         .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
                 } else {
                     var failure = (RepositoryService.CheckoutResult.Failure) result;
@@ -62,16 +63,16 @@ public class PushHandler {
             .thenCompose(result -> {
                 final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
 
-                // extract result if there were validation issues, we anyhow try to upload it
+                // validation issues
                 if (result instanceof CdxgenClient.SBOMGenerationResult.Invalid) {
                     var invalidResult = (CdxgenClient.SBOMGenerationResult.Invalid) result;
                     Log.infof("SBOM validation issues for repo %s, ref %s: %s", event.repoUrl(), event.pushRef(),
                         invalidResult.validationIssues().stream().map(Throwable::getMessage).collect(Collectors.joining("")));
-                    result = invalidResult.result();
+                    uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
                 }
 
-                // upload sbom if available
-                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
+                // upload sbom
+                else if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
                     var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
                     uploadResult = uploadSBOM(buildProperProjectName(properResult), properResult.version(), properResult.sbom());
                 } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
@@ -80,7 +81,7 @@ public class PushHandler {
                     uploadResult = uploadSBOM(buildFallbackProjectName(event), buildFallbackProjectVersion(event), fallbackResult.sbom());
                 }
 
-                // handle missing sbom ore failure
+                // handle missing sbom or failure
                 else if (result instanceof CdxgenClient.SBOMGenerationResult.None) {
                     Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
                     uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
@@ -91,6 +92,7 @@ public class PushHandler {
                 } else {
                     throw new IllegalStateException("Unknown response type: " + result.getClass());
                 }
+
                 return uploadResult;
             });
     }
