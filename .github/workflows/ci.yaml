@@ -5,12 +5,14 @@ on:
             - '.github/**'
             - "deployment/services.yml"
 env:
-    CDXGEN_VERSION: '5.5.6'
+    CDXGEN_VERSION: '6.0.6'
     CDXGEN_PLUGINS_VERSION: '0.3.0'
     semantic_version: '19.0.5'
     java_version: '17'
     mvn_parameter: '-B -ntp'
     image_name: 'europe-west4-docker.pkg.dev/mms-vtl-vaultree-x-1337/images/technolinator'
+    ARTIFACTORY_URL: 'https://artifactory.cloud.mmst.eu/artifactory/libs-release'
+    ARTIFACTORY_ID: "artifactory.cloud.mmst.eu"
 jobs:
     ci:
         name: Application Build
@@ -25,6 +27,12 @@ jobs:
               with:
                   java-version: '${{ env.java_version }}'
                   distribution: 'temurin'
+
+            - name: Create Maven settings.xml
+              uses: whelk-io/maven-settings-xml-action@v21
+              with:
+                  servers: '[{ "id": "${{ env.ARTIFACTORY_ID }}", "username": "${{ secrets.CLP_ARTIFACTORY_SVCACC_USERNAME }}", "password": "${{ secrets.CLP_ARTIFACTORY_SVCACC_APIKEY }}" }]'
+                  repositories: '[{ "id": "${{ env.ARTIFACTORY_ID }}", "url": "${{ env.ARTIFACTORY_URL }}" }]'
 
             - name: Getting next release version
               id: semantic

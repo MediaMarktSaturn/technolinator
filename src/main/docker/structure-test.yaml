@@ -11,6 +11,10 @@ fileExistenceTests:
       shouldExist: true
       permissions: '-rwxr-xr-x'
 
+    - name: 'Maven settings file should exist'
+      path: /root/.m2/settings.xml
+      shouldExist: true
+
 commandTests:
     - name: 'Timezone is UTC'
       command: 'date'
@@ -42,14 +46,10 @@ metadataTest:
           value: '/root/.sdkman/candidates/maven/current'
         - key: GRADLE_HOME
           value: '/root/.sdkman/candidates/gradle/current'
-        - key: FETCH_LICENSE
-          value: 'true'
         - key: MVN_CMD
           value: 'mvn'
         - key: GRADLE_CMD
           value: 'gradle'
-        - key: USE_GOSUM
-          value: 'true'
     cmd: ['/app/technolinator']
     entrypoint: []
     workdir: '/app'

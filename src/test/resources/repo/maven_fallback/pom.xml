@@ -7,6 +7,14 @@
     <artifactId>cdxgen-is-awesome</artifactId>
     <version>1337</version>
 
+    <dependencies>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+            <version>2.14.0.Final</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <pluginManagement>
         <plugins>

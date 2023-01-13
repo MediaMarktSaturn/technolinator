@@ -16,12 +16,25 @@ public class CdxgenClientParsingTest {
     @ParameterizedTest
     @ValueSource(strings = {
         "src/test/resources/sbom/empty.json",
-        "src/test/resources/sbom/invalid.json",
         "src/test/resources/sbom/unkown.json"
     })
-    public void testFailures(String filename) {
+    public void testInvalids(String filename) {
         // Given
         var file = new File(filename);
+
+        // when
+        var result = CdxgenClient.readAndParseSBOM(file);
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Invalid.class, invalid -> {
+           assertThat(invalid.validationIssues()).isNotEmpty();
+        });
+    }
+
+    @Test
+    public void testFailure() {
+        // Given
+        var file = new File("src/test/resources/sbom/invalid.json");
 
         // when
         var result = CdxgenClient.readAndParseSBOM(file);
