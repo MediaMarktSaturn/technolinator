@@ -1,7 +1,6 @@
 package com.mediamarktsaturn.ghbot.handler;
 
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -48,7 +47,6 @@ public class PushHandler {
                 if (result instanceof RepositoryService.CheckoutResult.Success) {
                     final var localRepo = ((RepositoryService.CheckoutResult.Success) result).repo();
                     return analyseAndUploadTypedRepo(event, localRepo)
-                        .completeOnTimeout(new DependencyTrackClient.UploadResult.None(), 5, TimeUnit.MINUTES)
                         .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
                 } else {
                     var failure = (RepositoryService.CheckoutResult.Failure) result;
