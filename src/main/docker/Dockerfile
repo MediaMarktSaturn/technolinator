@@ -4,6 +4,9 @@ LABEL maintainer="MediaMarktSaturn Technology"
 ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 
+RUN mkdir /root/.m2
+COPY --chown=1001:root src/main/docker/assets/settings.xml /root/.m2/settings.xml
+
 WORKDIR /app
 RUN chown 1001 /app \
     && chmod "g+rwX" /app \
