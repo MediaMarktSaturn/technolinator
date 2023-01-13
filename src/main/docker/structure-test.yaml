@@ -36,6 +36,11 @@ commandTests:
       args: ["--version"]
       expectedOutput:
           - '.*Apache Maven 3.8.*'
+    - name: "Gradle installed"
+      command: 'gradle'
+      args: ["--version"]
+      expectedOutput:
+          - '.*Gradle 7.*'
 
 metadataTest:
     labels:
