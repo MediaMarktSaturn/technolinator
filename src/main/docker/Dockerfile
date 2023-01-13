@@ -34,7 +34,7 @@ RUN \
     sdk install sbt
 
 # cdxgen env
-ENV MAVEN_HOME="/root/.sdkman/candidates/maven/current" GRADLE_HOME="/root/.sdkman/candidates/gradle/current" FETCH_LICENSE=true MVN_CMD=mvn GRADLE_CMD=gradle USE_GOSUM=true
+ENV MAVEN_HOME="/root/.sdkman/candidates/maven/current" GRADLE_HOME="/root/.sdkman/candidates/gradle/current" MVN_CMD=mvn GRADLE_CMD=gradle
 ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
 COPY --chown=1001:root target/*-runner /app/technolinator

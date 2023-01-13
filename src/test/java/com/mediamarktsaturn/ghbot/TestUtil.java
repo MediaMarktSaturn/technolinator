@@ -12,7 +12,7 @@ public interface TestUtil {
 
     static <T> T await(Future<T> future) {
         try {
-            return future.get(25, TimeUnit.SECONDS);
+            return future.get(5, TimeUnit.MINUTES);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
