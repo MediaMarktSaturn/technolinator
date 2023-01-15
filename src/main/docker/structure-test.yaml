@@ -47,6 +47,8 @@ metadataTest:
         - key: 'maintainer'
           value: 'MediaMarktSaturn Technology'
     envVars:
+        - key: JAVA_HOME
+          value: '/usr/lib/jvm/jre'
         - key: MAVEN_HOME
           value: '/root/.sdkman/candidates/maven/current'
         - key: GRADLE_HOME
