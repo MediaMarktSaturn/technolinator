@@ -1,0 +1,12 @@
+{
+    "resources": {
+        "includes": [
+            {
+                "pattern": ".*\\.xsd$"
+            },
+            {
+                "pattern": ".*\\.schema\\.json$"
+            }
+        ]
+    }
+}

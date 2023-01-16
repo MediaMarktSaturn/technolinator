@@ -18,7 +18,10 @@
 
         <quarkus-github-app.version>1.16.0</quarkus-github-app.version>
         <quarkus-jgit.version>2.3.1</quarkus-jgit.version>
+
         <cyclonedx-core-java.version>7.3.1</cyclonedx-core-java.version>
+        <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
+        <jruby.joni.version>2.1.44</jruby.joni.version>
 
         <!-- test -->
         <assertj.version>3.24.1</assertj.version>
@@ -31,7 +34,8 @@
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.0.0-M8</surefire-plugin.version>
         <compiler-plugin.version>3.10.1</compiler-plugin.version>
-        <maven-clean-plugin.version>3.2.0</maven-clean-plugin.version>
+        <clean-plugin.version>3.2.0</clean-plugin.version>
+        <dependency-plugin.version>3.5.0</dependency-plugin.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -82,6 +86,17 @@
             <groupId>org.cyclonedx</groupId>
             <artifactId>cyclonedx-core-java</artifactId>
             <version>${cyclonedx-core-java.version}</version>
+        </dependency>
+        <!-- requied by cyclonedx-core-java, explicit to enable native image reflection config -->
+        <dependency>
+            <groupId>org.jruby.jcodings</groupId>
+            <artifactId>jcodings</artifactId>
+            <version>${jruby.jcodings.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jruby.joni</groupId>
+            <artifactId>joni</artifactId>
+            <version>${jruby.joni.version}</version>
         </dependency>
 
         <!-- test -->
@@ -189,7 +204,7 @@
             <!-- cleanup sbom files generated during test -->
             <plugin>
                 <artifactId>maven-clean-plugin</artifactId>
-                <version>${maven-clean-plugin.version}</version>
+                <version>${clean-plugin.version}</version>
                 <configuration>
                     <filesets>
                         <fileset>
@@ -216,6 +231,38 @@
                 <skipITs>false</skipITs>
                 <quarkus.package.type>native</quarkus.package.type>
             </properties>
+            <build>
+                <resources>
+                    <resource>
+                        <directory>${project.basedir}/src/main/resources</directory>
+                    </resource>
+                    <resource>
+                        <directory>${project.build.directory}/generated-resources</directory>
+                    </resource>
+                </resources>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>${dependency-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>unpack-dependencies</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>unpack-dependencies</goal>
+                                </goals>
+                                <configuration>
+                                    <includeGroupIds>org.cyclonedx</includeGroupIds>
+                                    <includeArtifactIds>cyclonedx-core-java</includeArtifactIds>
+                                    <includes>**/*.xsd,**/*.json,**/*.proto,**/*.txt</includes>
+                                    <outputDirectory>${project.build.directory}/generated-resources</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
         </profile>
     </profiles>
 </project>
