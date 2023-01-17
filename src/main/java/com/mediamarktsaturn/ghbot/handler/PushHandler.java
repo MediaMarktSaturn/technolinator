@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.ghbot.handler;
 
+import java.io.File;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -10,6 +12,7 @@ import org.cyclonedx.model.Bom;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.RepositoryService;
+import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkus.logging.Log;
@@ -57,7 +60,7 @@ public class PushHandler {
     }
 
     CompletableFuture<DependencyTrackClient.UploadResult> analyseAndUploadTypedRepo(PushEvent event, LocalRepository repo) {
-        return cdxgenClient.generateSBOM(repo.dir())
+        return cdxgenClient.generateSBOM(buildAnalysisDirectory(repo, event.config()))
             .thenCompose(result -> {
                 final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
 
@@ -72,7 +75,7 @@ public class PushHandler {
                 // upload sbom
                 else if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
                     var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
-                    uploadResult = uploadSBOM(buildProperProjectName(properResult), properResult.version(), properResult.sbom());
+                    uploadResult = uploadSBOM(buildProperProjectName(properResult, event.config()), properResult.version(), properResult.sbom());
                 } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
                     var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) result;
                     Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
@@ -95,19 +98,6 @@ public class PushHandler {
             });
     }
 
-    String buildFallbackProjectName(PushEvent event) {
-        var path = event.repoUrl().getPath();
-        return path.substring(path.lastIndexOf('/') + 1);
-    }
-
-    String buildFallbackProjectVersion(PushEvent event) {
-        return event.pushRef().replaceFirst("refs/heads/", "");
-    }
-
-    String buildProperProjectName(CdxgenClient.SBOMGenerationResult.Proper result) {
-        return "%s.%s".formatted(result.group(), result.name());
-    }
-
     CompletableFuture<DependencyTrackClient.UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
         return dtrackClient.uploadSBOM(projectName, projectVersion, sbom)
             .whenComplete((result, failure) -> {
@@ -120,11 +110,41 @@ public class PushHandler {
             });
     }
 
-    String getBranchNameFromRef(String ref) {
+    static File buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
+        return config
+            .map(TechnolinatorConfig::analysis)
+            .map(TechnolinatorConfig.AnalysisConfig::location)
+            .map(String::trim)
+            .map(location -> new File(repo.dir(), location))
+            .orElse(repo.dir());
+    }
+
+    static String buildProperProjectName(CdxgenClient.SBOMGenerationResult.Proper result, Optional<TechnolinatorConfig> config) {
+        return config
+            .map(TechnolinatorConfig::project)
+            .map(TechnolinatorConfig.ProjectConfig::name)
+            .orElseGet(() -> "%s.%s".formatted(result.group(), result.name()));
+    }
+
+    static String buildFallbackProjectName(PushEvent event) {
+        return event.config()
+            .map(TechnolinatorConfig::project)
+            .map(TechnolinatorConfig.ProjectConfig::name)
+            .orElseGet(() -> {
+                var path = event.repoUrl().getPath();
+                return path.substring(path.lastIndexOf('/') + 1);
+            });
+    }
+
+    static String buildFallbackProjectVersion(PushEvent event) {
+        return event.pushRef().replaceFirst("refs/heads/", "");
+    }
+
+    static String getBranchNameFromRef(String ref) {
         return ref.replaceFirst("refs/heads/", "");
     }
 
-    boolean isBranchEligibleForAnalysis(PushEvent event) {
+    static boolean isBranchEligibleForAnalysis(PushEvent event) {
         return event.pushRef().equals("refs/heads/" + event.defaultBranch());
     }
 }

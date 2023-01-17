@@ -23,3 +23,22 @@ ENV configuration:
 | DTRACK_URL                        | https://dtrack.mmst.eu |
 | CDXGEN_FETCH_LICENSE              | true                   |
 | CDXGEN_USE_GOSUM                  | true                   |
+
+## Repository specific configuration
+
+Technolinator respects a configuration file in the default branch of repositories:
+**`.github/technolinator.yml`**
+
+with the following options:
+```yaml
+# whether Technolinator does analysis at all; default: true
+enable: true
+project:
+    # desired name of the project in dependency-track; default depends on build system, for maven it's: "groupId:artifactId"
+    name: awesomeProject
+analysis:
+    # the location targeted by cdxgen; default: repository root
+    location: projectLocation
+```
+
+The configuration file is optional and only necessary to override default behaviour.
