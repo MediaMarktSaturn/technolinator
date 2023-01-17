@@ -1,25 +1,26 @@
 package com.mediamarktsaturn.ghbot.handler;
 
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 import javax.inject.Inject;
+
+import org.cyclonedx.model.Bom;
+import org.junit.jupiter.api.Test;
 
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.RepositoryService;
 import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
-
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectMock;
-import org.cyclonedx.model.Bom;
-import org.junit.jupiter.api.Test;
-
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
 @QuarkusTest
 public class PushHandlerTest {
@@ -73,7 +74,8 @@ public class PushHandlerTest {
         var event = new PushEvent(
             repoUrl,
             "refs/heads/" + branch,
-            branch
+            branch,
+            Optional.empty()
         );
 
         // When
