@@ -23,6 +23,11 @@ import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 public class CdxgenClient {
 
     private static final String SBOM_JSON = "sbom.json";
+
+    /**
+     * cdxgen option -r: Recurse mode suitable for mono-repos
+     * Used for projects containing multiple dependency files like pom.xml & yarn.lock
+     */
     private static final String RECURSIVE_FLAG = "-r";
 
     private final Map<String, String> cdxgenEnv;
@@ -43,8 +48,6 @@ public class CdxgenClient {
         );
     }
 
-    // option -r: Recurse mode suitable for mono-repos
-    //            Used for projects containing multiple dependency files like pom.xml & yarn.lock
     private static final String CDXGEN_CMD_FMT = "cdxgen --fail-on-error %s -o %s";
 
     public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir, Optional<TechnolinatorConfig> config) {
