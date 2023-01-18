@@ -75,11 +75,11 @@ public class PushHandler {
                 // upload sbom
                 else if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
                     var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
-                    uploadResult = uploadSBOM(buildProperProjectName(properResult, event.config()), properResult.version(), properResult.sbom());
+                    uploadResult = uploadSBOM(buildProjectNameFromEvent(event), properResult.version(), properResult.sbom());
                 } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
                     var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) result;
                     Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
-                    uploadResult = uploadSBOM(buildFallbackProjectName(event), buildFallbackProjectVersion(event), fallbackResult.sbom());
+                    uploadResult = uploadSBOM(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), fallbackResult.sbom());
                 }
 
                 // handle missing sbom or failure
@@ -119,14 +119,14 @@ public class PushHandler {
             .orElse(repo.dir());
     }
 
-    static String buildProperProjectName(CdxgenClient.SBOMGenerationResult.Proper result, Optional<TechnolinatorConfig> config) {
+    static String buildProjectNameFromSBOM(CdxgenClient.SBOMGenerationResult.Proper result, Optional<TechnolinatorConfig> config) {
         return config
             .map(TechnolinatorConfig::project)
             .map(TechnolinatorConfig.ProjectConfig::name)
             .orElseGet(() -> "%s.%s".formatted(result.group(), result.name()));
     }
 
-    static String buildFallbackProjectName(PushEvent event) {
+    static String buildProjectNameFromEvent(PushEvent event) {
         return event.config()
             .map(TechnolinatorConfig::project)
             .map(TechnolinatorConfig.ProjectConfig::name)
@@ -136,7 +136,7 @@ public class PushHandler {
             });
     }
 
-    static String buildFallbackProjectVersion(PushEvent event) {
+    static String buildProjectVersionFromEvent(PushEvent event) {
         return event.pushRef().replaceFirst("refs/heads/", "");
     }
 

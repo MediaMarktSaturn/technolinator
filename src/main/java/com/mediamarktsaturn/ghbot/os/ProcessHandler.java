@@ -26,6 +26,7 @@ public class ProcessHandler {
 
     public static CompletableFuture<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
         return CompletableFuture.supplyAsync(() -> {
+            List<String> outputLines = new ArrayList<>();
             try {
                 var commandParts = command.trim().split("\\s+");
                 var processBuilder = new ProcessBuilder(commandParts)
@@ -36,7 +37,6 @@ public class ProcessHandler {
                 var process = processBuilder.start();
                 var output = new BufferedReader(new InputStreamReader(process.getInputStream()));
 
-                List<String> outputLines = new ArrayList<>();
                 String line;
                 while ((line = output.readLine()) != null) {
                     callback.onOutput(line);
@@ -47,13 +47,13 @@ public class ProcessHandler {
                 int exit = process.exitValue();
                 callback.onComplete(exit);
                 if (exit != 0) {
-                    return new ProcessResult.Failure(List.of(), exit, null);
+                    return new ProcessResult.Failure(outputLines, exit, null);
                 } else {
                     return new ProcessResult.Success(outputLines);
                 }
             } catch (Exception e) {
                 callback.onFailure(e);
-                return new ProcessResult.Failure(List.of(), null, e);
+                return new ProcessResult.Failure(outputLines, null, e);
             }
         }, EXECUTORS);
     }

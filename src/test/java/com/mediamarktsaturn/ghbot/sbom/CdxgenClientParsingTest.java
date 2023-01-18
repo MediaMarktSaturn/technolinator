@@ -43,10 +43,14 @@ public class CdxgenClientParsingTest {
         assertThat(result).isInstanceOf(CdxgenClient.SBOMGenerationResult.Failure.class);
     }
 
-    @Test
-    public void testNone() {
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "src/test/resources/sbom/does-not-exist.json",
+        "src/test/resources/sbom/noop.json"
+    })
+    public void testNone(String filename) {
         // Given
-        var file = new File("src/test/resources/sbom/does-not-exist.json");
+        var file = new File(filename);
 
         // when
         var result = CdxgenClient.readAndParseSBOM(file);

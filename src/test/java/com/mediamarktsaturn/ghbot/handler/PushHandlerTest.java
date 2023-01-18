@@ -41,10 +41,8 @@ public class PushHandlerTest {
         var branch = "main";
         var dir = new File("src/test/resources/repo/maven");
         var sbom = new Bom();
-        var group = "test-group";
-        var name = "test-name";
         var version = "test-version";
-        var projectName = group + "." + name;
+        var projectName = "examiner";
 
         when(repoService.checkoutBranch(repoUrl, branch))
             .thenReturn(
@@ -59,7 +57,7 @@ public class PushHandlerTest {
             .thenReturn(
                 CompletableFuture.completedFuture(
                     new CdxgenClient.SBOMGenerationResult.Proper(
-                        sbom, group, name, version
+                        sbom, "test-group", "test-name", version
                     )
                 )
             );

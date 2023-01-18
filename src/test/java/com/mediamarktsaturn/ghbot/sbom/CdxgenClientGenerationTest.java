@@ -9,8 +9,10 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 import org.cyclonedx.model.Component;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
+import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
@@ -23,6 +25,22 @@ public class CdxgenClientGenerationTest {
     public void testMavenProject() {
         // Given
         var file = new File("src/test/resources/repo/maven");
+
+        // When
+        var result = await(cut.generateSBOM(file, Optional.empty()));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+            assertThat(proper.group()).isEqualTo("io.github.heubeck");
+            assertThat(proper.name()).isEqualTo("examiner");
+            assertThat(proper.version()).isEqualTo("1.8.3");
+        });
+    }
+
+    @Test
+    public void testMavenWrapperProject() {
+        // Given
+        var file = new File("src/test/resources/repo/maven_wrapper");
 
         // When
         var result = await(cut.generateSBOM(file, Optional.empty()));
@@ -56,21 +74,21 @@ public class CdxgenClientGenerationTest {
     public void testRecurseMixedProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-mode");
+        var config = new TechnolinatorConfig(true, null, new TechnolinatorConfig.AnalysisConfig(null, true));
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, Optional.of(config)));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-            assertThat(proper.group()).isEqualTo("io.github.heubeck");
-            assertThat(proper.name()).isEqualTo("examiner");
-            assertThat(proper.version()).isEqualTo("1.8.3");
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, proper -> {
+            assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("multi-mode");
 
             assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("husky", "quarkus-smallrye-health");
         });
     }
 
     @Test
+    @Disabled // https://github.com/AppThreat/cdxgen/issues/222
     public void testNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/node");
@@ -115,16 +133,13 @@ public class CdxgenClientGenerationTest {
     public void testMultiModuleMavenNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-module-mode");
+        var config = new TechnolinatorConfig(true, null, new TechnolinatorConfig.AnalysisConfig(null, true));
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, Optional.of(config)));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-            assertThat(proper.group()).isEqualTo("com.mediamarktsaturn.promotion");
-            assertThat(proper.name()).isEqualTo("promotion-bos");
-            assertThat(proper.version()).isEqualTo("3.2.7");
-
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, proper -> {
             assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "gson");
         });
     }
