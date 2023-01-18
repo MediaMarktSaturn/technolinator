@@ -88,7 +88,6 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    @Disabled // https://github.com/AppThreat/cdxgen/issues/222
     public void testNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/node");
