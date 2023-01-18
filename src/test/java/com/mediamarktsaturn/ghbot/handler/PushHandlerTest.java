@@ -6,6 +6,7 @@ import static org.mockito.Mockito.when;
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
@@ -57,7 +58,7 @@ public class PushHandlerTest {
             .thenReturn(
                 CompletableFuture.completedFuture(
                     new CdxgenClient.SBOMGenerationResult.Proper(
-                        sbom, "test-group", "test-name", version
+                        sbom, "test-group", "test-name", version, List.of()
                     )
                 )
             );

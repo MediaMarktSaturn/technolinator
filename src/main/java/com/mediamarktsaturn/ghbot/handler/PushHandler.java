@@ -1,12 +1,14 @@
 package com.mediamarktsaturn.ghbot.handler;
 
 import java.io.File;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 
+import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 
 import com.mediamarktsaturn.ghbot.events.PushEvent;
@@ -64,21 +66,15 @@ public class PushHandler {
             .thenCompose(result -> {
                 final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
 
-                // validation issues
-                if (result instanceof CdxgenClient.SBOMGenerationResult.Invalid) {
-                    var invalidResult = (CdxgenClient.SBOMGenerationResult.Invalid) result;
-                    Log.infof("SBOM validation issues for repo %s, ref %s: %s", event.repoUrl(), event.pushRef(),
-                        invalidResult.validationIssues().stream().map(Throwable::getMessage).collect(Collectors.joining("")));
-                    uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
-                }
-
-                // upload sbom
-                else if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
+                // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
+                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
                     var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
+                    logValidationIssues(event, properResult.validationIssues());
                     uploadResult = uploadSBOM(buildProjectNameFromEvent(event), properResult.version(), properResult.sbom());
                 } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
                     var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) result;
                     Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
+                    logValidationIssues(event, fallbackResult.validationIssues());
                     uploadResult = uploadSBOM(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), fallbackResult.sbom());
                 }
 
@@ -108,6 +104,13 @@ public class PushHandler {
                     Log.infof("Processing completed for project %s, version %s", projectName, projectVersion);
                 }
             });
+    }
+
+    static void logValidationIssues(PushEvent event, List<ParseException> validationIssues) {
+        if (!validationIssues.isEmpty()) {
+            Log.warnf("SBOM validation issues for repo %s, ref %s: %s", event.repoUrl(), event.pushRef(),
+                validationIssues.stream().map(Throwable::getMessage).collect(Collectors.joining("")));
+        }
     }
 
     static File buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {

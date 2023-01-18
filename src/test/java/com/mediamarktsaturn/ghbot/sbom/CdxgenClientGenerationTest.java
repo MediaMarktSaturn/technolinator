@@ -115,7 +115,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testInvalidGoProject() {
+    public void testGoProjectWithIssues() {
         // Given
         var file = new File("src/test/resources/repo/go");
 
@@ -123,9 +123,9 @@ public class CdxgenClientGenerationTest {
         var result = await(cut.generateSBOM(file, Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Invalid.class, invalid -> {
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
             // there are two license issues in this go.sum
-            assertThat(invalid.validationIssues()).hasSize(2);
+            assertThat(fallback.validationIssues()).hasSize(2);
         });
     }
 

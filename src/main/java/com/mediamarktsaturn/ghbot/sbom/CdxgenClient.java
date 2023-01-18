@@ -95,9 +95,6 @@ public class CdxgenClient {
         try {
             final var jsonSBOMParser = new JsonParser();
             final var validationResult = jsonSBOMParser.validate(sbomContent);
-            if (!validationResult.isEmpty()) {
-                return new SBOMGenerationResult.Invalid(validationResult);
-            }
 
             final var sbom = jsonSBOMParser.parse(sbomContent);
 
@@ -108,14 +105,16 @@ public class CdxgenClient {
                 group = sbom.getMetadata().getComponent().getGroup();
                 name = sbom.getMetadata().getComponent().getName();
                 version = sbom.getMetadata().getComponent().getVersion();
-            } else if (sbom.getMetadata().getComponent() == null && sbom.getComponents().isEmpty() && sbom.getDependencies().isEmpty() && sbom.getServices().isEmpty()) {
+            } else if (sbom.getMetadata() == null ||
+                (sbom.getMetadata().getComponent() == null && sbom.getComponents().isEmpty() && sbom.getDependencies().isEmpty() && sbom.getServices().isEmpty())
+            ) {
                 return new SBOMGenerationResult.None();
             }
 
             if (group != null && name != null && version != null) {
-                return new SBOMGenerationResult.Proper(sbom, group, name, version);
+                return new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult);
             } else {
-                return new SBOMGenerationResult.Fallback(sbom);
+                return new SBOMGenerationResult.Fallback(sbom, validationResult);
             }
         } catch (ParseException parseException) {
             return new SBOMGenerationResult.Failure("SBOM file is invalid", parseException);
@@ -141,16 +140,13 @@ public class CdxgenClient {
             Bom sbom,
             String group,
             String name,
-            String version
+            String version,
+            List<ParseException> validationIssues
         ) implements SBOMGenerationResult {
         }
 
         record Fallback(
-            Bom sbom
-        ) implements SBOMGenerationResult {
-        }
-
-        record Invalid(
+            Bom sbom,
             List<ParseException> validationIssues
         ) implements SBOMGenerationResult {
         }

@@ -26,9 +26,7 @@ public class CdxgenClientParsingTest {
         var result = CdxgenClient.readAndParseSBOM(file);
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Invalid.class, invalid -> {
-           assertThat(invalid.validationIssues()).isNotEmpty();
-        });
+        assertThat(result).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class);
     }
 
     @Test
