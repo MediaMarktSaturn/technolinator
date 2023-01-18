@@ -60,7 +60,7 @@ public class PushHandler {
     }
 
     CompletableFuture<DependencyTrackClient.UploadResult> analyseAndUploadTypedRepo(PushEvent event, LocalRepository repo) {
-        return cdxgenClient.generateSBOM(buildAnalysisDirectory(repo, event.config()))
+        return cdxgenClient.generateSBOM(buildAnalysisDirectory(repo, event.config()), event.config())
             .thenCompose(result -> {
                 final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
 

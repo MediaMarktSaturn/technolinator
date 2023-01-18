@@ -39,6 +39,8 @@ project:
 analysis:
     # the location targeted by cdxgen; default: repository root
     location: projectLocation
+    # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself
+    recursive: true
 ```
 
 The configuration file is optional and only necessary to override default behaviour.

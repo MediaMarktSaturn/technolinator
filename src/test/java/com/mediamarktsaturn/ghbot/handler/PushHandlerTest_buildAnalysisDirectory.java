@@ -29,7 +29,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     public void testConfigRelative() {
         // Given
         var repo = new LocalRepository(null, new File("test_tmp"));
-        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("sub_dir"));
+        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("sub_dir", null));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
@@ -42,7 +42,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     public void testConfigAbsolute() {
         // Given
         var repo = new LocalRepository(null, new File("test_tmp"));
-        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("/sub_dir"));
+        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("/sub_dir", true));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
@@ -55,7 +55,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     public void testConfigRoot() {
         // Given
         var repo = new LocalRepository(null, new File("test_tmp"));
-        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("/"));
+        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("/", false));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
@@ -68,7 +68,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     public void testConfigEmpty() {
         // Given
         var repo = new LocalRepository(null, new File("test_tmp"));
-        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig(""));
+        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("", null));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
@@ -81,7 +81,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     public void testConfigNull() {
         // Given
         var repo = new LocalRepository(null, new File("test_tmp"));
-        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig(null));
+        var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig(null, null));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));

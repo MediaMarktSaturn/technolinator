@@ -55,7 +55,7 @@ public class PushHandlerTest {
                 )
             );
 
-        when(cdxgenClient.generateSBOM(dir))
+        when(cdxgenClient.generateSBOM(dir, Optional.empty()))
             .thenReturn(
                 CompletableFuture.completedFuture(
                     new CdxgenClient.SBOMGenerationResult.Proper(
@@ -83,7 +83,7 @@ public class PushHandlerTest {
 
         // Then
         verify(repoService).checkoutBranch(repoUrl, branch);
-        verify(cdxgenClient).generateSBOM(dir);
+        verify(cdxgenClient).generateSBOM(dir, Optional.empty());
         verify(dtrackClient).uploadSBOM(projectName, version, sbom);
     }
 }

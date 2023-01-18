@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
@@ -15,12 +16,14 @@ import org.cyclonedx.model.Bom;
 import org.cyclonedx.parsers.JsonParser;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 
 @ApplicationScoped
 public class CdxgenClient {
 
     private static final String SBOM_JSON = "sbom.json";
+    private static final String RECURSIVE_FLAG = "-r";
 
     private final Map<String, String> cdxgenEnv;
 
@@ -42,19 +45,23 @@ public class CdxgenClient {
 
     // option -r: Recurse mode suitable for mono-repos
     //            Used for projects containing multiple dependency files like pom.xml & yarn.lock
-    private static final String CDXGEN_CMD = "cdxgen -r --fail-on-error -o " + SBOM_JSON;
+    private static final String CDXGEN_CMD_FMT = "cdxgen --fail-on-error %s -o %s";
 
-    public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir) {
+    public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir, Optional<TechnolinatorConfig> config) {
+        String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
+            config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(true) ? RECURSIVE_FLAG : "",
+            SBOM_JSON
+        );
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
             if (processResult instanceof ProcessHandler.ProcessResult.Success) {
                 return readAndParseSBOM(new File(repoDir, SBOM_JSON));
             } else {
                 var failure = (ProcessHandler.ProcessResult.Failure) processResult;
-                return new SBOMGenerationResult.Failure("Command failed: " + CDXGEN_CMD, failure.cause());
+                return new SBOMGenerationResult.Failure("Command failed: " + cdxgenCmd, failure.cause());
             }
         };
 
-        var future = ProcessHandler.run(CDXGEN_CMD, repoDir.getAbsoluteFile(), cdxgenEnv);
+        var future = ProcessHandler.run(cdxgenCmd, repoDir.getAbsoluteFile(), cdxgenEnv);
         return future.thenApply(mapResult);
     }
 

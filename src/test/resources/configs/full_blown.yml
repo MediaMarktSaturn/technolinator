@@ -3,3 +3,4 @@ project:
     name: awesomeProject
 analysis:
     location: projectLocation
+    recursive: true

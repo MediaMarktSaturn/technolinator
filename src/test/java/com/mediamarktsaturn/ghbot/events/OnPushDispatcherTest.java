@@ -94,7 +94,7 @@ public class OnPushDispatcherTest {
         var config = new TechnolinatorConfig(
             true,
             new TechnolinatorConfig.ProjectConfig("awesomeProject"),
-            new TechnolinatorConfig.AnalysisConfig("projectLocation")
+            new TechnolinatorConfig.AnalysisConfig("projectLocation", true)
         );
         var pushEvent = new PushEvent(new URL("https://github.com/heubeck/app-test"), "refs/heads/main", "main", Optional.of(config));
 
