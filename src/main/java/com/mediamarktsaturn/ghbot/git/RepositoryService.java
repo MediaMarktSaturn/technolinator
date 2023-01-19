@@ -37,6 +37,7 @@ public class RepositoryService {
                     .setCredentialsProvider(credentials)
                     .setDirectory(dir)
                     .setURI(repoUrl.toString())
+                    .setDepth(1)
                     .call();
                 if (!repo.getRepository().getBranch().equals(branch)) {
                     repo.checkout()
