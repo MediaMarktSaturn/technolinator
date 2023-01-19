@@ -48,26 +48,37 @@ public class PushHandler {
 
     void processPushEvent(PushEvent event) {
         repoService.checkoutBranch(event.repoUrl(), event.getBranch())
-            .thenComposeAsync(checkoutResult -> generateSbom(event, checkoutResult))
-            .thenComposeAsync(generationResult -> uploadSbom(event, generationResult))
-            .whenCompleteAsync(((uploadResult, failure) -> reportAnalysisResult(event, uploadResult, failure)));
+            .thenCompose(checkoutResult -> generateSbom(event, checkoutResult))
+            .thenCompose(generationResult -> uploadSbom(event, generationResult))
+            .whenComplete(((uploadResult, failure) -> reportAnalysisResult(event, uploadResult, failure)));
     }
 
     void reportAnalysisResult(PushEvent event, DependencyTrackClient.UploadResult uploadResult, Throwable failure) {
         final boolean success = failure == null &&
             uploadResult instanceof DependencyTrackClient.UploadResult.Success
             || uploadResult instanceof DependencyTrackClient.UploadResult.None;
-        event.resultCallback().accept(new AnalysisResult(success));
+
+        final String url;
+        if (uploadResult instanceof DependencyTrackClient.UploadResult.Success) {
+            url = ((DependencyTrackClient.UploadResult.Success) uploadResult).projectUrl();
+        } else if (uploadResult instanceof DependencyTrackClient.UploadResult.Failure) {
+            url = ((DependencyTrackClient.UploadResult.Failure) uploadResult).baseUrl();
+        } else {
+            url = null;
+        }
+
+        event.resultCallback().accept(new AnalysisResult(success, url));
     }
 
     CompletableFuture<CdxgenClient.SBOMGenerationResult> generateSbom(PushEvent event, RepositoryService.CheckoutResult checkoutResult) {
         if (checkoutResult instanceof RepositoryService.CheckoutResult.Success) {
+            Log.infof("Starting sbom creation for repo %s, branch %s", event.repoUrl(), event.getBranch());
             final var localRepo = ((RepositoryService.CheckoutResult.Success) checkoutResult).repo();
             return cdxgenClient.generateSBOM(buildAnalysisDirectory(localRepo, event.config()), event.config())
                 .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
         } else {
             var failure = (RepositoryService.CheckoutResult.Failure) checkoutResult;
-            Log.errorf(failure.cause(), "Aborting analysis of repo %, branch %s because of checkout failure", event.repoUrl(), event.getBranch());
+            Log.errorf(failure.cause(), "Aborting analysis of repo %s, branch %s because of checkout failure", event.repoUrl(), event.getBranch());
             return CompletableFuture.failedFuture(failure.cause());
         }
     }
@@ -79,7 +90,7 @@ public class PushHandler {
         if (sbomResult instanceof CdxgenClient.SBOMGenerationResult.Proper) {
             var properResult = (CdxgenClient.SBOMGenerationResult.Proper) sbomResult;
             logValidationIssues(event, properResult.validationIssues());
-            uploadResult = doUploadSbom(buildProjectNameFromEvent(event), properResult.version(), properResult.sbom());
+            uploadResult = doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), properResult.sbom());
         } else if (sbomResult instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
             var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) sbomResult;
             Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
@@ -148,7 +159,7 @@ public class PushHandler {
     }
 
     static String buildProjectVersionFromEvent(PushEvent event) {
-        return event.pushRef().replaceFirst("refs/heads/", "");
+        return event.getBranch();
     }
 
     static boolean isBranchEligibleForAnalysis(PushEvent event) {

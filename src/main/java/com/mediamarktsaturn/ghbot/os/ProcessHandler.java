@@ -7,25 +7,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+
+import io.quarkus.logging.Log;
 
 public class ProcessHandler {
 
     public static final File CURRENT_DIR = new File(".");
-    private static final ExecutorService EXECUTORS = Executors.newCachedThreadPool();
 
     public static CompletableFuture<ProcessResult> run(String command) {
-        return run(command, CURRENT_DIR, Map.of(), new ProcessCallback.DefaultProcessCallback(command));
+        return run(command, CURRENT_DIR, Map.of(), new ProcessCallback.DefaultProcessCallback());
     }
 
     public static CompletableFuture<ProcessResult> run(String command, File workingDir, Map<String, String> env) {
-        return run(command, workingDir, env, new ProcessCallback.DefaultProcessCallback(command));
+        return run(command, workingDir, env, new ProcessCallback.DefaultProcessCallback());
     }
 
     public static CompletableFuture<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
         return CompletableFuture.supplyAsync(() -> {
+            Log.infof("[%s] Starting '%s' in %s", callback.getIdent(), command, workingDir);
             List<String> outputLines = new ArrayList<>();
             try {
                 var commandParts = command.trim().split("\\s+");
@@ -55,7 +55,7 @@ public class ProcessHandler {
                 callback.onFailure(e);
                 return new ProcessResult.Failure(outputLines, null, e);
             }
-        }, EXECUTORS);
+        });
     }
 
     public sealed interface ProcessResult {

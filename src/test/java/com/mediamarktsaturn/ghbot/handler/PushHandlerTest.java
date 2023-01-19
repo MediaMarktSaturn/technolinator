@@ -67,7 +67,7 @@ public class PushHandlerTest {
         when(dtrackClient.uploadSBOM(projectName, version, sbom))
             .thenReturn(
                 CompletableFuture.completedFuture(
-                    new DependencyTrackClient.UploadResult.Success()
+                    new DependencyTrackClient.UploadResult.Success("")
                 )
             );
 

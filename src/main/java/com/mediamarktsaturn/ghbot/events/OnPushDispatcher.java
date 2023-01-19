@@ -10,6 +10,7 @@ import javax.inject.Inject;
 
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
@@ -27,12 +28,11 @@ public class OnPushDispatcher {
 
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
         if (config.map(TechnolinatorConfig::enable).orElse(true)) {
-            var repoId = pushPayload.getRepository().getId();
             var commitSha = getEventCommit(pushPayload);
-            commitSha.ifPresent(sha -> createGHCommitStatus(sha, repoId, GHCommitState.PENDING, githubApi));
+            commitSha.ifPresent(sha -> createGHCommitStatus(sha, pushPayload.getRepository(), GHCommitState.PENDING, null, githubApi));
 
             Consumer<AnalysisResult> resultCallback = result -> {
-                commitSha.ifPresent(sha -> announceCommitStatus(sha,repoId, result, githubApi));
+                commitSha.ifPresent(sha -> announceCommitStatus(sha, pushPayload.getRepository(), result, githubApi));
             };
 
             eventBus.send(ON_PUSH, new PushEvent(
@@ -47,16 +47,16 @@ public class OnPushDispatcher {
         }
     }
 
-    static void announceCommitStatus(String commitSha, Long repoId, AnalysisResult result, GitHub githubApi) {
+    static void announceCommitStatus(String commitSha, GHRepository repo, AnalysisResult result, GitHub githubApi) {
         var state = result.success() ? GHCommitState.SUCCESS : GHCommitState.ERROR;
-        createGHCommitStatus(commitSha, repoId, state, githubApi);
+        createGHCommitStatus(commitSha, repo, state, result.url(), githubApi);
     }
 
-    static void createGHCommitStatus(String commitSha, Long repoId, GHCommitState state, GitHub githubApi) {
+    static void createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, GitHub githubApi) {
         try {
-            githubApi.getRepositoryById(repoId).createCommitStatus(commitSha, state, null, null);
+            githubApi.getRepositoryById(repo.getId()).createCommitStatus(commitSha, state, targetUrl, "SBOM creation");
         } catch (Exception e) {
-            Log.warnf("Could not set commit %s status of %s");
+            Log.warnf(e, "Could not set commit %s status of %s", commitSha, repo.getName());
         }
     }
 

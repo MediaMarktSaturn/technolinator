@@ -12,33 +12,38 @@ public interface ProcessCallback {
 
     void onFailure(Throwable failure);
 
+    String getIdent();
+
     class DefaultProcessCallback implements ProcessCallback {
 
-        private final String command;
         private final String ident;
 
-        public DefaultProcessCallback(String command) {
-            this.command = command;
+        @Override
+        public String getIdent() {
+            return ident;
+        }
+
+        public DefaultProcessCallback() {
             this.ident = UUID.randomUUID().toString().substring(0, 8);
         }
 
         @Override
         public void onComplete(int exitStatus) {
             if (exitStatus == 0) {
-                Log.infof("%s#[%s] - succeeded", ident, command);
+                Log.infof("[%s] succeeded", ident);
             } else {
-                Log.warnf("%s#[%s] - failed (%s)", ident, command, exitStatus);
+                Log.warnf("[%s] failed (%s)", ident, exitStatus);
             }
         }
 
         @Override
         public void onOutput(String logLine) {
-            Log.infof("%s#[%s]: %s", ident, command, logLine);
+            Log.infof("[%s]: %s", ident, logLine);
         }
 
         @Override
         public void onFailure(Throwable failure) {
-            Log.errorf(failure, "%s#[%s] - failed: %s", ident, command, failure.getMessage());
+            Log.errorf(failure, "[%s] failed: %s", ident, failure.getMessage());
         }
     }
 
@@ -53,6 +58,11 @@ public interface ProcessCallback {
 
         @Override
         public void onFailure(Throwable failure) {
+        }
+
+        @Override
+        public String getIdent() {
+            return "";
         }
     };
 }
