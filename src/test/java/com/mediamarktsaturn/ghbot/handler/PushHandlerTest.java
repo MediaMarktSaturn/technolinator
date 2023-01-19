@@ -2,6 +2,7 @@ package com.mediamarktsaturn.ghbot.handler;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -19,6 +20,7 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.inject.Inject;
 
+import org.awaitility.Awaitility;
 import org.cyclonedx.model.Bom;
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
@@ -104,5 +106,8 @@ public class PushHandlerTest {
         verify(repoService).checkoutBranch(any());
         verify(cdxgenClient).generateSBOM(tmpFile, Optional.empty());
         verify(dtrackClient).uploadSBOM(projectName, branch, sbom);
+        await().untilAsserted(() -> {
+            assertThat(tmpFile).doesNotExist();
+        });
     }
 }
