@@ -11,18 +11,18 @@ The MediaMarktSaturn GitHub Bot.
 
 ENV configuration:
 
-| Parameter                         | Default                |
-|-----------------------------------|------------------------|
-| QUARKUS_GITHUB_APP_APP_ID         |                        |
-| QUARKUS_GITHUB_APP_WEBHOOK_SECRET |                        |
-| QUARKUS_GITHUB_APP_PRIVATE_KEY    |                        |
-| GITHUB_TOKEN                      |                        |
-| DTRACK_APIKEY                     |                        |
-| ARTIFACTORY_USER                  |                        |
-| ARTIFACTORY_PASSWORD              |                        |
-| DTRACK_URL                        | https://dtrack.mmst.eu |
-| CDXGEN_FETCH_LICENSE              | true                   |
-| CDXGEN_USE_GOSUM                  | true                   |
+| Parameter                         | Default                | Description                                                             |
+|-----------------------------------|------------------------|-------------------------------------------------------------------------|
+| QUARKUS_GITHUB_APP_APP_ID         |                        | Created during app creation on GitHub                                   |
+| QUARKUS_GITHUB_APP_WEBHOOK_SECRET |                        | Created during app creation on GitHub                                   |
+| QUARKUS_GITHUB_APP_PRIVATE_KEY    |                        | Created during app creation on GitHub                                   |
+| GITHUB_TOKEN                      |                        | Optional. Raises GH api quota for cdxgen                                |
+| DTRACK_APIKEY                     |                        | API key to access Dependency-Track                                      |
+| ARTIFACTORY_USER                  |                        | User for accessing internal repos                                       |
+| ARTIFACTORY_PASSWORD              |                        | PW for accessing internal repos                                         |
+| DTRACK_URL                        | https://dtrack.mmst.eu | Baseurl of Dependency-Track                                             |
+| CDXGEN_FETCH_LICENSE              | true                   | see [cdxgen](https://github.com/AppThreat/cdxgen#environment-variables) |
+| CDXGEN_USE_GOSUM                  | true                   | see [cdxgen](https://github.com/AppThreat/cdxgen#environment-variables) |
 
 ## Repository specific configuration
 

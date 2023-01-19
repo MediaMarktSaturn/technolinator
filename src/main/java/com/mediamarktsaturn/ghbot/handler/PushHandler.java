@@ -47,7 +47,7 @@ public class PushHandler {
     }
 
     void processPushEvent(PushEvent event) {
-        repoService.checkoutBranch(event.repoUrl(), event.getBranch())
+        repoService.checkoutBranch(event)
             .thenCompose(checkoutResult -> generateSbom(event, checkoutResult))
             .thenCompose(generationResult -> uploadSbom(event, generationResult))
             .whenComplete(((uploadResult, failure) -> reportAnalysisResult(event, uploadResult, failure)));

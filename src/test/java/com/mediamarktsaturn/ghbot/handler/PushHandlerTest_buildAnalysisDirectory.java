@@ -16,7 +16,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     public void testConfigless() {
         // Given
-        var repo = new LocalRepository(null, new File("test_tmp"));
+        var repo = new LocalRepository(new File("test_tmp"));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.empty());
@@ -28,7 +28,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     public void testConfigRelative() {
         // Given
-        var repo = new LocalRepository(null, new File("test_tmp"));
+        var repo = new LocalRepository(new File("test_tmp"));
         var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("sub_dir", null));
 
         // When
@@ -41,7 +41,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     public void testConfigAbsolute() {
         // Given
-        var repo = new LocalRepository(null, new File("test_tmp"));
+        var repo = new LocalRepository(new File("test_tmp"));
         var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("/sub_dir", true));
 
         // When
@@ -54,7 +54,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     public void testConfigRoot() {
         // Given
-        var repo = new LocalRepository(null, new File("test_tmp"));
+        var repo = new LocalRepository(new File("test_tmp"));
         var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("/", false));
 
         // When
@@ -67,7 +67,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     public void testConfigEmpty() {
         // Given
-        var repo = new LocalRepository(null, new File("test_tmp"));
+        var repo = new LocalRepository(new File("test_tmp"));
         var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig("", null));
 
         // When
@@ -80,7 +80,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     public void testConfigNull() {
         // Given
-        var repo = new LocalRepository(null, new File("test_tmp"));
+        var repo = new LocalRepository(new File("test_tmp"));
         var config = new TechnolinatorConfig(null, null, new TechnolinatorConfig.AnalysisConfig(null, null));
 
         // When

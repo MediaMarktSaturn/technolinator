@@ -1,12 +1,18 @@
 package com.mediamarktsaturn.ghbot.handler;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.File;
-import java.net.MalformedURLException;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
@@ -15,6 +21,8 @@ import javax.inject.Inject;
 
 import org.cyclonedx.model.Bom;
 import org.junit.jupiter.api.Test;
+import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHRepository;
 
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
@@ -37,25 +45,29 @@ public class PushHandlerTest {
     PushHandler cut;
 
     @Test
-    public void testSuccessfulProcess() throws MalformedURLException {
+    public void testSuccessfulProcess() throws IOException {
         // Given
         var repoUrl = new URL("https://github.com/heubeck/examiner");
         var branch = "main";
-        var dir = new File("src/test/resources/repo/maven");
+        // create a temporary copy of the repo/maven test resource as it will be cleaned up by the process
+        var tmpFile = Files.createTempDirectory("technolinator").toFile();
+        var pom = new File("src/test/resources/repo/maven", "pom.xml");
+        Files.copy(pom.toPath(), Path.of(tmpFile.getAbsolutePath(), "pom.xml"), StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
+
         var sbom = new Bom();
         var version = "test-version";
         var projectName = "examiner";
 
-        when(repoService.checkoutBranch(repoUrl, branch))
+        when(repoService.checkoutBranch(any()))
             .thenReturn(
                 CompletableFuture.completedFuture(
                     new RepositoryService.CheckoutResult.Success(
-                        new LocalRepository(null, dir)
+                        new LocalRepository(tmpFile)
                     )
                 )
             );
 
-        when(cdxgenClient.generateSBOM(dir, Optional.empty()))
+        when(cdxgenClient.generateSBOM(tmpFile, Optional.empty()))
             .thenReturn(
                 CompletableFuture.completedFuture(
                     new CdxgenClient.SBOMGenerationResult.Proper(
@@ -71,10 +83,16 @@ public class PushHandlerTest {
                 )
             );
 
+        GHRepository ghRepo = mock(GHRepository.class);
+        when(ghRepo.getUrl()).thenReturn(repoUrl);
+        when(ghRepo.getDefaultBranch()).thenReturn(branch);
+
+        GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
+        when(pushPayload.getRepository()).thenReturn(ghRepo);
+        when(pushPayload.getRef()).thenReturn("refs/heads/" + branch);
+
         var event = new PushEvent(
-            repoUrl,
-            "refs/heads/" + branch,
-            branch,
+            pushPayload,
             ignore(),
             Optional.empty()
         );
@@ -83,8 +101,8 @@ public class PushHandlerTest {
         cut.onPush(event);
 
         // Then
-        verify(repoService).checkoutBranch(repoUrl, branch);
-        verify(cdxgenClient).generateSBOM(dir, Optional.empty());
+        verify(repoService).checkoutBranch(any());
+        verify(cdxgenClient).generateSBOM(tmpFile, Optional.empty());
         verify(dtrackClient).uploadSBOM(projectName, branch, sbom);
     }
 }

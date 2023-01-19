@@ -1,18 +1,25 @@
 package com.mediamarktsaturn.ghbot.git;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.await;
+import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
-import java.net.MalformedURLException;
-import java.net.URL;
+import java.io.File;
+import java.io.IOException;
+import java.util.Optional;
 
 import javax.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GitHub;
 
+import com.mediamarktsaturn.ghbot.events.PushEvent;
 import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
@@ -23,21 +30,29 @@ public class RepositoryServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "https://github.com/heubeck/examiner, main",
-        "https://github.com/heubeck/examiner.git, main",
-        "https://github.com/jug-in/jug-in.bayern.git, master",
-        "https://github.com/jug-in/jug-in.bayern, gh-pages"
+        "heubeck/examiner, refs/heads/main, pom.xml",
+        "jug-in/jug-in.bayern, refs/heads/master, README.md",
+        "jug-in/jug-in.bayern, refs/heads/gh-pages, index.html"
     })
-    public void testSuccessfulCheckout(URL repoUrl, String branch) {
+    public void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
         // When
-        var result = await(cut.checkoutBranch(repoUrl, branch));
+        var ghRepo = GitHub.connectAnonymously().getRepository(repoName);
+        var pushEvent = mock(GHEventPayload.Push.class);
+        when(pushEvent.getRepository()).thenReturn(ghRepo);
+        when(pushEvent.getRef()).thenReturn(branch);
+        var event = new PushEvent(
+            pushEvent,
+            ignore(),
+            Optional.empty()
+        );
+        var result = await(cut.checkoutBranch(event));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(RepositoryService.CheckoutResult.Success.class, success -> {
             final LocalRepository repo = success.repo();
             try (repo) {
                 assertThat(repo.dir()).exists();
-                assertThat(repo.repo().getRepository().getBranch()).isEqualTo(branch);
+                assertThat(new File(repo.dir(), checkFile)).exists();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -46,35 +61,24 @@ public class RepositoryServiceTest {
     }
 
     @Test
-    public void testInvalidRepository() throws MalformedURLException {
+    public void testInvalidBranch() throws IOException {
         // Given
-        var repoUrl = new URL("https://github.com/there-s-no-such-organization/no-repository-here");
-        var branch = "never";
+        var ghRepo = GitHub.connectAnonymously().getRepository("heubeck/examiner");
+        var pushEvent = mock(GHEventPayload.Push.class);
+        when(pushEvent.getRepository()).thenReturn(ghRepo);
+        when(pushEvent.getRef()).thenReturn("never/ever");
+        var event = new PushEvent(
+            pushEvent,
+            ignore(),
+            Optional.empty()
+        );
 
         // When
-        var result = await(cut.checkoutBranch(repoUrl, branch));
+        var result = await(cut.checkoutBranch(event));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(RepositoryService.CheckoutResult.Failure.class, failure -> {
-            // depending on the provided GH token, there are different errors possible
-            assertThat(failure.cause().toString()).containsAnyOf(
-                "org.eclipse.jgit.api.errors.InvalidRemoteException: Invalid remote: origin",
-                "org.eclipse.jgit.api.errors.TransportException: https://github.com/there-s-no-such-organization/no-repository-here: not authorized");
-        });
-    }
-
-    @Test
-    public void testInvalidBranch() throws MalformedURLException {
-        // Given
-        var repoUrl = new URL("https://github.com/heubeck/examiner");
-        var branch = "never/ever";
-
-        // When
-        var result = await(cut.checkoutBranch(repoUrl, branch));
-
-        // Then
-        assertThat(result).isInstanceOfSatisfying(RepositoryService.CheckoutResult.Failure.class, failure -> {
-            assertThat(failure.cause().toString()).isEqualTo("org.eclipse.jgit.api.errors.RefNotFoundException: Ref origin/never/ever cannot be resolved");
+            assertThat(failure.cause().toString()).isEqualTo("org.kohsuke.github.GHFileNotFoundException: https://api.github.com/repos/heubeck/examiner/zipball/never/ever 404: Not Found");
         });
     }
 

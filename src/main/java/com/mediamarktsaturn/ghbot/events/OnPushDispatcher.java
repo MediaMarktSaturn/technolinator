@@ -36,9 +36,7 @@ public class OnPushDispatcher {
             };
 
             eventBus.send(ON_PUSH, new PushEvent(
-                pushPayload.getRepository().getUrl(),
-                pushPayload.getRef(),
-                pushPayload.getRepository().getDefaultBranch(),
+                pushPayload,
                 resultCallback,
                 config
             ));
@@ -54,7 +52,7 @@ public class OnPushDispatcher {
 
     static void createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, GitHub githubApi) {
         try {
-            githubApi.getRepositoryById(repo.getId()).createCommitStatus(commitSha, state, targetUrl, "SBOM creation");
+            repo.createCommitStatus(commitSha, state, targetUrl, "SBOM creation");
         } catch (Exception e) {
             Log.warnf(e, "Could not set commit %s status of %s", commitSha, repo.getName());
         }
