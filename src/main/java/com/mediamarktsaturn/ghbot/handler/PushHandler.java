@@ -11,6 +11,7 @@ import javax.enterprise.context.ApplicationScoped;
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 
+import com.mediamarktsaturn.ghbot.events.AnalysisResult;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.RepositoryService;
@@ -46,55 +47,62 @@ public class PushHandler {
     }
 
     void processPushEvent(PushEvent event) {
-        var branch = getBranchNameFromRef(event.pushRef());
-        repoService.checkoutBranch(event.repoUrl(), branch)
-            .thenCompose(result -> {
-                if (result instanceof RepositoryService.CheckoutResult.Success) {
-                    final var localRepo = ((RepositoryService.CheckoutResult.Success) result).repo();
-                    return analyseAndUploadTypedRepo(event, localRepo)
-                        .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
-                } else {
-                    var failure = (RepositoryService.CheckoutResult.Failure) result;
-                    Log.errorf(failure.cause(), "Aborting analysis of repo %, branch %s because of checkout failure", event.repoUrl(), branch);
-                    return CompletableFuture.failedFuture(failure.cause());
-                }
-            });
+        repoService.checkoutBranch(event.repoUrl(), event.getBranch())
+            .thenComposeAsync(checkoutResult -> generateSbom(event, checkoutResult))
+            .thenComposeAsync(generationResult -> uploadSbom(event, generationResult))
+            .whenCompleteAsync(((uploadResult, failure) -> reportAnalysisResult(event, uploadResult, failure)));
     }
 
-    CompletableFuture<DependencyTrackClient.UploadResult> analyseAndUploadTypedRepo(PushEvent event, LocalRepository repo) {
-        return cdxgenClient.generateSBOM(buildAnalysisDirectory(repo, event.config()), event.config())
-            .thenCompose(result -> {
-                final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
-
-                // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
-                if (result instanceof CdxgenClient.SBOMGenerationResult.Proper) {
-                    var properResult = (CdxgenClient.SBOMGenerationResult.Proper) result;
-                    logValidationIssues(event, properResult.validationIssues());
-                    uploadResult = uploadSBOM(buildProjectNameFromEvent(event), properResult.version(), properResult.sbom());
-                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
-                    var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) result;
-                    Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
-                    logValidationIssues(event, fallbackResult.validationIssues());
-                    uploadResult = uploadSBOM(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), fallbackResult.sbom());
-                }
-
-                // handle missing sbom or failure
-                else if (result instanceof CdxgenClient.SBOMGenerationResult.None) {
-                    Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
-                    uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
-                } else if (result instanceof CdxgenClient.SBOMGenerationResult.Failure) {
-                    var failure = (CdxgenClient.SBOMGenerationResult.Failure) result;
-                    Log.errorf(failure.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), event.pushRef());
-                    uploadResult = CompletableFuture.failedFuture(failure.cause());
-                } else {
-                    throw new IllegalStateException("Unknown response type: " + result.getClass());
-                }
-
-                return uploadResult;
-            });
+    void reportAnalysisResult(PushEvent event, DependencyTrackClient.UploadResult uploadResult, Throwable failure) {
+        final boolean success = failure == null &&
+            uploadResult instanceof DependencyTrackClient.UploadResult.Success
+            || uploadResult instanceof DependencyTrackClient.UploadResult.None;
+        event.resultCallback().accept(new AnalysisResult(success));
     }
 
-    CompletableFuture<DependencyTrackClient.UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
+    CompletableFuture<CdxgenClient.SBOMGenerationResult> generateSbom(PushEvent event, RepositoryService.CheckoutResult checkoutResult) {
+        if (checkoutResult instanceof RepositoryService.CheckoutResult.Success) {
+            final var localRepo = ((RepositoryService.CheckoutResult.Success) checkoutResult).repo();
+            return cdxgenClient.generateSBOM(buildAnalysisDirectory(localRepo, event.config()), event.config())
+                .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
+        } else {
+            var failure = (RepositoryService.CheckoutResult.Failure) checkoutResult;
+            Log.errorf(failure.cause(), "Aborting analysis of repo %, branch %s because of checkout failure", event.repoUrl(), event.getBranch());
+            return CompletableFuture.failedFuture(failure.cause());
+        }
+    }
+
+    CompletableFuture<DependencyTrackClient.UploadResult> uploadSbom(PushEvent event, CdxgenClient.SBOMGenerationResult sbomResult) {
+        final CompletableFuture<DependencyTrackClient.UploadResult> uploadResult;
+
+        // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
+        if (sbomResult instanceof CdxgenClient.SBOMGenerationResult.Proper) {
+            var properResult = (CdxgenClient.SBOMGenerationResult.Proper) sbomResult;
+            logValidationIssues(event, properResult.validationIssues());
+            uploadResult = doUploadSbom(buildProjectNameFromEvent(event), properResult.version(), properResult.sbom());
+        } else if (sbomResult instanceof CdxgenClient.SBOMGenerationResult.Fallback) {
+            var fallbackResult = (CdxgenClient.SBOMGenerationResult.Fallback) sbomResult;
+            Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
+            logValidationIssues(event, fallbackResult.validationIssues());
+            uploadResult = doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), fallbackResult.sbom());
+        }
+
+        // handle missing sbom or failure
+        else if (sbomResult instanceof CdxgenClient.SBOMGenerationResult.None) {
+            Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
+            uploadResult = CompletableFuture.completedFuture(new DependencyTrackClient.UploadResult.None());
+        } else if (sbomResult instanceof CdxgenClient.SBOMGenerationResult.Failure) {
+            var failure = (CdxgenClient.SBOMGenerationResult.Failure) sbomResult;
+            Log.errorf(failure.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), event.pushRef());
+            uploadResult = CompletableFuture.failedFuture(failure.cause());
+        } else {
+            throw new IllegalStateException("Unknown response type: " + sbomResult.getClass());
+        }
+
+        return uploadResult;
+    }
+
+    CompletableFuture<DependencyTrackClient.UploadResult> doUploadSbom(String projectName, String projectVersion, Bom sbom) {
         return dtrackClient.uploadSBOM(projectName, projectVersion, sbom)
             .whenComplete((result, failure) -> {
                 if (failure != null || result instanceof DependencyTrackClient.UploadResult.Failure) {
@@ -141,10 +149,6 @@ public class PushHandler {
 
     static String buildProjectVersionFromEvent(PushEvent event) {
         return event.pushRef().replaceFirst("refs/heads/", "");
-    }
-
-    static String getBranchNameFromRef(String ref) {
-        return ref.replaceFirst("refs/heads/", "");
     }
 
     static boolean isBranchEligibleForAnalysis(PushEvent event) {

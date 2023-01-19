@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.ghbot.handler;
 
+import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,6 +75,7 @@ public class PushHandlerTest {
             repoUrl,
             "refs/heads/" + branch,
             branch,
+            ignore(),
             Optional.empty()
         );
 

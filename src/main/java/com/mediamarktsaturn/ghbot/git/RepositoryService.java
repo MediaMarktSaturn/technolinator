@@ -4,8 +4,6 @@ import java.io.File;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 import javax.enterprise.context.ApplicationScoped;
 
@@ -21,8 +19,6 @@ import io.quarkus.logging.Log;
 public class RepositoryService {
 
     private final CredentialsProvider credentials;
-
-    private static final ExecutorService EXECUTORS = Executors.newCachedThreadPool();
 
     public RepositoryService(
         @ConfigProperty(name = "github.token")
@@ -56,7 +52,7 @@ public class RepositoryService {
                 removeTempDir(dir);
                 return new CheckoutResult.Failure(e);
             }
-        }, EXECUTORS);
+        });
     }
 
     private File createTempDir(URL repoUrl) throws Exception {

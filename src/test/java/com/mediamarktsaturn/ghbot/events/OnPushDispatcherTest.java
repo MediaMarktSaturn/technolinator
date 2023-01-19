@@ -1,5 +1,8 @@
 package com.mediamarktsaturn.ghbot.events;
 
+import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
+import static org.mockito.ArgumentMatchers.argThat;
+
 import java.io.IOException;
 import java.net.URL;
 import java.util.Optional;
@@ -7,6 +10,7 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEvent;
+import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
@@ -31,7 +35,12 @@ public class OnPushDispatcherTest {
     @Test
     public void testOnPushToDefaultBranch() throws IOException {
         // Given
-        var pushEvent = new PushEvent(new URL("https://github.com/heubeck/app-test"), "refs/heads/main", "main", Optional.empty());
+        var pushEvent = new PushEvent(
+            new URL("https://github.com/heubeck/app-test"),
+            "refs/heads/main",
+            "main",
+            ignore(),
+            Optional.empty());
 
         // When
         GitHubAppTesting.when()
@@ -39,7 +48,7 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verify(pushHandler).onPush(pushEvent);
+        Mockito.verify(pushHandler).onPush(argThat(matches(pushEvent)));
     }
 
     @Test
@@ -50,7 +59,12 @@ public class OnPushDispatcherTest {
             new TechnolinatorConfig.ProjectConfig("overriddenName"),
             null
         );
-        var pushEvent = new PushEvent(new URL("https://github.com/heubeck/app-test"), "refs/heads/main", "main", Optional.of(config));
+        var pushEvent = new PushEvent(
+            new URL("https://github.com/heubeck/app-test"),
+            "refs/heads/main",
+            "main",
+            ignore(),
+            Optional.of(config));
 
         // When
         GitHubAppTesting.given()
@@ -62,7 +76,7 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verify(pushHandler).onPush(pushEvent);
+        Mockito.verify(pushHandler).onPush(argThat(matches(pushEvent)));
     }
 
     @Test
@@ -73,7 +87,12 @@ public class OnPushDispatcherTest {
             null,
             null
         );
-        var pushEvent = new PushEvent(new URL("https://github.com/heubeck/app-test"), "refs/heads/main", "main", Optional.of(config));
+        var pushEvent = new PushEvent(
+            new URL("https://github.com/heubeck/app-test"),
+            "refs/heads/main",
+            "main",
+            ignore(),
+            Optional.of(config));
 
         // When
         GitHubAppTesting.given()
@@ -96,7 +115,12 @@ public class OnPushDispatcherTest {
             new TechnolinatorConfig.ProjectConfig("awesomeProject"),
             new TechnolinatorConfig.AnalysisConfig("projectLocation", true)
         );
-        var pushEvent = new PushEvent(new URL("https://github.com/heubeck/app-test"), "refs/heads/main", "main", Optional.of(config));
+        var pushEvent = new PushEvent(
+            new URL("https://github.com/heubeck/app-test"),
+            "refs/heads/main",
+            "main",
+            ignore(),
+            Optional.of(config));
 
         // When
         GitHubAppTesting.given()
@@ -108,6 +132,15 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verify(pushHandler).onPush(pushEvent);
+        Mockito.verify(pushHandler).onPush(argThat(matches(pushEvent)));
     }
+
+    static ArgumentMatcher<PushEvent> matches(PushEvent event) {
+        return got ->
+            got.repoUrl().equals(event.repoUrl())
+                && got.pushRef().equals(event.pushRef())
+                && got.defaultBranch().equals(event.defaultBranch())
+                && got.config().equals(event.config());
+    }
+
 }
