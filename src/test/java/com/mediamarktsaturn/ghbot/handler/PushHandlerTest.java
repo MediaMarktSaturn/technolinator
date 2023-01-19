@@ -85,6 +85,6 @@ public class PushHandlerTest {
         // Then
         verify(repoService).checkoutBranch(repoUrl, branch);
         verify(cdxgenClient).generateSBOM(dir, Optional.empty());
-        verify(dtrackClient).uploadSBOM(projectName, version, sbom);
+        verify(dtrackClient).uploadSBOM(projectName, branch, sbom);
     }
 }

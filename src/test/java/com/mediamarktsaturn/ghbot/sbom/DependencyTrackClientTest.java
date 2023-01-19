@@ -45,6 +45,9 @@ public class DependencyTrackClientTest {
     @Test
     public void testSuccessfulUpload() {
         // Given
+        var name = "test-project";
+        var version = "1.2.3";
+
         var putBom = request()
             .withPath("/api/v1/bom")
             .withContentType(MediaType.APPLICATION_JSON)
@@ -103,9 +106,25 @@ public class DependencyTrackClientTest {
                 .withBody("{}")
         );
 
-
-        var name = "test-project";
-        var version = "1.2.3";
+        var lookupProject = request()
+            .withPath("/api/v1/project/lookup")
+            .withQueryStringParameter("name", name)
+            .withQueryStringParameter("version", version)
+            .withHeader("Accept", "application/json")
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("GET");
+        dtrackMock.when(lookupProject).respond(
+            response()
+                .withStatusCode(200)
+                .withContentType(MediaType.APPLICATION_JSON)
+                .withBody("""
+                     {
+                         "name": "test-project",
+                         "version": "1.2.3",
+                         "uuid": "uuid-1"
+                     }
+                     """)
+        );
 
         var sbom = new Bom();
         var metadata = new Metadata();
@@ -119,7 +138,9 @@ public class DependencyTrackClientTest {
         var result = await(cut.uploadSBOM(name, version, sbom));
 
         // Then
-        assertThat(result).isInstanceOf(DependencyTrackClient.UploadResult.Success.class);
+        assertThat(result).isInstanceOfSatisfying(DependencyTrackClient.UploadResult.Success.class, success -> {
+           assertThat(success.projectUrl()).endsWith("/projects/uuid-1");
+            });
 
         var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
         var disabledProjects = dtrackMock.retrieveRecordedRequests(patchProject);
