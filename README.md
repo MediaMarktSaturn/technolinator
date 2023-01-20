@@ -23,6 +23,7 @@ ENV configuration:
 | DTRACK_URL                        | https://dtrack.mmst.eu | Baseurl of Dependency-Track                                             |
 | CDXGEN_FETCH_LICENSE              | true                   | see [cdxgen](https://github.com/AppThreat/cdxgen#environment-variables) |
 | CDXGEN_USE_GOSUM                  | true                   | see [cdxgen](https://github.com/AppThreat/cdxgen#environment-variables) |
+| ANALYSIS_RECURSIVE_DEFAULT        | true                   | default value for the `analysis.recursvie` config                       |
 
 ## Repository specific configuration
 

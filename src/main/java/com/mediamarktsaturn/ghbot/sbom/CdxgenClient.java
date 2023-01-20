@@ -33,7 +33,7 @@ public class CdxgenClient {
     private static final List<String> WRAPPER_SCRIPT_NAMES = List.of("mvnw", "mvnw.bat", "mvnw.cmd", "gradlew", "gradlew.bat", "gradlew.cmd");
 
     private final Map<String, String> cdxgenEnv;
-    private final boolean cleanWrapperScripts;
+    private final boolean cleanWrapperScripts, recursiveDefault;
 
     public CdxgenClient(
         @ConfigProperty(name = "github.token")
@@ -43,9 +43,12 @@ public class CdxgenClient {
         @ConfigProperty(name = "cdxgen.use_gosum")
         boolean useGosum,
         @ConfigProperty(name = "app.clean_wrapper_scripts")
-        boolean cleanWrapperScripts
+        boolean cleanWrapperScripts,
+        @ConfigProperty(name = "analysis.recursive_default")
+        boolean recursiveDefault
     ) {
         this.cleanWrapperScripts = cleanWrapperScripts;
+        this.recursiveDefault = recursiveDefault;
 
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
@@ -62,7 +65,7 @@ public class CdxgenClient {
     public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir, Optional<TechnolinatorConfig> config) {
         String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
-            config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(false) ? RECURSIVE_FLAG : ""
+            config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault) ? RECURSIVE_FLAG : ""
         );
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
             if (processResult instanceof ProcessHandler.ProcessResult.Success) {
