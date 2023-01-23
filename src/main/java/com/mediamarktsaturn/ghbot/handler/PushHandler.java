@@ -74,7 +74,7 @@ public class PushHandler {
         if (checkoutResult instanceof RepositoryService.CheckoutResult.Success) {
             Log.infof("Starting sbom creation for repo %s, branch %s", event.repoUrl(), event.getBranch());
             final var localRepo = ((RepositoryService.CheckoutResult.Success) checkoutResult).repo();
-            return cdxgenClient.generateSBOM(buildAnalysisDirectory(localRepo, event.config()), event.config())
+            return cdxgenClient.generateSBOM(buildAnalysisDirectory(localRepo, event.config()), buildProjectNameFromEvent(event), event.config())
                 .whenComplete((uploadResult, uploadFailure) -> localRepo.close());
         } else {
             var failure = (RepositoryService.CheckoutResult.Failure) checkoutResult;

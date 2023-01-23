@@ -41,6 +41,10 @@ commandTests:
       args: ["--version"]
       expectedOutput:
           - '.*Gradle 7.*'
+    - name: "Git ask pass runs"
+      command: '/root/git_askpass.sh'
+      expectedOutput:
+          - ''
 
 metadataTest:
     labels:

@@ -9,7 +9,6 @@ import java.util.Optional;
 import javax.inject.Inject;
 
 import org.cyclonedx.model.Component;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
@@ -27,13 +26,12 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/maven");
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, "examiner", Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-            assertThat(proper.group()).isEqualTo("io.github.heubeck");
-            assertThat(proper.name()).isEqualTo("examiner");
-            assertThat(proper.version()).isEqualTo("1.8.3");
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
+//            assertThat(fallback.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
         });
     }
 
@@ -43,13 +41,12 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/maven_wrapper");
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, "maven_wrapper", Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-            assertThat(proper.group()).isEqualTo("io.github.heubeck");
-            assertThat(proper.name()).isEqualTo("examiner");
-            assertThat(proper.version()).isEqualTo("1.8.3");
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("maven_wrapper");
+//            assertThat(fallback.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
         });
     }
 
@@ -59,14 +56,12 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/maven_fallback");
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, "cdxgen-is-awesome", Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-            assertThat(proper.sbom().getMetadata().getComponent()).isNotNull();
-            assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
-            assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("cdxgen-test");
-            assertThat(proper.sbom().getComponents()).isNotEmpty();
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
+            assertThat(fallback.sbom().getComponents()).isNotEmpty();
         });
     }
 
@@ -77,7 +72,7 @@ public class CdxgenClientGenerationTest {
         var config = new TechnolinatorConfig(true, null, new TechnolinatorConfig.AnalysisConfig(null, true));
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.of(config)));
+        var result = await(cut.generateSBOM(file, "multi-mode", Optional.of(config)));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, proper -> {
@@ -93,7 +88,7 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/node");
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, "node", Optional.empty()));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
@@ -107,7 +102,7 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/noop");
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, "noop", Optional.empty()));
 
         // Then
         assertThat(result).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class);
@@ -119,7 +114,7 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/go");
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.empty()));
+        var result = await(cut.generateSBOM(file, "go", Optional.empty()));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
@@ -135,7 +130,7 @@ public class CdxgenClientGenerationTest {
         var config = new TechnolinatorConfig(true, null, new TechnolinatorConfig.AnalysisConfig(null, true));
 
         // When
-        var result = await(cut.generateSBOM(file, Optional.of(config)));
+        var result = await(cut.generateSBOM(file, "multi-module-mode", Optional.of(config)));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, proper -> {

@@ -6,11 +6,15 @@ ARG CDXGEN_PLUGINS_VERSION
 
 RUN mkdir /root/.m2
 COPY --chown=1001:root src/main/docker/assets/settings.xml /root/.m2/settings.xml
+COPY --chown=1001:root src/main/docker/assets/git_askpass.sh /root/git_askpass.sh
 
 WORKDIR /app
 RUN chown 1001 /app \
     && chmod "g+rwX" /app \
-    && chown 1001:root /app
+    && chown 1001:root /app \
+    && chmod "a+x" /root/git_askpass.sh
+
+ENV GIT_ASKPASS='/root/git_askpass.sh'
 
 # update system and install requirements
 RUN \

@@ -20,7 +20,6 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.inject.Inject;
 
-import org.awaitility.Awaitility;
 import org.cyclonedx.model.Bom;
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
@@ -69,11 +68,11 @@ public class PushHandlerTest {
                 )
             );
 
-        when(cdxgenClient.generateSBOM(tmpFile, Optional.empty()))
+        when(cdxgenClient.generateSBOM(tmpFile, projectName, Optional.empty()))
             .thenReturn(
                 CompletableFuture.completedFuture(
                     new CdxgenClient.SBOMGenerationResult.Proper(
-                        sbom, "test-group", "test-name", version, List.of()
+                        sbom, "test-group", projectName, version, List.of()
                     )
                 )
             );
@@ -104,7 +103,7 @@ public class PushHandlerTest {
 
         // Then
         verify(repoService).checkoutBranch(any());
-        verify(cdxgenClient).generateSBOM(tmpFile, Optional.empty());
+        verify(cdxgenClient).generateSBOM(tmpFile, projectName, Optional.empty());
         verify(dtrackClient).uploadSBOM(projectName, branch, sbom);
         await().untilAsserted(() -> {
             assertThat(tmpFile).doesNotExist();

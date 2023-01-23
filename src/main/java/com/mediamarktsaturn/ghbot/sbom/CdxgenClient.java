@@ -3,6 +3,7 @@ package com.mediamarktsaturn.ghbot.sbom;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -60,12 +61,13 @@ public class CdxgenClient {
         );
     }
 
-    private static final String CDXGEN_CMD_FMT = "cdxgen --fail-on-error -o %s%s";
+    private static final String CDXGEN_CMD_FMT = "cdxgen --fail-on-error -o %s%s --project-name %s";
 
-    public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir, Optional<TechnolinatorConfig> config) {
+    public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
-            config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault) ? RECURSIVE_FLAG : ""
+            config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault) ? RECURSIVE_FLAG : "",
+            projectName
         );
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
             if (processResult instanceof ProcessHandler.ProcessResult.Success) {
@@ -108,13 +110,12 @@ public class CdxgenClient {
                 group = sbom.getMetadata().getComponent().getGroup();
                 name = sbom.getMetadata().getComponent().getName();
                 version = sbom.getMetadata().getComponent().getVersion();
-            } else if (sbom.getMetadata() == null ||
-                (sbom.getMetadata().getComponent() == null && sbom.getComponents().isEmpty() && sbom.getDependencies().isEmpty() && sbom.getServices().isEmpty())
-            ) {
-                return new SBOMGenerationResult.None();
             }
-
-            if (group != null && name != null && version != null) {
+            var named = isNotBlank(group) && isNotBlank(name) && isNotBlank(version);
+            if (!named &&
+                isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
+                return new SBOMGenerationResult.None();
+            } else if (named) {
                 return new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult);
             } else {
                 return new SBOMGenerationResult.Fallback(sbom, validationResult);
@@ -126,15 +127,20 @@ public class CdxgenClient {
         }
     }
 
+    static boolean isEmpty(Collection<?> value) {
+        return value == null || value.isEmpty();
+    }
+
+    static boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
     File prepareForAnalysis(File dir) {
+        String toBeDeleted = ".github ";
         if (cleanWrapperScripts) {
-            WRAPPER_SCRIPT_NAMES.forEach(name -> {
-                var file = new File(dir, name);
-                if (file.exists()) {
-                    file.delete();
-                }
-            });
+            toBeDeleted += String.join(" ", WRAPPER_SCRIPT_NAMES);
         }
+        ProcessHandler.run("rm -rf " + toBeDeleted, dir, Map.of()).join();
         return dir;
     }
 
