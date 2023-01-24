@@ -16,7 +16,7 @@ ENV configuration:
 | QUARKUS_GITHUB_APP_APP_ID         |                        | Created during app creation on GitHub                                   |
 | QUARKUS_GITHUB_APP_WEBHOOK_SECRET |                        | Created during app creation on GitHub                                   |
 | QUARKUS_GITHUB_APP_PRIVATE_KEY    |                        | Created during app creation on GitHub                                   |
-| GITHUB_TOKEN                      |                        | Optional. Raises GH api quota for cdxgen                                |
+| GITHUB_TOKEN                      |                        | Optional. Raises GH api quota for cdxgen and enables `go mod` projects  |
 | DTRACK_APIKEY                     |                        | API key to access Dependency-Track                                      |
 | ARTIFACTORY_USER                  |                        | User for accessing internal repos                                       |
 | ARTIFACTORY_PASSWORD              |                        | PW for accessing internal repos                                         |
