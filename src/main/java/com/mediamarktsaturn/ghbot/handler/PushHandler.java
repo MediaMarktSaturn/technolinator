@@ -38,12 +38,7 @@ public class PushHandler {
 
     @ConsumeEvent(ON_PUSH)
     public void onPush(PushEvent event) {
-        if (isBranchEligibleForAnalysis(event)) {
-            Log.infof("Ref %s of repository %s eligible for analysis", event.pushRef(), event.repoUrl());
-            processPushEvent(event);
-        } else {
-            Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", event.pushRef(), event.repoUrl());
-        }
+        processPushEvent(event);
     }
 
     void processPushEvent(PushEvent event) {
@@ -162,7 +157,4 @@ public class PushHandler {
         return event.getBranch();
     }
 
-    static boolean isBranchEligibleForAnalysis(PushEvent event) {
-        return event.pushRef().equals("refs/heads/" + event.defaultBranch());
-    }
 }
