@@ -58,7 +58,7 @@ public class OnPushDispatcher {
     static void createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, GitHub githubApi) {
         CompletableFuture.runAsync(() -> {
             try {
-                repo.createCommitStatus(commitSha, state, targetUrl, "SBOM creation");
+                repo.createCommitStatus(commitSha, state, targetUrl, "SBOM creation", "Supply Chain Security");
             } catch (Exception e) {
                 Log.warnf(e, "Could not set commit %s status of %s", commitSha, repo.getName());
             }
