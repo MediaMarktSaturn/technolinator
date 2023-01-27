@@ -1,6 +1,6 @@
 package com.mediamarktsaturn.ghbot.handler;
 
-import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
+import static com.mediamarktsaturn.ghbot.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
@@ -16,7 +16,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 
 import javax.inject.Inject;
 
@@ -32,6 +31,7 @@ import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectMock;
+import io.smallrye.mutiny.Uni;
 
 @QuarkusTest
 public class PushHandlerTest {
@@ -61,7 +61,7 @@ public class PushHandlerTest {
 
         when(repoService.checkoutBranch(any()))
             .thenReturn(
-                CompletableFuture.completedFuture(
+                Uni.createFrom().item(
                     new RepositoryService.CheckoutResult.Success(
                         new LocalRepository(tmpFile)
                     )
@@ -70,7 +70,7 @@ public class PushHandlerTest {
 
         when(cdxgenClient.generateSBOM(tmpFile, projectName, Optional.empty()))
             .thenReturn(
-                CompletableFuture.completedFuture(
+                Uni.createFrom().item(
                     new CdxgenClient.SBOMGenerationResult.Proper(
                         sbom, "test-group", projectName, version, List.of()
                     )
@@ -79,7 +79,7 @@ public class PushHandlerTest {
 
         when(dtrackClient.uploadSBOM(projectName, version, sbom))
             .thenReturn(
-                CompletableFuture.completedFuture(
+                Uni.createFrom().item(
                     new DependencyTrackClient.UploadResult.Success("")
                 )
             );
@@ -94,12 +94,11 @@ public class PushHandlerTest {
 
         var event = new PushEvent(
             pushPayload,
-            ignore(),
             Optional.empty()
         );
 
         // When
-        cut.onPush(event);
+        await(cut.onPush(event));
 
         // Then
         verify(repoService).checkoutBranch(any());

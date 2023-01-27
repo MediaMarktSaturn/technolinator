@@ -54,7 +54,7 @@ public class ProcessHandlerTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(ProcessHandler.ProcessResult.Failure.class, failure -> {
-            assertThat(failure.cause().toString()).isEqualTo("java.io.IOException: Cannot run program \"moep\" (in directory \".\"): error=2, No such file or directory");
+            assertThat(failure.cause().getCause().toString()).isEqualTo("java.io.IOException: Cannot run program \"moep\" (in directory \".\"): error=2, No such file or directory");
         });
     }
 

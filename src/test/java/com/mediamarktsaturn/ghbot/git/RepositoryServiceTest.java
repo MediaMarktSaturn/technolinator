@@ -1,7 +1,6 @@
 package com.mediamarktsaturn.ghbot.git;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.await;
-import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
@@ -42,7 +41,6 @@ public class RepositoryServiceTest {
         when(pushEvent.getRef()).thenReturn(branch);
         var event = new PushEvent(
             pushEvent,
-            ignore(),
             Optional.empty()
         );
         var result = await(cut.checkoutBranch(event));
@@ -69,7 +67,6 @@ public class RepositoryServiceTest {
         when(pushEvent.getRef()).thenReturn("never/ever");
         var event = new PushEvent(
             pushEvent,
-            ignore(),
             Optional.empty()
         );
 

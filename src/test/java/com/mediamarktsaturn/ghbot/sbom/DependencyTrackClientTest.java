@@ -1,16 +1,17 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
+import static com.mediamarktsaturn.ghbot.MockServerResource.API_KEY;
+import static com.mediamarktsaturn.ghbot.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockserver.model.HttpError.error;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
+
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 import javax.inject.Inject;
 
-import com.mediamarktsaturn.ghbot.DependencyTrackMockServer;
-import com.mediamarktsaturn.ghbot.MockServerResource;
-
-import io.quarkus.test.common.QuarkusTestResource;
-import io.quarkus.test.junit.QuarkusTest;
-import io.vertx.core.json.JsonObject;
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.Component;
@@ -21,11 +22,11 @@ import org.junit.jupiter.api.Test;
 import org.mockserver.client.MockServerClient;
 import org.mockserver.model.MediaType;
 
-import static com.mediamarktsaturn.ghbot.MockServerResource.API_KEY;
-import static com.mediamarktsaturn.ghbot.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
+import com.mediamarktsaturn.ghbot.DependencyTrackMockServer;
+import com.mediamarktsaturn.ghbot.MockServerResource;
+import io.quarkus.test.common.QuarkusTestResource;
+import io.quarkus.test.junit.QuarkusTest;
+import io.vertx.core.json.JsonObject;
 
 @QuarkusTest
 @QuarkusTestResource(value = MockServerResource.class, restrictToAnnotatedClass = true)
@@ -118,12 +119,12 @@ public class DependencyTrackClientTest {
                 .withStatusCode(200)
                 .withContentType(MediaType.APPLICATION_JSON)
                 .withBody("""
-                     {
-                         "name": "test-project",
-                         "version": "1.2.3",
-                         "uuid": "uuid-1"
-                     }
-                     """)
+                    {
+                        "name": "test-project",
+                        "version": "1.2.3",
+                        "uuid": "uuid-1"
+                    }
+                    """)
         );
 
         var sbom = new Bom();
@@ -139,8 +140,8 @@ public class DependencyTrackClientTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(DependencyTrackClient.UploadResult.Success.class, success -> {
-           assertThat(success.projectUrl()).endsWith("/projects/uuid-1");
-            });
+            assertThat(success.projectUrl()).endsWith("/projects/uuid-1");
+        });
 
         var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
         var disabledProjects = dtrackMock.retrieveRecordedRequests(patchProject);
@@ -176,9 +177,8 @@ public class DependencyTrackClientTest {
             .withContentType(MediaType.APPLICATION_JSON)
             .withHeader("X-API-Key", API_KEY)
             .withMethod("PUT");
-        dtrackMock.when(putBom).respond(
-            response()
-                .withStatusCode(500)
+        dtrackMock.when(putBom).error(
+            error().withDropConnection(true)
         );
         var sbom = new Bom();
         var name = "test-project";

@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.ghbot.events;
 
+import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.argThat;
 
 import java.io.IOException;
@@ -39,7 +40,7 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", null)));
+        await().untilAsserted(() -> Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", null))));
     }
 
     @Test
@@ -61,7 +62,7 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config)));
+        await().untilAsserted(() -> Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config))));
     }
 
     @Test
@@ -76,7 +77,7 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verifyNoInteractions(pushHandler);
+        await().untilAsserted(() -> Mockito.verifyNoInteractions(pushHandler));
     }
 
     @Test
@@ -98,7 +99,7 @@ public class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config)));
+        await().untilAsserted(() -> Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config))));
     }
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {

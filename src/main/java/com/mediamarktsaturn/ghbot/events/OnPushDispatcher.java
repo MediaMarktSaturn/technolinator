@@ -2,9 +2,8 @@ package com.mediamarktsaturn.ghbot.events;
 
 import static com.mediamarktsaturn.ghbot.handler.PushHandler.ON_PUSH;
 
+import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.function.Consumer;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -15,9 +14,14 @@ import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
+import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Push;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.TimeoutException;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.mutiny.core.eventbus.EventBus;
 
 @ApplicationScoped
@@ -27,42 +31,68 @@ public class OnPushDispatcher {
     @Inject
     EventBus eventBus;
 
+    @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
+        var pushRef = pushPayload.getRef();
+        var repo = pushPayload.getRepository();
+        var repoUrl = repo.getUrl();
+
         if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
-            Log.infof("Disabled for repo %s", pushPayload.getRepository().getUrl());
+            Log.infof("Disabled for repo %s", repoUrl);
         } else if (!isBranchEligibleForAnalysis(pushPayload)) {
-            Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", pushPayload.getRef(), pushPayload.getRepository().getUrl());
+            Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", pushRef, repoUrl);
         } else {
-            Log.infof("Ref %s of repository %s eligible for analysis", pushPayload.getRef(), pushPayload.getRepository().getUrl());
+            Log.infof("Ref %s of repository %s eligible for analysis", pushRef, repoUrl);
 
             var commitSha = getEventCommit(pushPayload);
-            commitSha.ifPresent(sha -> createGHCommitStatus(sha, pushPayload.getRepository(), GHCommitState.PENDING, null, githubApi));
 
-            Consumer<AnalysisResult> resultCallback = result ->
-                commitSha.ifPresent(sha -> announceCommitStatus(sha, pushPayload.getRepository(), result, githubApi));
-
-            eventBus.send(ON_PUSH, new PushEvent(
-                pushPayload,
-                resultCallback,
-                config
-            ));
+            eventBus.<DependencyTrackClient.UploadResult>request(ON_PUSH, new PushEvent(
+                    pushPayload,
+                    config)
+                ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .ifNoItem().after(Duration.ofMinutes(30)).fail()
+                .subscribe().with(
+                    message -> reportAnalysisResult(message.body(), repo, commitSha),
+                    failure -> {
+                        Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
+                        var reason = failure instanceof TimeoutException ? "timed out" : "failed";
+                        commitSha.ifPresent(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason));
+                    }
+                );
         }
     }
 
-    static void announceCommitStatus(String commitSha, GHRepository repo, AnalysisResult result, GitHub
-        githubApi) {
-        var state = result.success() ? GHCommitState.SUCCESS : GHCommitState.ERROR;
-        createGHCommitStatus(commitSha, repo, state, result.url(), githubApi);
+    void reportAnalysisResult(DependencyTrackClient.UploadResult uploadResult, GHRepository repo, Optional<String> commitSha) {
+        commitSha.ifPresent(commit -> {
+            final GHCommitState state;
+            final String url;
+            final String desc;
+            if (uploadResult instanceof DependencyTrackClient.UploadResult.Success) {
+                desc = "SBOM available";
+                state = GHCommitState.SUCCESS;
+                url = ((DependencyTrackClient.UploadResult.Success) uploadResult).projectUrl();
+            } else if (uploadResult instanceof DependencyTrackClient.UploadResult.Failure) {
+                desc = "SBOM creation error";
+                state = GHCommitState.ERROR;
+                url = ((DependencyTrackClient.UploadResult.Failure) uploadResult).baseUrl();
+            } else {
+                desc = "SBOM not available";
+                state = GHCommitState.SUCCESS;
+                url = null;
+            }
+
+            createGHCommitStatus(commit, repo, state, url, desc);
+        });
     }
 
-    static void createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, GitHub githubApi) {
-        CompletableFuture.runAsync(() -> {
-            try {
-                repo.createCommitStatus(commitSha, state, targetUrl, "SBOM creation", "Supply Chain Security");
-            } catch (Exception e) {
-                Log.warnf(e, "Could not set commit %s status of %s", commitSha, repo.getName());
-            }
-        });
+    void createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description) {
+        Uni.createFrom().item(Unchecked.supplier(() ->
+                repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security")))
+            .subscribe().with(
+                result -> {
+                },
+                failure -> Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName())
+            );
     }
 
     static Optional<String> getEventCommit(GHEventPayload.Push pushPayload) {
