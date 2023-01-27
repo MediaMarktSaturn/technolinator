@@ -5,7 +5,6 @@ import java.io.FileOutputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 
 import javax.enterprise.context.ApplicationScoped;
 
@@ -13,6 +12,7 @@ import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import com.mediamarktsaturn.ghbot.os.Util;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Uni;
 
 @ApplicationScoped
 public class RepositoryService {
@@ -20,9 +20,9 @@ public class RepositoryService {
     private static final String DOWNLOAD = "download.zip";
     private static final String UNZIP_CMD = "unzip -q " + DOWNLOAD;
 
-    public CompletableFuture<CheckoutResult> checkoutBranch(PushEvent event) {
-        return CompletableFuture.supplyAsync(() -> downloadBranch(event))
-            .thenCompose(this::unzipDownloaded);
+    public Uni<CheckoutResult> checkoutBranch(PushEvent event) {
+        return Uni.createFrom().item(() -> downloadBranch(event))
+            .chain(this::unzipDownloaded);
     }
 
     private CheckoutResult downloadBranch(PushEvent event) {
@@ -53,15 +53,15 @@ public class RepositoryService {
         }
     }
 
-    private CompletableFuture<CheckoutResult> unzipDownloaded(CheckoutResult result) {
+    private Uni<CheckoutResult> unzipDownloaded(CheckoutResult result) {
         if (result instanceof CheckoutResult.Success) {
             var repo = ((CheckoutResult.Success) result).repo();
             var dir = repo.dir();
             return ProcessHandler.run(UNZIP_CMD, dir, Map.of())
-                .thenCompose(processResult -> {
+                .chain(processResult -> {
                     if (processResult instanceof ProcessHandler.ProcessResult.Success) {
                         return ProcessHandler.run("rm -f " + DOWNLOAD, dir, Map.of())
-                            .thenApply(deleteResult -> {
+                            .map(deleteResult -> {
                                 if (deleteResult instanceof ProcessHandler.ProcessResult.Success) {
                                     var subdir = dir.listFiles()[0];
                                     return new CheckoutResult.Success(new LocalRepository(subdir));
@@ -70,15 +70,15 @@ public class RepositoryService {
                                 }
                             });
                     } else {
-                        return CompletableFuture.completedFuture((CheckoutResult) new CheckoutResult.Failure(((ProcessHandler.ProcessResult.Failure) processResult).cause()));
+                        return Uni.createFrom().item((CheckoutResult) new CheckoutResult.Failure(((ProcessHandler.ProcessResult.Failure) processResult).cause()));
                     }
-                }).whenComplete((unzipResult, unzipFailure) -> {
+                }).onTermination().invoke((unzipResult, unzipFailure, wasCancelled) -> {
                     if (unzipFailure != null || unzipResult instanceof CheckoutResult.Failure) {
                         repo.close();
                     }
                 });
         } else {
-            return CompletableFuture.completedFuture(result);
+            return Uni.createFrom().item(result);
         }
     }
 

@@ -15,9 +15,11 @@ import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
+import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Push;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.vertx.mutiny.core.eventbus.EventBus;
 
 @ApplicationScoped
@@ -27,6 +29,7 @@ public class OnPushDispatcher {
     @Inject
     EventBus eventBus;
 
+    @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
         if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
             Log.infof("Disabled for repo %s", pushPayload.getRepository().getUrl());
@@ -41,11 +44,16 @@ public class OnPushDispatcher {
             Consumer<AnalysisResult> resultCallback = result ->
                 commitSha.ifPresent(sha -> announceCommitStatus(sha, pushPayload.getRepository(), result, githubApi));
 
-            eventBus.send(ON_PUSH, new PushEvent(
-                pushPayload,
-                resultCallback,
-                config
-            ));
+            eventBus.<DependencyTrackClient.UploadResult>request(ON_PUSH, new PushEvent(
+                    pushPayload,
+                    resultCallback,
+                    config)
+                ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .subscribe().with(
+                    result -> {
+                    },
+                    failure -> Log.errorf(failure, "Failed to handle ref %s of repository %s", pushPayload.getRef(), pushPayload.getRepository().getUrl())
+                );
         }
     }
 

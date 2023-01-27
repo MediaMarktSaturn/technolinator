@@ -7,7 +7,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -19,6 +18,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
+import io.smallrye.mutiny.Uni;
 
 @ApplicationScoped
 public class CdxgenClient {
@@ -63,7 +63,7 @@ public class CdxgenClient {
 
     private static final String CDXGEN_CMD_FMT = "cdxgen --fail-on-error -o %s%s --project-name %s";
 
-    public CompletableFuture<SBOMGenerationResult> generateSBOM(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
+    public Uni<SBOMGenerationResult> generateSBOM(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
             config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault) ? RECURSIVE_FLAG : "",
@@ -78,8 +78,9 @@ public class CdxgenClient {
             }
         };
 
-        var future = ProcessHandler.run(cdxgenCmd, prepareForAnalysis(repoDir.getAbsoluteFile()), cdxgenEnv);
-        return future.thenApply(mapResult);
+        return prepareForAnalysis(repoDir.getAbsoluteFile())
+            .chain(dir -> ProcessHandler.run(cdxgenCmd, dir, cdxgenEnv))
+            .map(mapResult);
     }
 
     static SBOMGenerationResult readAndParseSBOM(File sbomFile) {
@@ -135,13 +136,13 @@ public class CdxgenClient {
         return value != null && !value.isBlank();
     }
 
-    File prepareForAnalysis(File dir) {
+    Uni<File> prepareForAnalysis(File dir) {
         String toBeDeleted = ".github ";
         if (cleanWrapperScripts) {
             toBeDeleted += String.join(" ", WRAPPER_SCRIPT_NAMES);
         }
-        ProcessHandler.run("rm -rf " + toBeDeleted, dir, Map.of()).join();
-        return dir;
+        return ProcessHandler.run("rm -rf " + toBeDeleted, dir, Map.of())
+            .map(i -> dir);
     }
 
     public sealed interface SBOMGenerationResult {

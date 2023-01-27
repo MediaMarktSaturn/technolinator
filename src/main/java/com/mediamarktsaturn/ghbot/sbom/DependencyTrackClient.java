@@ -3,7 +3,6 @@ package com.mediamarktsaturn.ghbot.sbom;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -41,7 +40,7 @@ public class DependencyTrackClient {
         this.dtrackApiUrl = dtrackBaseUrl + API_PATH;
     }
 
-    public CompletableFuture<UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
+    public Uni<UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
         var objectMapper = new ObjectMapper();
 
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
@@ -67,8 +66,7 @@ public class DependencyTrackClient {
             .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
             .chain(() -> deactivatePreviousVersion(projectName, projectVersion))
             .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
-            .onFailure().recoverWithItem(e -> (UploadResult) new UploadResult.Failure(dtrackBaseUrl, e))
-            .subscribeAsCompletionStage();
+            .onFailure().recoverWithItem(e -> (UploadResult) new UploadResult.Failure(dtrackBaseUrl, e));
     }
 
     Uni<UploadResult> getCurrentVersionUrl(String projectName, String projectVersion) {

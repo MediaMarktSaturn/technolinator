@@ -6,28 +6,27 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.unchecked.Unchecked;
 
 public class ProcessHandler {
 
     public static final File CURRENT_DIR = new File(".");
 
-    public static CompletableFuture<ProcessResult> run(String command) {
+    public static Uni<ProcessResult> run(String command) {
         return run(command, CURRENT_DIR, Map.of(), new ProcessCallback.DefaultProcessCallback());
     }
 
-    public static CompletableFuture<ProcessResult> run(String command, File workingDir, Map<String, String> env) {
+    public static Uni<ProcessResult> run(String command, File workingDir, Map<String, String> env) {
         return run(command, workingDir, env, new ProcessCallback.DefaultProcessCallback());
     }
 
-    public static CompletableFuture<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
-        return CompletableFuture.supplyAsync(() -> {
-            Log.infof("[%s] Starting '%s' in %s", callback.getIdent(), command, workingDir);
-            List<String> outputLines = new ArrayList<>();
-            try {
+    public static Uni<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
+        Log.infof("[%s] Starting '%s' in %s", callback.getIdent(), command, workingDir);
+        List<String> outputLines = new ArrayList<>();
+        return Uni.createFrom().completionStage(Unchecked.supplier(() -> {
                 var commandParts = command.trim().split("\\s+");
                 var processBuilder = new ProcessBuilder(commandParts)
                     .directory(workingDir)
@@ -42,19 +41,19 @@ public class ProcessHandler {
                     callback.onOutput(line);
                     outputLines.add(line);
                 }
-
-                process.waitFor(5, TimeUnit.SECONDS);
-                int exit = process.exitValue();
-                callback.onComplete(exit);
-                if (exit != 0) {
-                    return new ProcessResult.Failure(outputLines, exit, null);
-                } else {
-                    return new ProcessResult.Success(outputLines);
-                }
-            } catch (Exception e) {
-                callback.onFailure(e);
-                return new ProcessResult.Failure(outputLines, null, e);
+                return process.onExit();
+            })
+        ).map(process -> {
+            int exit = process.exitValue();
+            callback.onComplete(exit);
+            if (exit != 0) {
+                return (ProcessResult) new ProcessResult.Failure(outputLines, exit, null);
+            } else {
+                return (ProcessResult) new ProcessResult.Success(outputLines);
             }
+        }).onFailure().recoverWithItem(failure -> {
+            callback.onFailure(failure);
+            return (ProcessResult) new ProcessResult.Failure(outputLines, null, failure);
         });
     }
 

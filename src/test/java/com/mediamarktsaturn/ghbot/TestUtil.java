@@ -1,19 +1,20 @@
 package com.mediamarktsaturn.ghbot;
 
 import java.nio.file.Path;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import java.util.function.Consumer;
 
 import org.testcontainers.images.ParsedDockerfile;
 import org.testcontainers.utility.DockerImageName;
 import org.testcontainers.utility.MountableFile;
 
+import io.smallrye.mutiny.Uni;
+
 public interface TestUtil {
 
-    static <T> T await(Future<T> future) {
+    static <T> T await(Uni<T> uni) {
         try {
-            return future.get(15, TimeUnit.MINUTES);
+            return uni.await().atMost(Duration.ofMinutes(15));
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -25,6 +26,7 @@ public interface TestUtil {
     }
 
     static <T> Consumer<T> ignore() {
-        return any -> {};
+        return any -> {
+        };
     }
 }
