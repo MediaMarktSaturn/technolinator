@@ -21,7 +21,6 @@ import io.quarkiverse.githubapp.event.Push;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.mutiny.core.eventbus.EventBus;
@@ -55,7 +54,7 @@ public class OnPushDispatcher {
                     ON_PUSH,
                     new PushEvent(pushPayload, config),
                     new DeliveryOptions().setSendTimeout(processTimeout.toMillis())
-                ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                )
                 .ifNoItem().after(processTimeout).fail()
                 .subscribe().with(
                     message -> reportAnalysisResult(message.body(), repo, commitSha),

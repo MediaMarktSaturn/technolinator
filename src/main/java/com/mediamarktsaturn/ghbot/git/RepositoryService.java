@@ -13,6 +13,7 @@ import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import com.mediamarktsaturn.ghbot.os.Util;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 
 @ApplicationScoped
 public class RepositoryService {
@@ -22,6 +23,7 @@ public class RepositoryService {
 
     public Uni<CheckoutResult> checkoutBranch(PushEvent event) {
         return Uni.createFrom().item(() -> downloadBranch(event))
+            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
             .chain(this::unzipDownloaded);
     }
 
