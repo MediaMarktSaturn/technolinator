@@ -1,7 +1,6 @@
 package com.mediamarktsaturn.ghbot.handler;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.await;
-import static com.mediamarktsaturn.ghbot.TestUtil.ignore;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
@@ -95,7 +94,6 @@ public class PushHandlerTest {
 
         var event = new PushEvent(
             pushPayload,
-            ignore(),
             Optional.empty()
         );
 

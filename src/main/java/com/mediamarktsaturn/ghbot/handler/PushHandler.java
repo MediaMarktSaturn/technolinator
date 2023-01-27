@@ -10,7 +10,6 @@ import javax.enterprise.context.ApplicationScoped;
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 
-import com.mediamarktsaturn.ghbot.events.AnalysisResult;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.RepositoryService;
@@ -44,25 +43,7 @@ public class PushHandler {
     Uni<DependencyTrackClient.UploadResult> processPushEvent(PushEvent event) {
         return repoService.checkoutBranch(event)
             .chain(checkoutResult -> generateSbom(event, checkoutResult))
-            .chain(generationResult -> uploadSbom(event, generationResult))
-            .onTermination().invoke(((uploadResult, failure, wasCancelled) -> reportAnalysisResult(event, uploadResult, failure)));
-    }
-
-    void reportAnalysisResult(PushEvent event, DependencyTrackClient.UploadResult uploadResult, Throwable failure) {
-        final boolean success = failure == null &&
-            uploadResult instanceof DependencyTrackClient.UploadResult.Success
-            || uploadResult instanceof DependencyTrackClient.UploadResult.None;
-
-        final String url;
-        if (uploadResult instanceof DependencyTrackClient.UploadResult.Success) {
-            url = ((DependencyTrackClient.UploadResult.Success) uploadResult).projectUrl();
-        } else if (uploadResult instanceof DependencyTrackClient.UploadResult.Failure) {
-            url = ((DependencyTrackClient.UploadResult.Failure) uploadResult).baseUrl();
-        } else {
-            url = null;
-        }
-
-        event.resultCallback().accept(new AnalysisResult(success, url));
+            .chain(generationResult -> uploadSbom(event, generationResult));
     }
 
     Uni<CdxgenClient.SBOMGenerationResult> generateSbom(PushEvent event, RepositoryService.CheckoutResult checkoutResult) {
