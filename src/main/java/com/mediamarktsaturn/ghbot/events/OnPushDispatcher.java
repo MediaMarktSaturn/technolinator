@@ -8,6 +8,7 @@ import java.util.Optional;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
@@ -22,6 +23,7 @@ import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.unchecked.Unchecked;
+import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.mutiny.core.eventbus.EventBus;
 
 @ApplicationScoped
@@ -30,6 +32,9 @@ public class OnPushDispatcher {
     // no-arg constructor needed for GitHub event consuming classes by the framework, thus no constructor injection here
     @Inject
     EventBus eventBus;
+
+    @ConfigProperty(name = "app.analysis_timeout")
+    Duration processTimeout;
 
     @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
@@ -46,11 +51,12 @@ public class OnPushDispatcher {
 
             var commitSha = getEventCommit(pushPayload);
 
-            eventBus.<DependencyTrackClient.UploadResult>request(ON_PUSH, new PushEvent(
-                    pushPayload,
-                    config)
+            eventBus.<DependencyTrackClient.UploadResult>request(
+                    ON_PUSH,
+                    new PushEvent(pushPayload, config),
+                    new DeliveryOptions().setSendTimeout(processTimeout.toMillis())
                 ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .ifNoItem().after(Duration.ofMinutes(30)).fail()
+                .ifNoItem().after(processTimeout).fail()
                 .subscribe().with(
                     message -> reportAnalysisResult(message.body(), repo, commitSha),
                     failure -> {
