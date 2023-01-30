@@ -5,7 +5,7 @@ on:
             - '.github/**'
             - "deployment/services.yml"
 env:
-    CDXGEN_VERSION: '7.0.1'
+    CDXGEN_VERSION: '7.0.2'
     CDXGEN_PLUGINS_VERSION: '0.3.0'
     semantic_version: '19.0.5'
     java_version: '17'
