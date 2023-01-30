@@ -50,6 +50,8 @@ public class OnPushDispatcher {
 
             var commitSha = getEventCommit(pushPayload);
 
+            commitSha.ifPresent(commit -> createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running"));
+
             eventBus.<DependencyTrackClient.UploadResult>request(
                     ON_PUSH,
                     new PushEvent(pushPayload, config),
@@ -77,7 +79,7 @@ public class OnPushDispatcher {
                 state = GHCommitState.SUCCESS;
                 url = ((DependencyTrackClient.UploadResult.Success) uploadResult).projectUrl();
             } else if (uploadResult instanceof DependencyTrackClient.UploadResult.Failure) {
-                desc = "SBOM creation error";
+                desc = "SBOM creation failed";
                 state = GHCommitState.ERROR;
                 url = ((DependencyTrackClient.UploadResult.Failure) uploadResult).baseUrl();
             } else {
