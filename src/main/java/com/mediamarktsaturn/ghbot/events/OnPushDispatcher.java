@@ -10,6 +10,7 @@ import javax.inject.Inject;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
+import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
@@ -58,19 +59,27 @@ public class OnPushDispatcher {
                     new DeliveryOptions().setSendTimeout(processTimeout.toMillis())
                 )
                 .ifNoItem().after(processTimeout).fail()
+                .chain(message -> reportAnalysisResult(message.body(), repo, commitSha))
+                .onFailure().recoverWithUni(failure -> {
+                    Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
+                    return reportFailure(repo, commitSha, failure);
+                })
                 .subscribe().with(
-                    message -> reportAnalysisResult(message.body(), repo, commitSha),
-                    failure -> {
-                        Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
-                        var reason = failure instanceof TimeoutException ? "timed out" : "failed";
-                        commitSha.ifPresent(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason));
-                    }
+                    message -> Log.infof("Handling succeeded for ref %s of repository %s", pushRef, repoUrl),
+                    failure -> Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl)
                 );
         }
     }
 
-    void reportAnalysisResult(DependencyTrackClient.UploadResult uploadResult, GHRepository repo, Optional<String> commitSha) {
-        commitSha.ifPresent(commit -> {
+    Uni<GHCommitStatus> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure) {
+        var reason = failure instanceof TimeoutException ? "timed out" : "failed";
+        return commitSha
+            .map(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason))
+            .orElseGet(() -> Uni.createFrom().item(null));
+    }
+
+    Uni<GHCommitStatus> reportAnalysisResult(DependencyTrackClient.UploadResult uploadResult, GHRepository repo, Optional<String> commitSha) {
+        return commitSha.map(commit -> {
             final GHCommitState state;
             final String url;
             final String desc;
@@ -88,18 +97,14 @@ public class OnPushDispatcher {
                 url = null;
             }
 
-            createGHCommitStatus(commit, repo, state, url, desc);
-        });
+            return createGHCommitStatus(commit, repo, state, url, desc);
+        }).orElseGet(() -> Uni.createFrom().item(null));
     }
 
-    void createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description) {
-        Uni.createFrom().item(Unchecked.supplier(() ->
+    Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description) {
+        return Uni.createFrom().item(Unchecked.supplier(() ->
                 repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security")))
-            .subscribe().with(
-                result -> {
-                },
-                failure -> Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName())
-            );
+            .onFailure().invoke(failure -> Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName()));
     }
 
     static Optional<String> getEventCommit(GHEventPayload.Push pushPayload) {
