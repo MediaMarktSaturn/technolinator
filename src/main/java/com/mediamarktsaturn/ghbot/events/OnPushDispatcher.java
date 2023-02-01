@@ -16,6 +16,7 @@ import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
+import com.mediamarktsaturn.ghbot.handler.PushHandler;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Push;
@@ -23,15 +24,13 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
-import io.vertx.core.eventbus.DeliveryOptions;
-import io.vertx.mutiny.core.eventbus.EventBus;
 
 @ApplicationScoped
 public class OnPushDispatcher {
 
     // no-arg constructor needed for GitHub event consuming classes by the framework, thus no constructor injection here
     @Inject
-    EventBus eventBus;
+    PushHandler pushHandler;
 
     @ConfigProperty(name = "app.analysis_timeout")
     Duration processTimeout;
@@ -51,21 +50,20 @@ public class OnPushDispatcher {
 
             var commitSha = getEventCommit(pushPayload);
 
-            commitSha.ifPresent(commit -> createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running"));
+            commitSha.ifPresent(commit ->
+                createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running")
+                    .subscribe().with(item -> {}, failure -> {})
+            );
 
-            eventBus.<DependencyTrackClient.UploadResult>request(
-                    ON_PUSH,
-                    new PushEvent(pushPayload, config),
-                    new DeliveryOptions().setSendTimeout(processTimeout.toMillis())
-                )
+            pushHandler.onPush(new PushEvent(pushPayload, config))
                 .ifNoItem().after(processTimeout).fail()
-                .chain(message -> reportAnalysisResult(message.body(), repo, commitSha))
+                .chain(result -> reportAnalysisResult(result, repo, commitSha))
                 .onFailure().recoverWithUni(failure -> {
                     Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
                     return reportFailure(repo, commitSha, failure);
                 })
                 .subscribe().with(
-                    message -> Log.infof("Handling succeeded for ref %s of repository %s", pushRef, repoUrl),
+                    message -> Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl),
                     failure -> Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl)
                 );
         }
@@ -102,8 +100,10 @@ public class OnPushDispatcher {
     }
 
     Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description) {
-        return Uni.createFrom().item(Unchecked.supplier(() ->
-                repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security")))
+        return Uni.createFrom().item(Unchecked.supplier(() -> {
+                Log.infof("Setting repo %s commit %s status to %s", repo.getUrl(), commitSha, state);
+                return repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security");
+            }))
             .onFailure().invoke(failure -> Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName()));
     }
 

@@ -17,7 +17,6 @@ import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkus.logging.Log;
-import io.quarkus.vertx.ConsumeEvent;
 import io.smallrye.mutiny.Uni;
 
 @ApplicationScoped
@@ -35,7 +34,6 @@ public class PushHandler {
         this.dtrackClient = dtrackClient;
     }
 
-    @ConsumeEvent(ON_PUSH)
     public Uni<DependencyTrackClient.UploadResult> onPush(PushEvent event) {
         return processPushEvent(event);
     }
@@ -90,15 +88,7 @@ public class PushHandler {
     }
 
     Uni<DependencyTrackClient.UploadResult> doUploadSbom(String projectName, String projectVersion, Bom sbom) {
-        return dtrackClient.uploadSBOM(projectName, projectVersion, sbom)
-            .onTermination().invoke((result, failure, wasCancelled) -> {
-                if (failure != null || result instanceof DependencyTrackClient.UploadResult.Failure) {
-                    Log.errorf(failure != null ? failure : ((DependencyTrackClient.UploadResult.Failure) result).cause(), "SBOM project %s, version %s failed", projectName, projectVersion);
-                } else {
-                    var success = (DependencyTrackClient.UploadResult.Success) result;
-                    Log.infof("Processing completed for project %s, version %s", projectName, projectVersion);
-                }
-            });
+        return dtrackClient.uploadSBOM(projectName, projectVersion, sbom);
     }
 
     static void logValidationIssues(PushEvent event, List<ParseException> validationIssues) {
