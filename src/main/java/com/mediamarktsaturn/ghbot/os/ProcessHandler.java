@@ -49,7 +49,7 @@ public class ProcessHandler {
                 int exit = process.exitValue();
                 callback.onComplete(exit);
                 if (exit != 0) {
-                    return (ProcessResult) new ProcessResult.Failure(outputLines, exit, null);
+                    return (ProcessResult) new ProcessResult.Failure(outputLines, exit, new Exception(command + " exited with " + exit));
                 } else {
                     return (ProcessResult) new ProcessResult.Success(outputLines);
                 }
