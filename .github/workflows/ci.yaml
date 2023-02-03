@@ -61,9 +61,21 @@ jobs:
                     mvn -B -ntp versions:set -DnewVersion="$sem_ver"
                   fi
 
-                  mvn ${{ env.mvn_parameter }} clean verify -Pnative
+                  mvn ${{ env.mvn_parameter }} clean install -Pnative
                   VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
                   echo VERSION="$VERSION" >> $GITHUB_ENV
+
+            - name: Static code analysis
+              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+              env:
+                SONAR_TOKEN: ${{ secrets.CLP_SONARQUBE_ACCESS_TOKEN }}
+                SONAR_HOST: ${{ secrets.CLP_SONARQUBE_HOST_URL }}
+                PROJECT_KEY: technolinator:main
+              run: |
+                  mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                    -Dsonar.host.url="$SONAR_HOST" \
+                    -Dsonar.login="$SONAR_TOKEN" \
+                    -Dsonar.projectKey="$PROJECT_KEY"
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v2

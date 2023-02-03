@@ -1,5 +1,7 @@
 # Technolinator
 
+![dependencies](https://dtrack.mmst.eu/api/v1/badge/vulns/project/technolinator/main) ![policies](https://dtrack.mmst.eu/api/v1/badge/violations/project/technolinator/main)
+
 The MediaMarktSaturn GitHub Bot.
 
 ## Functionality
