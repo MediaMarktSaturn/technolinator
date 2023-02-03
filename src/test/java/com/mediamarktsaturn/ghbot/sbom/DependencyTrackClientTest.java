@@ -146,8 +146,8 @@ public class DependencyTrackClientTest {
         var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
         var disabledProjects = dtrackMock.retrieveRecordedRequests(patchProject);
         assertThat(disabledProjects).hasSize(2);
-        assertThat(disabledProjects[0].getPath().toString()).isEqualTo("/api/v1/project/uuid-1");
-        assertThat(disabledProjects[1].getPath().toString()).isEqualTo("/api/v1/project/uuid-2");
+        assertThat(disabledProjects[0].getPath()).hasToString("/api/v1/project/uuid-1");
+        assertThat(disabledProjects[1].getPath()).hasToString("/api/v1/project/uuid-2");
 
         var uploadedJson = new JsonObject(uploadedValue);
         var uploadedName = uploadedJson.getString("projectName");
