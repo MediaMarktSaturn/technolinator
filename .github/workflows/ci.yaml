@@ -3,7 +3,6 @@ on:
     push:
         paths-ignore:
             - '.github/**'
-            - "deployment/services.yml"
 env:
     CDXGEN_VERSION: '7.0.5'
     CDXGEN_PLUGINS_VERSION: '0.3.0'
@@ -72,10 +71,11 @@ jobs:
                 SONAR_HOST: ${{ secrets.CLP_SONARQUBE_HOST_URL }}
                 PROJECT_KEY: technolinator:main
               run: |
-                  mvn org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+                  mvn ${{ env.mvn_parameter }} org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
                     -Dsonar.host.url="$SONAR_HOST" \
                     -Dsonar.login="$SONAR_TOKEN" \
-                    -Dsonar.projectKey="$PROJECT_KEY"
+                    -Dsonar.projectKey="$PROJECT_KEY" \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v2

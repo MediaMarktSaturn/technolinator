@@ -11,6 +11,9 @@ import org.junit.jupiter.api.Test;
 import com.mediamarktsaturn.ghbot.git.LocalRepository;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 
+import io.quarkus.test.junit.QuarkusTest;
+
+@QuarkusTest
 public class PushHandlerTest_buildAnalysisDirectory {
 
     @Test
