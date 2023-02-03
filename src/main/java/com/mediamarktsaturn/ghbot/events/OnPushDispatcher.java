@@ -1,7 +1,5 @@
 package com.mediamarktsaturn.ghbot.events;
 
-import static com.mediamarktsaturn.ghbot.handler.PushHandler.ON_PUSH;
-
 import java.time.Duration;
 import java.util.Optional;
 
