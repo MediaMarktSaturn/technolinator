@@ -28,8 +28,8 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 # install cdxgen
 RUN \
-    npm install -g @appthreat/cdxgen@"$CDXGEN_VERSION" && \
-    npm install -g @ngcloudsec/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
+    npm install -g @cyclonedx/cdxgen@"$CDXGEN_VERSION" && \
+    npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
 
 # install sdkman & sdks
 RUN \

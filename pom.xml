@@ -14,13 +14,13 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>2.16.0.Final</quarkus.platform.version>
+        <quarkus.platform.version>2.16.1.Final</quarkus.platform.version>
 
         <quarkus-github-app.version>1.16.0</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>7.3.1</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
-        <jruby.joni.version>2.1.46</jruby.joni.version>
+        <jruby.joni.version>2.1.47</jruby.joni.version>
 
         <!-- test -->
         <assertj.version>3.24.2</assertj.version>

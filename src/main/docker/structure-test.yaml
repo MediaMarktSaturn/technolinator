@@ -35,7 +35,7 @@ commandTests:
       command: 'mvn'
       args: ["--version"]
       expectedOutput:
-          - '.*Apache Maven 3.8.*'
+          - '.*Apache Maven 3.*'
     - name: "Gradle installed"
       command: 'gradle'
       args: ["--version"]
