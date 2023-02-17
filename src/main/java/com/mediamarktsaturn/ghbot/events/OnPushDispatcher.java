@@ -1,7 +1,11 @@
 package com.mediamarktsaturn.ghbot.events;
 
+import java.net.URL;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -33,14 +37,19 @@ public class OnPushDispatcher {
     @ConfigProperty(name = "app.analysis_timeout")
     Duration processTimeout;
 
+    @ConfigProperty(name = "app.enabled_repos")
+    List<String> enabledRepos;
+
     @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
         var pushRef = pushPayload.getRef();
         var repo = pushPayload.getRepository();
         var repoUrl = repo.getUrl();
 
-        if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
-            Log.infof("Disabled for repo %s", repoUrl);
+        if (!isEnabledByConfig(repoUrl)) {
+            Log.infof("Repo %s excluded by global config", repoUrl);
+        } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
+            Log.infof("Disabled for repo %s by repo config", repoUrl);
         } else if (!isBranchEligibleForAnalysis(pushPayload)) {
             Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", pushRef, repoUrl);
         } else {
@@ -50,7 +59,9 @@ public class OnPushDispatcher {
 
             commitSha.ifPresent(commit ->
                 createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running")
-                    .subscribe().with(item -> {}, failure -> {})
+                    .subscribe().with(item -> {
+                    }, failure -> {
+                    })
             );
 
             pushHandler.onPush(new PushEvent(pushPayload, config))
@@ -103,6 +114,21 @@ public class OnPushDispatcher {
                 return repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security");
             }))
             .onFailure().invoke(failure -> Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName()));
+    }
+
+    private List<String> normalizedEnabledRepos;
+
+    boolean isEnabledByConfig(URL repoUrl) {
+        if (normalizedEnabledRepos == null) {
+            normalizedEnabledRepos = enabledRepos.stream().map(String::trim).filter(Predicate.not(String::isEmpty)).collect(Collectors.toList());
+        }
+
+        return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(getRepoName(repoUrl));
+    }
+
+    String getRepoName(URL repoUrl) {
+        var path = repoUrl.getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
     }
 
     static Optional<String> getEventCommit(GHEventPayload.Push pushPayload) {

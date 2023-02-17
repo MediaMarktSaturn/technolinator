@@ -1,10 +1,13 @@
 package com.mediamarktsaturn.ghbot.events;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.argThat;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -100,6 +103,30 @@ public class OnPushDispatcherTest {
 
         // Then
         await().untilAsserted(() -> Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config))));
+    }
+
+    @Test
+    public void testRepoEnabledConfig_noRestriction() throws MalformedURLException {
+        // Given
+        var cur = new OnPushDispatcher();
+        cur.enabledRepos = List.of();
+        var repo = new URL("https://github.com/MediaMarktSaturn/technolinator");
+
+        // When && Then
+        assertThat(cur.isEnabledByConfig(repo)).isTrue();
+    }
+
+    @Test
+    public void testRepoEnabledConfig_restriction() throws MalformedURLException {
+        // Given
+        var cur = new OnPushDispatcher();
+        cur.enabledRepos = List.of(" technolinator ", "", " analyzeMe");
+        var enabledRepo = new URL("https://github.com/MediaMarktSaturn/technolinator");
+        var disabledRepo = new URL("https://github.com/MediaMarktSaturn/fluggegecheimen");
+
+        // When && Then
+        assertThat(cur.isEnabledByConfig(enabledRepo)).isTrue();
+        assertThat(cur.isEnabledByConfig(disabledRepo)).isFalse();
     }
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {

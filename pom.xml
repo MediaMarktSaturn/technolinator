@@ -14,7 +14,7 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>2.16.2.Final</quarkus.platform.version>
+        <quarkus.platform.version>2.16.3.Final</quarkus.platform.version>
 
         <quarkus-github-app.version>1.16.0</quarkus-github-app.version>
 
@@ -31,7 +31,7 @@
         <mockserver.version>5.13.2</mockserver.version>
 
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.0.0-M8</surefire-plugin.version>
+        <surefire-plugin.version>3.0.0-M9</surefire-plugin.version>
         <compiler-plugin.version>3.10.1</compiler-plugin.version>
         <clean-plugin.version>3.2.0</clean-plugin.version>
         <dependency-plugin.version>3.5.0</dependency-plugin.version>

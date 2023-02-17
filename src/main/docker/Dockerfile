@@ -37,7 +37,7 @@ RUN \
     curl -s "https://get.sdkman.io" | bash > /dev/null && \
     source "$HOME/.sdkman/bin/sdkman-init.sh" && \
     sdk install maven && \
-    sdk install gradle && \
+    sdk install gradle 7.6 && \
     sdk install sbt
 
 # cdxgen env
@@ -46,5 +46,4 @@ ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
 COPY --chown=1001:root target/*-runner /app/technolinator
 
-EXPOSE 8080
 CMD ["/app/technolinator"]
