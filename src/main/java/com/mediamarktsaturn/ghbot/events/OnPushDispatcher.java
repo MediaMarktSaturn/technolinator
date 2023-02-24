@@ -45,13 +45,6 @@ public class OnPushDispatcher {
     @ConfigProperty(name = "app.enabled_repos")
     List<String> enabledRepos;
 
-    enum MetricStatus {
-        DISABLED_BY_CONFIG,
-        DISABLED_BY_REPO,
-        NON_DEFAULT_BRANCH,
-        ELIGIBLE_FOR_ANALYSIS
-    }
-
     @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
         var pushRef = pushPayload.getRef();
@@ -59,21 +52,21 @@ public class OnPushDispatcher {
         var repoUrl = repo.getUrl();
 
         // metric tags
-        final MetricStatus status;
+        final MetricStatusRepo status;
         final String repoName = getRepoName(repoUrl);
 
         if (!isEnabledByConfig(repoName)) {
             Log.infof("Repo %s excluded by global config", repoUrl);
-            status = MetricStatus.DISABLED_BY_CONFIG;
+            status = MetricStatusRepo.DISABLED_BY_CONFIG;
         } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
             Log.infof("Disabled for repo %s by repo config", repoUrl);
-            status = MetricStatus.DISABLED_BY_REPO;
+            status = MetricStatusRepo.DISABLED_BY_REPO;
         } else if (!isBranchEligibleForAnalysis(pushPayload)) {
             Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", pushRef, repoUrl);
-            status = MetricStatus.NON_DEFAULT_BRANCH;
+            status = MetricStatusRepo.NON_DEFAULT_BRANCH;
         } else {
             Log.infof("Ref %s of repository %s eligible for analysis", pushRef, repoUrl);
-            status = MetricStatus.ELIGIBLE_FOR_ANALYSIS;
+            status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
 
             var commitSha = getEventCommit(pushPayload);
 
@@ -93,18 +86,22 @@ public class OnPushDispatcher {
                     return reportFailure(repo, commitSha, failure);
                 })
                 .subscribe().with(
-                    message -> {
+                    pushResult -> {
                         Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
                         meterRegistry.gauge("last_analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
-                            Tag.of("success", "true")
+                            Tag.of("failure", "")
                         ), System.currentTimeMillis() - analysisStart);
+                        meterRegistry.counter("analysis_status", List.of(
+                            Tag.of("repo", repoName),
+                            Tag.of("status", pushResult.metricStatus.name()))
+                        ).increment();
                     },
                     failure -> {
                         Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
                         meterRegistry.gauge("last_analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
-                            Tag.of("success", "false")
+                            Tag.of("failure", failure.getClass().getSimpleName())
                         ), System.currentTimeMillis() - analysisStart);
                     }
                 );
@@ -117,33 +114,39 @@ public class OnPushDispatcher {
         ).increment();
     }
 
-    Uni<GHCommitStatus> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure) {
+    Uni<PushResult> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure) {
         var reason = failure instanceof TimeoutException ? "timed out" : "failed";
         return commitSha
-            .map(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason))
-            .orElseGet(() -> Uni.createFrom().item(null));
+            .map(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason)
+                .map(commitStatus -> new PushResult(commitStatus, MetricStatusAnalysis.ERROR)))
+            .orElseGet(() -> Uni.createFrom().item(new PushResult(null, MetricStatusAnalysis.NONE)));
     }
 
-    Uni<GHCommitStatus> reportAnalysisResult(DependencyTrackClient.UploadResult uploadResult, GHRepository repo, Optional<String> commitSha) {
+    Uni<PushResult> reportAnalysisResult(DependencyTrackClient.UploadResult uploadResult, GHRepository repo, Optional<String> commitSha) {
         return commitSha.map(commit -> {
             final GHCommitState state;
+            final MetricStatusAnalysis metricStatus;
             final String url;
             final String desc;
             if (uploadResult instanceof DependencyTrackClient.UploadResult.Success) {
                 desc = "SBOM available";
                 state = GHCommitState.SUCCESS;
+                metricStatus = MetricStatusAnalysis.OK;
                 url = ((DependencyTrackClient.UploadResult.Success) uploadResult).projectUrl();
             } else if (uploadResult instanceof DependencyTrackClient.UploadResult.Failure) {
                 desc = "SBOM creation failed";
                 state = GHCommitState.ERROR;
+                metricStatus = MetricStatusAnalysis.ERROR;
                 url = ((DependencyTrackClient.UploadResult.Failure) uploadResult).baseUrl();
             } else {
                 desc = "SBOM not available";
                 state = GHCommitState.SUCCESS;
+                metricStatus = MetricStatusAnalysis.NONE;
                 url = null;
             }
 
-            return createGHCommitStatus(commit, repo, state, url, desc);
+            return createGHCommitStatus(commit, repo, state, url, desc)
+                .map(commitStatus -> new PushResult(commitStatus, metricStatus));
         }).orElseGet(() -> Uni.createFrom().item(null));
     }
 
@@ -188,5 +191,24 @@ public class OnPushDispatcher {
 
     static boolean isBranchEligibleForAnalysis(GHEventPayload.Push pushPayload) {
         return pushPayload.getRef().equals("refs/heads/" + pushPayload.getRepository().getDefaultBranch());
+    }
+
+    enum MetricStatusRepo {
+        DISABLED_BY_CONFIG,
+        DISABLED_BY_REPO,
+        NON_DEFAULT_BRANCH,
+        ELIGIBLE_FOR_ANALYSIS
+    }
+
+    enum MetricStatusAnalysis {
+        NONE,
+        ERROR,
+        OK
+    }
+
+    record PushResult(
+        GHCommitStatus commitStatus,
+        MetricStatusAnalysis metricStatus
+    ) {
     }
 }
