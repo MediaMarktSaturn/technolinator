@@ -20,6 +20,8 @@ import org.kohsuke.github.GitHub;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.handler.PushHandler;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Push;
 import io.quarkus.logging.Log;
@@ -30,9 +32,12 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 @ApplicationScoped
 public class OnPushDispatcher {
 
-    // no-arg constructor needed for GitHub event consuming classes by the framework, thus no constructor injection here
+    // no-arg constructor required for GitHub event consuming classes by the framework, thus no constructor injection here
     @Inject
     PushHandler pushHandler;
+
+    @Inject
+    MeterRegistry meterRegistry;
 
     @ConfigProperty(name = "app.analysis_timeout")
     Duration processTimeout;
@@ -40,20 +45,34 @@ public class OnPushDispatcher {
     @ConfigProperty(name = "app.enabled_repos")
     List<String> enabledRepos;
 
+    enum MetricStatus {
+        DISABLED_BY_CONFIG,
+        DISABLED_BY_REPO,
+        NON_DEFAULT_BRANCH,
+        ELIGIBLE_FOR_ANALYSIS
+    }
+
     @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
         var pushRef = pushPayload.getRef();
         var repo = pushPayload.getRepository();
         var repoUrl = repo.getUrl();
 
+        // metric tags
+        final MetricStatus status;
+
         if (!isEnabledByConfig(repoUrl)) {
             Log.infof("Repo %s excluded by global config", repoUrl);
+            status = MetricStatus.DISABLED_BY_CONFIG;
         } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
             Log.infof("Disabled for repo %s by repo config", repoUrl);
+            status = MetricStatus.DISABLED_BY_REPO;
         } else if (!isBranchEligibleForAnalysis(pushPayload)) {
             Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", pushRef, repoUrl);
+            status = MetricStatus.NON_DEFAULT_BRANCH;
         } else {
             Log.infof("Ref %s of repository %s eligible for analysis", pushRef, repoUrl);
+            status = MetricStatus.ELIGIBLE_FOR_ANALYSIS;
 
             var commitSha = getEventCommit(pushPayload);
 
@@ -76,6 +95,12 @@ public class OnPushDispatcher {
                     failure -> Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl)
                 );
         }
+
+        var tags = List.of(
+            Tag.of("status", status.name()),
+            Tag.of("repo", getRepoName(repoUrl))
+        );
+        meterRegistry.counter("repo_push", tags).increment();
     }
 
     Uni<GHCommitStatus> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure) {
