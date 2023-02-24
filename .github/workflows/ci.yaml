@@ -4,7 +4,7 @@ on:
         paths-ignore:
             - '.github/**'
 env:
-    CDXGEN_VERSION: '8.0.5'
+    CDXGEN_VERSION: '8.0.6'
     CDXGEN_PLUGINS_VERSION: '1.0.5'
     semantic_version: '19.0.5'
     java_version: '17'
