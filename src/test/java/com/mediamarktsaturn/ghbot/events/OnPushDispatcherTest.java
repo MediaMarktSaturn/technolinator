@@ -110,7 +110,7 @@ public class OnPushDispatcherTest {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of();
-        var repo = new URL("https://github.com/MediaMarktSaturn/technolinator");
+        var repo = cur.getRepoName(new URL("https://github.com/MediaMarktSaturn/technolinator"));
 
         // When && Then
         assertThat(cur.isEnabledByConfig(repo)).isTrue();
@@ -121,8 +121,8 @@ public class OnPushDispatcherTest {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of(" technolinator ", "", " analyzeMe");
-        var enabledRepo = new URL("https://github.com/MediaMarktSaturn/technolinator");
-        var disabledRepo = new URL("https://github.com/MediaMarktSaturn/fluggegecheimen");
+        var enabledRepo = cur.getRepoName(new URL("https://github.com/MediaMarktSaturn/technolinator"));
+        var disabledRepo = cur.getRepoName(new URL("https://github.com/MediaMarktSaturn/fluggegecheimen"));
 
         // When && Then
         assertThat(cur.isEnabledByConfig(enabledRepo)).isTrue();

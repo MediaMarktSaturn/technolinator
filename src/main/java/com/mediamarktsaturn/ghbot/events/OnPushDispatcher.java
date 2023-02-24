@@ -60,8 +60,9 @@ public class OnPushDispatcher {
 
         // metric tags
         final MetricStatus status;
+        final String repoName = getRepoName(repoUrl);
 
-        if (!isEnabledByConfig(repoUrl)) {
+        if (!isEnabledByConfig(repoName)) {
             Log.infof("Repo %s excluded by global config", repoUrl);
             status = MetricStatus.DISABLED_BY_CONFIG;
         } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
@@ -83,6 +84,7 @@ public class OnPushDispatcher {
                     })
             );
 
+            final long analysisStart = System.currentTimeMillis();
             pushHandler.onPush(new PushEvent(pushPayload, config))
                 .ifNoItem().after(processTimeout).fail()
                 .chain(result -> reportAnalysisResult(result, repo, commitSha))
@@ -91,16 +93,28 @@ public class OnPushDispatcher {
                     return reportFailure(repo, commitSha, failure);
                 })
                 .subscribe().with(
-                    message -> Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl),
-                    failure -> Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl)
+                    message -> {
+                        Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
+                        meterRegistry.gauge("last_analysis_duration_ms", List.of(
+                            Tag.of("repo", repoName),
+                            Tag.of("success", "true")
+                        ), System.currentTimeMillis() - analysisStart);
+                    },
+                    failure -> {
+                        Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
+                        meterRegistry.gauge("last_analysis_duration_ms", List.of(
+                            Tag.of("repo", repoName),
+                            Tag.of("success", "false")
+                        ), System.currentTimeMillis() - analysisStart);
+                    }
                 );
         }
 
-        var tags = List.of(
-            Tag.of("status", status.name()),
-            Tag.of("repo", getRepoName(repoUrl))
-        );
-        meterRegistry.counter("repo_push", tags).increment();
+        meterRegistry.counter("repo_push", List.of(
+                Tag.of("status", status.name()),
+                Tag.of("repo", repoName)
+            )
+        ).increment();
     }
 
     Uni<GHCommitStatus> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure) {
@@ -143,12 +157,12 @@ public class OnPushDispatcher {
 
     private List<String> normalizedEnabledRepos;
 
-    boolean isEnabledByConfig(URL repoUrl) {
+    boolean isEnabledByConfig(String repoName) {
         if (normalizedEnabledRepos == null) {
             normalizedEnabledRepos = enabledRepos.stream().map(String::trim).filter(Predicate.not(String::isEmpty)).collect(Collectors.toList());
         }
 
-        return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(getRepoName(repoUrl));
+        return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(repoName);
     }
 
     String getRepoName(URL repoUrl) {
