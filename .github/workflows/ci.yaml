@@ -2,7 +2,9 @@ name: Application build and test
 on:
     push:
         paths-ignore:
-            - '.github/**'
+            - 'README.md'
+            - '.github/dependabot.yml'
+            - '.github/technolinator.yml'
 env:
     CDXGEN_VERSION: '8.0.6'
     CDXGEN_PLUGINS_VERSION: '1.0.5'
