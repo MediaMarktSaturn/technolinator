@@ -18,7 +18,7 @@
 
         <quarkus-github-app.version>1.16.0</quarkus-github-app.version>
 
-        <cyclonedx-core-java.version>7.3.1</cyclonedx-core-java.version>
+        <cyclonedx-core-java.version>7.3.2</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
         <jruby.joni.version>2.1.48</jruby.joni.version>
 
@@ -32,7 +32,7 @@
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.0.0-M9</surefire-plugin.version>
-        <compiler-plugin.version>3.10.1</compiler-plugin.version>
+        <compiler-plugin.version>3.11.0</compiler-plugin.version>
         <clean-plugin.version>3.2.0</clean-plugin.version>
         <dependency-plugin.version>3.5.0</dependency-plugin.version>
     </properties>

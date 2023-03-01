@@ -29,9 +29,10 @@ public class CdxgenClientGenerationTest {
         var result = await(cut.generateSBOM(file, "examiner", Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-            assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
-//            assertThat(fallback.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+            assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
+            assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("io.github.heubeck");
+            assertThat(proper.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
         });
     }
 
@@ -41,12 +42,13 @@ public class CdxgenClientGenerationTest {
         var file = new File("src/test/resources/repo/maven_wrapper");
 
         // When
-        var result = await(cut.generateSBOM(file, "maven_wrapper", Optional.empty()));
+        var result = await(cut.generateSBOM(file, "examiner", Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-            assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("maven_wrapper");
-//            assertThat(fallback.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+            assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
+            assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("io.github.heubeck");
+            assertThat(proper.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
         });
     }
 
@@ -59,9 +61,11 @@ public class CdxgenClientGenerationTest {
         var result = await(cut.generateSBOM(file, "cdxgen-is-awesome", Optional.empty()));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-            assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
-            assertThat(fallback.sbom().getComponents()).isNotEmpty();
+        assertThat(result).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+            assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
+            assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("cdxgen-test");
+            assertThat(proper.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1337");
+            assertThat(proper.sbom().getComponents()).isNotEmpty();
         });
     }
 
