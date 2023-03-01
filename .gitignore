@@ -37,7 +37,7 @@ nb-configuration.xml
 *.rej
 
 # Local environment
-.env
+.env*
 
 # Test generated files
 src/test/**/sbom.*
