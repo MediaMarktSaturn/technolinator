@@ -1,13 +1,15 @@
 package com.mediamarktsaturn.ghbot.git;
 
 import java.util.List;
+import java.util.Map;
 
 public record TechnolinatorConfig(
     Boolean enable,
     ProjectConfig project,
     AnalysisConfig analysis,
     GradleConfig gradle,
-    MavenConfig maven
+    MavenConfig maven,
+    Map<String, String> env
 ) {
 
     public record ProjectConfig(

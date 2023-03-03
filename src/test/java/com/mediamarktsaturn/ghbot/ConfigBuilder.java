@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.ghbot;
 
+import java.util.Map;
+
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 
 public class ConfigBuilder {
@@ -8,6 +10,7 @@ public class ConfigBuilder {
     private TechnolinatorConfig.AnalysisConfig analysis;
     private TechnolinatorConfig.GradleConfig gradle;
     private TechnolinatorConfig.MavenConfig maven;
+    private Map<String, String> env;
 
     public static ConfigBuilder create() {
         return new ConfigBuilder();
@@ -19,7 +22,8 @@ public class ConfigBuilder {
             project,
             analysis,
             gradle,
-            maven
+            maven,
+            env
         );
     }
 
@@ -45,6 +49,11 @@ public class ConfigBuilder {
 
     public ConfigBuilder maven(TechnolinatorConfig.MavenConfig maven) {
         this.maven = maven;
+        return this;
+    }
+
+    public ConfigBuilder env(Map<String, String> env) {
+        this.env = env;
         return this;
     }
 }

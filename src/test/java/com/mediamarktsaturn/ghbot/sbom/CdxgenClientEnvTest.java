@@ -3,6 +3,7 @@ package com.mediamarktsaturn.ghbot.sbom;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import javax.inject.Inject;
@@ -97,16 +98,18 @@ public class CdxgenClientEnvTest {
     public void testMixedArgs() {
         // Given
         var config = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
-            List.of("maven (${test_Env1})"))
-        ).gradle(new TechnolinatorConfig.GradleConfig(
-            List.of("gradle {${test_Env2}}")
-        )).build();
+                List.of("maven (${test_Env1})"))
+            ).gradle(new TechnolinatorConfig.GradleConfig(
+                List.of("gradle {${test_Env2}}"))
+            ).env(Map.of("one", "ten"))
+            .build();
 
         // When
         var result = cut.buildEnv(Optional.of(config));
 
         // Then
         assertThat(result)
+            .containsEntry("one", "ten")
             .containsEntry("GRADLE_ARGS", "gradle {oh_yeah-look_at_me}")
             .containsEntry("MVN_ARGS", "-B -ntp maven (this's just a test)");
     }
@@ -120,5 +123,21 @@ public class CdxgenClientEnvTest {
         assertThat(result)
             .doesNotContainKey("GRADLE_ARGS")
             .containsEntry("MVN_ARGS", "-B -ntp");
+    }
+
+    @Test
+    public void testEnv() {
+        // Given
+        var config = ConfigBuilder.create()
+            .env(Map.of("YEHAA", "oh ${test_Env2} ha", "dings", "bums"))
+            .build();
+
+        // When
+        var result = cut.buildEnv(Optional.of(config));
+
+        // Then
+        assertThat(result)
+            .containsEntry("YEHAA", "oh oh_yeah-look_at_me ha")
+            .containsEntry("dings", "bums");
     }
 }

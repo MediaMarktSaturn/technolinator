@@ -57,6 +57,9 @@ maven:
     # list of arguments to be provided to cdxgen as MVN_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:
         - -Pall
+env:
+    # additional env parameter for cdxgen; env vars notated with ${ENV_VAR} will be resolved (see below)
+    THIS_IS: just another value
 ```
 
 The configuration file is optional and only necessary to override default behaviour.

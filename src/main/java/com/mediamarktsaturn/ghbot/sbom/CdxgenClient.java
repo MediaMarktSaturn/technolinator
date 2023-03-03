@@ -96,22 +96,30 @@ public class CdxgenClient {
     Map<String, String> buildEnv(Optional<TechnolinatorConfig> config) {
         var gradleEnv = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::args).orElseGet(List::of);
         var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
+        var env = config.map(TechnolinatorConfig::env).orElseGet(Map::of);
 
-        if (gradleEnv.isEmpty() && mavenEnv.isEmpty()) {
+        if (gradleEnv.isEmpty() && mavenEnv.isEmpty() && env.isEmpty()) {
             return cdxgenEnv;
         }
 
-        var env = new HashMap<>(cdxgenEnv);
+        var context = new HashMap<>(cdxgenEnv);
         var gradleEnvValue = gradleEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {
-            env.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
+            context.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
         }
         var mavenEnvValue = mavenEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
         if (!mavenEnvValue.isBlank()) {
-            env.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnvValue);
+            context.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnvValue);
         }
+        context.putAll(
+            env.entrySet().stream().collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    e -> resolveEnvVars(e.getValue())
+                )
+            )
+        );
 
-        return env;
+        return context;
     }
 
     /**
