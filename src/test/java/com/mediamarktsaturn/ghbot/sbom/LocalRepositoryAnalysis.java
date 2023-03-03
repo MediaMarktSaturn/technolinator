@@ -25,7 +25,7 @@ public class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/branded-services-backend";
+    String dir = "/home/heubeck/w/sbom-test/branded-services-commons";
 
     @Language("yml")
     String configString = """

@@ -57,7 +57,7 @@ public interface ProcessCallback {
             for (var env : sensitiveEnv.entrySet()) {
                 logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
             }
-            Log.infof("[%s]: %s", ident, logLine);
+            Log.debugf("[%s]: %s", ident, logLine);
         }
 
         @Override
