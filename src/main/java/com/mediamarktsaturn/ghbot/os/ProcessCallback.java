@@ -1,6 +1,10 @@
 package com.mediamarktsaturn.ghbot.os;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import io.quarkus.logging.Log;
 
@@ -16,7 +20,11 @@ public interface ProcessCallback {
 
     class DefaultProcessCallback implements ProcessCallback {
 
+        private static final String SENSITIVE_ENV_VARS = System.getenv("SENSITIVE_ENV_VARS");
+
         private final String ident;
+        private Map<String, String> sensitiveEnv = Collections.emptyMap();
+
 
         @Override
         public String getIdent() {
@@ -25,6 +33,13 @@ public interface ProcessCallback {
 
         public DefaultProcessCallback() {
             this.ident = UUID.randomUUID().toString().substring(0, 8);
+
+            if (SENSITIVE_ENV_VARS != null) {
+                var sensitiveEnvKeys = Arrays.stream(SENSITIVE_ENV_VARS.split(",")).map(String::trim).toList();
+                this.sensitiveEnv = System.getenv().entrySet().stream()
+                    .filter(e -> sensitiveEnvKeys.contains(e.getKey()))
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            }
         }
 
         @Override
@@ -38,6 +53,10 @@ public interface ProcessCallback {
 
         @Override
         public void onOutput(String logLine) {
+            // hide (sensitive) env values from output
+            for (var env : sensitiveEnv.entrySet()) {
+                logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
+            }
             Log.infof("[%s]: %s", ident, logLine);
         }
 

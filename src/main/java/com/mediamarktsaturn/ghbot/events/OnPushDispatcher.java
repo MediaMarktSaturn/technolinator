@@ -88,10 +88,10 @@ public class OnPushDispatcher {
                 .subscribe().with(
                     pushResult -> {
                         Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
-                        meterRegistry.gauge("last_analysis_duration_ms", List.of(
+                        meterRegistry.counter("analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("failure", "")
-                        ), System.currentTimeMillis() - analysisStart);
+                        )).increment(System.currentTimeMillis() - analysisStart);
                         meterRegistry.counter("analysis_status", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("status", pushResult.metricStatus.name()))
@@ -99,10 +99,10 @@ public class OnPushDispatcher {
                     },
                     failure -> {
                         Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
-                        meterRegistry.gauge("last_analysis_duration_ms", List.of(
+                        meterRegistry.counter("last_analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("failure", failure.getClass().getSimpleName())
-                        ), System.currentTimeMillis() - analysisStart);
+                        )).increment(System.currentTimeMillis() - analysisStart);
                     }
                 );
         }

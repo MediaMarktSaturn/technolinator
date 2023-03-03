@@ -25,12 +25,21 @@ public class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/tmp/technolinator";
+    String dir = "/home/heubeck/w/sbom-test/branded-services-backend";
 
     @Language("yml")
     String configString = """
         analysis:
-            recursive: false
+            recursive: true
+        gradle:
+            args:
+                - -PartifactoryUser=${ARTIFACTORY_USER}
+                - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
+                - -PartifactoryUrl=${ARTIFACTORY_URL}
+                - -PgithubToken=${GITHUB_TOKEN}
+                - -PgithubUser=${GITHUB_USER}
+                - -PgcpProjectId=nowhere
+                - -PgithubSHA=none
         """;
 
     @Test

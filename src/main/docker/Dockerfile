@@ -41,7 +41,15 @@ RUN \
     sdk install sbt
 
 # cdxgen env
-ENV JAVA_HOME="/usr/lib/jvm/jre" MAVEN_HOME="/root/.sdkman/candidates/maven/current" GRADLE_HOME="/root/.sdkman/candidates/gradle/current" MVN_CMD=mvn GRADLE_CMD=gradle
+ENV JAVA_HOME="/usr/lib/jvm/jre" \
+    MAVEN_HOME="/root/.sdkman/candidates/maven/current" \
+    GRADLE_HOME="/root/.sdkman/candidates/gradle/current" \
+    MVN_CMD=mvn \
+    GRADLE_CMD=gradle \
+    ARTIFACTORY_URL="https://artifactory.cloud.mmst.eu/artifactory" \
+    GITHUB_USER="nobody" \
+    SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,ARTIFACTORY_USER,ARTIFACTORY_PASSWORD,GITHUB_TOKEN,DTRACK_APIKEY"
+
 ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
 COPY --chown=1001:root target/*-runner /app/technolinator

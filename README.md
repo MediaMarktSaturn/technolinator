@@ -30,6 +30,7 @@ ENV configuration:
 | APP_CLEAN_WRAPPER_SCRIPTS         | true                   | Remove wrapper scripts like gradlew or mvnw for not downloading these tools |
 | APP_ANALYSIS_TIMEOUT              | 30M                    | Maximal duration of an analysis before getting aborted                      |
 | APP_ENABLED_REPOS                 |                        | Comma separated list of repo names that should be analyzed; all if empty    |
+| SENSITIVE_ENV_VARS                | sentivie from above    | Comma separated list of env var names that must not be logged               |
 
 ## Repository specific configuration
 
@@ -48,6 +49,26 @@ analysis:
     location: projectLocation
     # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: false
     recursive: false
+gradle:
+    # list of arguments to be provided to cdxgen as GRADLE_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
+    args:
+        - -PyourProperitary=property
+maven:
+    # list of arguments to be provided to cdxgen as MVN_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
+    args:
+        - -Pall
 ```
 
 The configuration file is optional and only necessary to override default behaviour.
+
+### Env vars available for use in repo specific configuration
+
+The following environment variables are available for use in e.g. `gradle.args` or `maven.args`:
+
+* GITHUB_TOKEN (Organization wide read token)
+* GITHUB_USER (nobody)
+* ARTIFACTORY_USER
+* ARTIFACTORY_PASSWORD
+* ARTIFACTORY_URL (https://artifactory.cloud.mmst.eu/artifactory)
+
+Please reach out if there's need for more.
