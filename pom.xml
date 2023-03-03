@@ -195,6 +195,10 @@
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
+                    <environmentVariables>
+                        <test_Env1>this's just a test</test_Env1>
+                        <test_Env2>oh_yeah-look_at_me</test_Env2>
+                    </environmentVariables>
                 </configuration>
             </plugin>
             <plugin>

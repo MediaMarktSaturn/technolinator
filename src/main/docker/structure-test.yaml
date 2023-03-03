@@ -61,6 +61,8 @@ metadataTest:
           value: 'mvn'
         - key: GRADLE_CMD
           value: 'gradle'
+        - key: ARTIFACTORY_URL
+          value: 'https://artifactory.cloud.mmst.eu/artifactory'
     cmd: ['/app/technolinator']
     entrypoint: []
     workdir: '/app'

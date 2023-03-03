@@ -4,10 +4,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 
@@ -30,6 +33,12 @@ public class CdxgenClient {
      * Used for projects containing multiple dependency files like pom.xml & yarn.lock
      */
     private static final String RECURSIVE_FLAG = " -r";
+
+    private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
+    private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
+    private static final String DEFAULT_MAVEN_ARGS = "-B -ntp";
+
+    private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{(\\w+)}");
 
     private static final List<String> WRAPPER_SCRIPT_NAMES = List.of("mvnw", "mvnw.bat", "mvnw.cmd", "gradlew", "gradlew.bat", "gradlew.cmd");
 
@@ -56,7 +65,7 @@ public class CdxgenClient {
             "GITHUB_TOKEN", githubToken.trim(),
             "FETCH_LICENSE", Boolean.toString(fetchLicense),
             "USE_GOSUM", Boolean.toString(useGosum),
-            "MVN_ARGS", "-B -ntp",
+            "MVN_ARGS", DEFAULT_MAVEN_ARGS,
             "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000)
         );
     }
@@ -69,6 +78,7 @@ public class CdxgenClient {
             config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault) ? RECURSIVE_FLAG : "",
             projectName
         );
+
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
             if (processResult instanceof ProcessHandler.ProcessResult.Success) {
                 return readAndParseSBOM(new File(repoDir, SBOM_JSON));
@@ -79,8 +89,42 @@ public class CdxgenClient {
         };
 
         return prepareForAnalysis(repoDir.getAbsoluteFile())
-            .chain(dir -> ProcessHandler.run(cdxgenCmd, dir, cdxgenEnv))
+            .chain(dir -> ProcessHandler.run(cdxgenCmd, dir, buildEnv(config)))
             .map(mapResult);
+    }
+
+    Map<String, String> buildEnv(Optional<TechnolinatorConfig> config) {
+        var gradleEnv = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::args).orElseGet(List::of);
+        var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
+
+        if (gradleEnv.isEmpty() && mavenEnv.isEmpty()) {
+            return cdxgenEnv;
+        }
+
+        var env = new HashMap<>(cdxgenEnv);
+        var gradleEnvValue = gradleEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
+        if (!gradleEnvValue.isBlank()) {
+            env.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
+        }
+        var mavenEnvValue = mavenEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
+        if (!mavenEnvValue.isBlank()) {
+            env.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnvValue);
+        }
+
+        return env;
+    }
+
+    /**
+     * Replaces variable templates in form ${VAR} with the actual env value
+     */
+    static String resolveEnvVars(String value) {
+        var matcher = ENV_VAR_PATTERN.matcher(value);
+        while (matcher.find()) {
+            var envVar = matcher.group(1);
+            var envVal = System.getenv(envVar);
+            value = value.replace("${" + envVar + "}", envVal == null ? "" : envVal);
+        }
+        return value;
     }
 
     static SBOMGenerationResult readAndParseSBOM(File sbomFile) {

@@ -16,6 +16,7 @@ import org.kohsuke.github.GHEvent;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
+import com.mediamarktsaturn.ghbot.ConfigBuilder;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.handler.PushHandler;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
@@ -49,11 +50,7 @@ public class OnPushDispatcherTest {
     @Test
     public void testConfigProjectName() throws IOException {
         // Given
-        var config = new TechnolinatorConfig(
-            null,
-            new TechnolinatorConfig.ProjectConfig("overriddenName"),
-            null
-        );
+        var config = ConfigBuilder.create().project(new TechnolinatorConfig.ProjectConfig("overriddenName")).build();
 
         // When
         GitHubAppTesting.given()
@@ -86,11 +83,11 @@ public class OnPushDispatcherTest {
     @Test
     public void testConfigAllOptions() throws IOException {
         // Given
-        var config = new TechnolinatorConfig(
-            true,
-            new TechnolinatorConfig.ProjectConfig("awesomeProject"),
-            new TechnolinatorConfig.AnalysisConfig("projectLocation", true)
-        );
+        var config = ConfigBuilder.create()
+            .enable(true)
+            .project(new TechnolinatorConfig.ProjectConfig("awesomeProject"))
+            .analysis(new TechnolinatorConfig.AnalysisConfig("projectLocation", true))
+            .build();
 
         // When
         GitHubAppTesting.given()

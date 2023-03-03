@@ -11,6 +11,7 @@ import javax.inject.Inject;
 import org.cyclonedx.model.Component;
 import org.junit.jupiter.api.Test;
 
+import com.mediamarktsaturn.ghbot.ConfigBuilder;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
 
@@ -73,7 +74,7 @@ public class CdxgenClientGenerationTest {
     public void testRecurseMixedProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-mode");
-        var config = new TechnolinatorConfig(true, null, new TechnolinatorConfig.AnalysisConfig(null, true));
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true)).enable(true).build();
 
         // When
         var result = await(cut.generateSBOM(file, "multi-mode", Optional.of(config)));
@@ -131,7 +132,7 @@ public class CdxgenClientGenerationTest {
     public void testMultiModuleMavenNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-module-mode");
-        var config = new TechnolinatorConfig(true, null, new TechnolinatorConfig.AnalysisConfig(null, true));
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true)).enable(true).build();
 
         // When
         var result = await(cut.generateSBOM(file, "multi-module-mode", Optional.of(config)));
