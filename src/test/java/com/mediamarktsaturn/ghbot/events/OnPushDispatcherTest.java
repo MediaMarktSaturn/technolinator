@@ -86,7 +86,7 @@ public class OnPushDispatcherTest {
         var config = ConfigBuilder.create()
             .enable(true)
             .project(new TechnolinatorConfig.ProjectConfig("awesomeProject"))
-            .analysis(new TechnolinatorConfig.AnalysisConfig("projectLocation", true))
+            .analysis(new TechnolinatorConfig.AnalysisConfig("projectLocation", true, null))
             .build();
 
         // When

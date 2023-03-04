@@ -88,7 +88,7 @@ public class CdxgenClient {
             }
         };
 
-        return prepareForAnalysis(repoDir.getAbsoluteFile())
+        return prepareForAnalysis(repoDir.getAbsoluteFile(), config)
             .chain(dir -> ProcessHandler.run(cdxgenCmd, dir, buildEnv(config)))
             .map(mapResult);
     }
@@ -188,8 +188,14 @@ public class CdxgenClient {
         return value != null && !value.isBlank();
     }
 
-    Uni<File> prepareForAnalysis(File dir) {
-        String toBeDeleted = ".github ";
+    Uni<File> prepareForAnalysis(File dir, Optional<TechnolinatorConfig> config) {
+        var excludeList = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::excludes).orElseGet(List::of);
+        if (excludeList.stream().anyMatch(item -> item.contains(".."))) {
+            throw new IllegalArgumentException("Not allowed to step up directories");
+        }
+        String excludes = String.join(" ", excludeList);
+
+        String toBeDeleted = excludes + " .github ";
         if (cleanWrapperScripts) {
             toBeDeleted += String.join(" ", WRAPPER_SCRIPT_NAMES);
         }

@@ -49,6 +49,10 @@ analysis:
     location: projectLocation
     # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: false
     recursive: false
+    # folders within 'analysis.location' to exclude from created sbom (e.g. non-production stuff)
+    excludes:
+        - subfolder1
+        - just/another/path/below/projectLocation
 gradle:
     # list of arguments to be provided to cdxgen as GRADLE_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:

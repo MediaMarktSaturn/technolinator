@@ -4,6 +4,7 @@ import static com.mediamarktsaturn.ghbot.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.File;
+import java.util.List;
 import java.util.Optional;
 
 import javax.inject.Inject;
@@ -74,7 +75,7 @@ public class CdxgenClientGenerationTest {
     public void testRecurseMixedProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-mode");
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true)).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();
 
         // When
         var result = await(cut.generateSBOM(file, "multi-mode", Optional.of(config)));
@@ -132,7 +133,7 @@ public class CdxgenClientGenerationTest {
     public void testMultiModuleMavenNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-module-mode");
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true)).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();
 
         // When
         var result = await(cut.generateSBOM(file, "multi-module-mode", Optional.of(config)));

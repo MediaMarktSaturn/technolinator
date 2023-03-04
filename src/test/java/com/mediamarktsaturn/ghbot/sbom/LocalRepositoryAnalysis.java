@@ -31,6 +31,8 @@ public class LocalRepositoryAnalysis {
     String configString = """
         analysis:
             recursive: true
+            excludes:
+                - gradle
         gradle:
             args:
                 - -PartifactoryUser=${ARTIFACTORY_USER}
