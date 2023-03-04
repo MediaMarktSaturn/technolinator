@@ -6,8 +6,12 @@ fileExistenceTests:
       shouldExist: true
       permissions: 'drwxrwxr-x'
 
-    - name: 'App executable exists and has the right permissions'
-      path: /app/technolinator
+    - name: 'App runner jar exists'
+      path: /app/quarkus-run.jar
+      shouldExist: true
+
+    - name: 'App start script exists and has the right permissions'
+      path: /app/run-java.sh
       shouldExist: true
       permissions: '-rwxr-xr-x'
 
@@ -63,6 +67,6 @@ metadataTest:
           value: 'gradle'
         - key: ARTIFACTORY_URL
           value: 'https://artifactory.cloud.mmst.eu/artifactory'
-    cmd: ['/app/technolinator']
+    cmd: ['/app/run-java.sh']
     entrypoint: []
     workdir: '/app'

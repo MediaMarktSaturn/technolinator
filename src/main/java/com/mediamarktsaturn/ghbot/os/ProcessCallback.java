@@ -53,11 +53,13 @@ public interface ProcessCallback {
 
         @Override
         public void onOutput(String logLine) {
-            // hide (sensitive) env values from output
-            for (var env : sensitiveEnv.entrySet()) {
-                logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
+            if (Log.isDebugEnabled()) {
+                // hide (sensitive) env values from output
+                for (var env : sensitiveEnv.entrySet()) {
+                    logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
+                }
+                Log.debugf("[%s]: %s", ident, logLine);
             }
-            Log.debugf("[%s]: %s", ident, logLine);
         }
 
         @Override

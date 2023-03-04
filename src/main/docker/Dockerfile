@@ -4,15 +4,17 @@ LABEL maintainer="MediaMarktSaturn Technology"
 ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 
-RUN mkdir /root/.m2
+RUN mkdir /root/.m2 && mkdir /app
 COPY --chown=1001:root src/main/docker/assets/settings.xml /root/.m2/settings.xml
 COPY --chown=1001:root src/main/docker/assets/git_askpass.sh /root/git_askpass.sh
+COPY --chown=1001:root src/main/docker/assets/run-java.sh /app/run-java.sh
 
 WORKDIR /app
 RUN chown 1001 /app \
     && chmod "g+rwX" /app \
     && chown 1001:root /app \
-    && chmod "a+x" /root/git_askpass.sh
+    && chmod "a+x" /root/git_askpass.sh \
+    && chmod "a+x" /app/run-java.sh
 
 ENV GIT_ASKPASS='/root/git_askpass.sh'
 
@@ -52,6 +54,12 @@ ENV JAVA_HOME="/usr/lib/jvm/jre" \
 
 ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
-COPY --chown=1001:root target/*-runner /app/technolinator
+ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_APP_JAR="/app/quarkus-run.jar"
 
-CMD ["/app/technolinator"]
+CMD ["/app/run-java.sh"]
+
+COPY --chown=1001:root target/quarkus-app/lib/ /app/lib/
+COPY --chown=1001:root target/quarkus-app/*.jar /app/
+COPY --chown=1001:root target/quarkus-app/app/ /app/app/
+COPY --chown=1001:root target/quarkus-app/quarkus/ /app/quarkus/
