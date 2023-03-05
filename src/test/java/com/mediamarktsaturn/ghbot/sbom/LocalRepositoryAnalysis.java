@@ -25,14 +25,12 @@ public class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/branded-services-commons";
+    String dir = "/home/heubeck/w/sbom-test/branded-services-support";
 
     @Language("yml")
     String configString = """
         analysis:
             recursive: true
-            excludes:
-                - gradle
         gradle:
             args:
                 - -PartifactoryUser=${ARTIFACTORY_USER}

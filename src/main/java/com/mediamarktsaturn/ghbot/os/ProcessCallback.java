@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.jboss.logging.MDC;
+
 import io.quarkus.logging.Log;
 
 public interface ProcessCallback {
@@ -32,7 +34,12 @@ public interface ProcessCallback {
         }
 
         public DefaultProcessCallback() {
-            this.ident = UUID.randomUUID().toString().substring(0, 8);
+            var flowid = MDC.get("flowid");
+            if (flowid != null && !flowid.toString().isBlank()) {
+                this.ident = flowid.toString();
+            } else {
+                this.ident = UUID.randomUUID().toString().substring(0, 8);
+            }
 
             if (SENSITIVE_ENV_VARS != null) {
                 var sensitiveEnvKeys = Arrays.stream(SENSITIVE_ENV_VARS.split(",")).map(String::trim).toList();

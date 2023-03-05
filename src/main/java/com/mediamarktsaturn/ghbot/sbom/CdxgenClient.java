@@ -21,6 +21,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
+import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 
 @ApplicationScoped
@@ -80,11 +81,17 @@ public class CdxgenClient {
         );
 
         Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
+            var sbomFile = new File(repoDir, SBOM_JSON);
             if (processResult instanceof ProcessHandler.ProcessResult.Success) {
-                return readAndParseSBOM(new File(repoDir, SBOM_JSON));
+                return readAndParseSBOM(sbomFile);
             } else {
                 var failure = (ProcessHandler.ProcessResult.Failure) processResult;
-                return new SBOMGenerationResult.Failure("Command failed: " + cdxgenCmd, failure.cause());
+                if (sbomFile.exists()) {
+                    Log.warnf(failure.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", projectName);
+                    return readAndParseSBOM(sbomFile);
+                } else {
+                    return new SBOMGenerationResult.Failure("Command failed: " + cdxgenCmd, failure.cause());
+                }
             }
         };
 

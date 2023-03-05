@@ -4,6 +4,7 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -11,6 +12,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.MDC;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
@@ -47,6 +49,8 @@ public class OnPushDispatcher {
 
     @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
+        MDC.put("flowid", UUID.randomUUID().toString().substring(0, 8));
+
         var pushRef = pushPayload.getRef();
         var repo = pushPayload.getRepository();
         var repoUrl = repo.getUrl();
