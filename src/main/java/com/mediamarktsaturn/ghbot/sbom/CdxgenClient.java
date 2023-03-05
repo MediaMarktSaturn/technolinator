@@ -190,7 +190,7 @@ public class CdxgenClient {
 
     Uni<File> prepareForAnalysis(File dir, Optional<TechnolinatorConfig> config) {
         var excludeList = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::excludes).orElseGet(List::of);
-        if (excludeList.stream().anyMatch(item -> item.contains(".."))) {
+        if (excludeList.stream().anyMatch(item -> item.contains("..") || item.trim().startsWith("/") || item.trim().startsWith("~"))) {
             throw new IllegalArgumentException("Not allowed to step up directories");
         }
         String excludes = String.join(" ", excludeList);
