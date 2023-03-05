@@ -34,6 +34,7 @@ public class CdxgenClient {
      * Used for projects containing multiple dependency files like pom.xml & yarn.lock
      */
     private static final String RECURSIVE_FLAG = " -r";
+    private static final String FAIL_ON_ERROR_FLAG = " --fail-on-error";
 
     private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
@@ -44,7 +45,7 @@ public class CdxgenClient {
     private static final List<String> WRAPPER_SCRIPT_NAMES = List.of("mvnw", "mvnw.bat", "mvnw.cmd", "gradlew", "gradlew.bat", "gradlew.cmd");
 
     private final Map<String, String> cdxgenEnv;
-    private final boolean cleanWrapperScripts, recursiveDefault;
+    private final boolean cleanWrapperScripts, recursiveDefault, failOnError;
 
     public CdxgenClient(
         @ConfigProperty(name = "github.token")
@@ -56,10 +57,13 @@ public class CdxgenClient {
         @ConfigProperty(name = "app.clean_wrapper_scripts")
         boolean cleanWrapperScripts,
         @ConfigProperty(name = "analysis.recursive_default")
-        boolean recursiveDefault
+        boolean recursiveDefault,
+        @ConfigProperty(name = "cdxgen.fail_on_error")
+        boolean failOnError
     ) {
         this.cleanWrapperScripts = cleanWrapperScripts;
         this.recursiveDefault = recursiveDefault;
+        this.failOnError = failOnError;
 
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
@@ -71,12 +75,13 @@ public class CdxgenClient {
         );
     }
 
-    private static final String CDXGEN_CMD_FMT = "cdxgen --fail-on-error -o %s%s --project-name %s";
+    private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
 
     public Uni<SBOMGenerationResult> generateSBOM(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
             config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault) ? RECURSIVE_FLAG : "",
+            failOnError ? FAIL_ON_ERROR_FLAG : "",
             projectName
         );
 

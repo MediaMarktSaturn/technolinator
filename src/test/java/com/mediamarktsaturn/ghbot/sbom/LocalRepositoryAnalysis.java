@@ -29,8 +29,6 @@ public class LocalRepositoryAnalysis {
 
     @Language("yml")
     String configString = """
-        analysis:
-            recursive: true
         gradle:
             args:
                 - -PartifactoryUser=${ARTIFACTORY_USER}
