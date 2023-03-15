@@ -21,7 +21,7 @@ public class CdxgenClientEnvTest {
     CdxgenClient cut;
 
     @Test
-    public void testSingleEnvValueSubstitution() {
+    void testSingleEnvValueSubstitution() {
         // Given
         var value = "-PdingsTeil=${test_Env1}";
 
@@ -33,7 +33,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testMultipleEnvValueSubstitutions() {
+    void testMultipleEnvValueSubstitutions() {
         // Given
         var value = "-PdingsTeil=${test_Env1} -Doh=${test_Env2} --yeah=${test_Env1}";
 
@@ -45,7 +45,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testNoneEnvValueSubstitutions() {
+    void testNoneEnvValueSubstitutions() {
         // Given
         var value = "-PdingsTeil=${never_WILL_be_there} $ever ";
 
@@ -57,7 +57,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testGradleEnv() {
+    void testGradleEnv() {
         // Given
         var config = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
             false,
@@ -77,7 +77,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testGradleMultiProjectEnv() {
+    void testGradleMultiProjectEnv() {
         // Given
         var config = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
             true,
@@ -93,7 +93,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testMavenEnv() {
+    void testMavenEnv() {
         // Given
         var config = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
             List.of(
@@ -112,7 +112,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testMixedArgs() {
+    void testMixedArgs() {
         // Given
         var config = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
                 List.of("maven (${test_Env1})"))
@@ -133,7 +133,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testWithoutArgs() {
+    void testWithoutArgs() {
         // When
         var result = cut.buildEnv(Optional.empty());
 
@@ -144,7 +144,7 @@ public class CdxgenClientEnvTest {
     }
 
     @Test
-    public void testEnv() {
+    void testEnv() {
         // Given
         var config = ConfigBuilder.create()
             .env(Map.of("YEHAA", "oh ${test_Env2} ha", "dings", "bums"))

@@ -79,14 +79,17 @@ public interface ProcessCallback {
     ProcessCallback NOOP = new ProcessCallback() {
         @Override
         public void onComplete(int exitStatus) {
+            // no logging
         }
 
         @Override
         public void onOutput(String logLine) {
+            // no logging
         }
 
         @Override
         public void onFailure(Throwable failure) {
+            // no logging
         }
 
         @Override

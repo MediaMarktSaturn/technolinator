@@ -5,8 +5,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.DoubleSupplier;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -81,7 +81,8 @@ public class OnPushDispatcher {
                     })
             );
 
-            final long analysisStart = System.currentTimeMillis();
+            final double analysisStart = System.currentTimeMillis();
+            DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
             pushHandler.onPush(new PushEvent(pushPayload, config))
                 .ifNoItem().after(processTimeout).fail()
                 .chain(result -> reportAnalysisResult(result, repo, commitSha))
@@ -95,7 +96,7 @@ public class OnPushDispatcher {
                         meterRegistry.counter("analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("failure", "")
-                        )).increment(System.currentTimeMillis() - analysisStart);
+                        )).increment(duration.getAsDouble());
                         meterRegistry.counter("analysis_status", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("status", pushResult.metricStatus.name()))
@@ -106,7 +107,7 @@ public class OnPushDispatcher {
                         meterRegistry.counter("last_analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("failure", failure.getClass().getSimpleName())
-                        )).increment(System.currentTimeMillis() - analysisStart);
+                        )).increment(duration.getAsDouble());
                     }
                 );
         }
@@ -166,7 +167,7 @@ public class OnPushDispatcher {
 
     boolean isEnabledByConfig(String repoName) {
         if (normalizedEnabledRepos == null) {
-            normalizedEnabledRepos = enabledRepos.stream().map(String::trim).filter(Predicate.not(String::isEmpty)).collect(Collectors.toList());
+            normalizedEnabledRepos = enabledRepos.stream().map(String::trim).filter(Predicate.not(String::isEmpty)).toList();
         }
 
         return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(repoName);

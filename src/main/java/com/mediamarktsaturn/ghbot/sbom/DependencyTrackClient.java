@@ -3,7 +3,6 @@ package com.mediamarktsaturn.ghbot.sbom;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import javax.enterprise.context.ApplicationScoped;
 
@@ -11,7 +10,6 @@ import org.cyclonedx.generators.json.BomJsonGenerator14;
 import org.cyclonedx.model.Bom;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
@@ -41,8 +39,6 @@ public class DependencyTrackClient {
     }
 
     public Uni<UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
-        var objectMapper = new ObjectMapper();
-
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
@@ -105,7 +101,7 @@ public class DependencyTrackClient {
                             .filter(o -> o instanceof JsonObject && isDifferentVersionOfSameProject((JsonObject) o, projectName, projectVersion))
                             .map(p -> ((JsonObject) p).getString("uuid"))
                             .map(this::deactivateProject)
-                            .collect(Collectors.toList())
+                            .toList()
                     ).discardItems();
                 } else {
                     Log.errorf("Failed to deactivate previous versions of project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());

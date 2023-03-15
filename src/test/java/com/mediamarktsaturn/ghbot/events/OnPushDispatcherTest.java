@@ -37,7 +37,7 @@ public class OnPushDispatcherTest {
     }
 
     @Test
-    public void testOnPushToDefaultBranch() throws IOException {
+    void testOnPushToDefaultBranch() throws IOException {
         // When
         GitHubAppTesting.when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
@@ -48,7 +48,7 @@ public class OnPushDispatcherTest {
     }
 
     @Test
-    public void testConfigProjectName() throws IOException {
+    void testConfigProjectName() throws IOException {
         // Given
         var config = ConfigBuilder.create().project(new TechnolinatorConfig.ProjectConfig("overriddenName")).build();
 
@@ -66,7 +66,7 @@ public class OnPushDispatcherTest {
     }
 
     @Test
-    public void testConfigDisabled() throws IOException {
+    void testConfigDisabled() throws IOException {
         // When
         GitHubAppTesting.given()
             .github(mocks -> {
@@ -81,7 +81,7 @@ public class OnPushDispatcherTest {
     }
 
     @Test
-    public void testConfigAllOptions() throws IOException {
+    void testConfigAllOptions() throws IOException {
         // Given
         var config = ConfigBuilder.create()
             .enable(true)
@@ -103,7 +103,7 @@ public class OnPushDispatcherTest {
     }
 
     @Test
-    public void testRepoEnabledConfig_noRestriction() throws MalformedURLException {
+    void testRepoEnabledConfig_noRestriction() throws MalformedURLException {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of();
@@ -114,7 +114,7 @@ public class OnPushDispatcherTest {
     }
 
     @Test
-    public void testRepoEnabledConfig_restriction() throws MalformedURLException {
+    void testRepoEnabledConfig_restriction() throws MalformedURLException {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of(" technolinator ", "", " analyzeMe");

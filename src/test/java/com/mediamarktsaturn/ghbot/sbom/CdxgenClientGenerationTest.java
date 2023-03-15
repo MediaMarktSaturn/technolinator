@@ -23,7 +23,7 @@ public class CdxgenClientGenerationTest {
     CdxgenClient cut;
 
     @Test
-    public void testMavenProject() {
+    void testMavenProject() {
         // Given
         var file = new File("src/test/resources/repo/maven");
 
@@ -39,7 +39,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testMavenWrapperProject() {
+    void testMavenWrapperProject() {
         // Given
         var file = new File("src/test/resources/repo/maven_wrapper");
 
@@ -55,7 +55,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testMavenFallbackProject() {
+    void testMavenFallbackProject() {
         // Given
         var file = new File("src/test/resources/repo/maven_fallback");
 
@@ -72,7 +72,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testRecurseMixedProject() {
+    void testRecurseMixedProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-mode");
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();
@@ -89,7 +89,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testNodeProject() {
+    void testNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/node");
 
@@ -103,7 +103,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testNoopProject() {
+    void testNoopProject() {
         // Given
         var file = new File("src/test/resources/repo/noop");
 
@@ -115,7 +115,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testGoProjectWithIssues() {
+    void testGoProjectWithIssues() {
         // Given
         var file = new File("src/test/resources/repo/go");
 
@@ -130,7 +130,7 @@ public class CdxgenClientGenerationTest {
     }
 
     @Test
-    public void testMultiModuleMavenNodeProject() {
+    void testMultiModuleMavenNodeProject() {
         // Given
         var file = new File("src/test/resources/repo/multi-module-mode");
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();

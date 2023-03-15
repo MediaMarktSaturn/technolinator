@@ -44,7 +44,7 @@ public class DependencyTrackClientTest {
     }
 
     @Test
-    public void testSuccessfulUpload() {
+    void testSuccessfulUpload() {
         // Given
         var name = "test-project";
         var version = "1.2.3";
@@ -170,7 +170,7 @@ public class DependencyTrackClientTest {
     }
 
     @Test
-    public void testFailingUpload() {
+    void testFailingUpload() {
         // Given
         var putBom = request()
             .withPath("/api/v1/bom")

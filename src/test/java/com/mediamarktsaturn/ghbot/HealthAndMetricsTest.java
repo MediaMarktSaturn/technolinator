@@ -10,7 +10,7 @@ import io.quarkus.test.junit.QuarkusTest;
 public class HealthAndMetricsTest {
 
     @Test
-    public void testLiveProbe() {
+    void testLiveProbe() {
         given()
             .get("/q/health/live")
             .then()
@@ -18,7 +18,7 @@ public class HealthAndMetricsTest {
     }
 
     @Test
-    public void testReadyProbe() {
+    void testReadyProbe() {
         given()
             .get("/q/health/ready")
             .then()
@@ -26,7 +26,7 @@ public class HealthAndMetricsTest {
     }
 
     @Test
-    public void testStartupProbe() {
+    void testStartupProbe() {
         given()
             .get("/q/health/started")
             .then()
@@ -34,7 +34,7 @@ public class HealthAndMetricsTest {
     }
 
     @Test
-    public void testMetricsEndpoint() {
+    void testMetricsEndpoint() {
         given()
             .get("/q/metrics")
             .then()

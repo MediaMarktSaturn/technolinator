@@ -74,7 +74,7 @@ public class CdxgenClient {
             "GITHUB_TOKEN", githubToken.trim(),
             "FETCH_LICENSE", Boolean.toString(fetchLicense),
             "USE_GOSUM", Boolean.toString(useGosum),
-            "MVN_ARGS", DEFAULT_MAVEN_ARGS,
+            CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
             "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000)
         );
     }
@@ -85,7 +85,7 @@ public class CdxgenClient {
         Boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
             !config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false) &&
-            config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault);
+                config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault);
 
         String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,

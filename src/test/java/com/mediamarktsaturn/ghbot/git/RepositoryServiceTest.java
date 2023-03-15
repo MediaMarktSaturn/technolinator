@@ -59,7 +59,7 @@ public class RepositoryServiceTest {
     }
 
     @Test
-    public void testInvalidBranch() throws IOException {
+    void testInvalidBranch() throws IOException {
         // Given
         var ghRepo = GitHub.connectAnonymously().getRepository("heubeck/examiner");
         var pushEvent = mock(GHEventPayload.Push.class);

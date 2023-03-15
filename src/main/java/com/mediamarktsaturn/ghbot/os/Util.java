@@ -4,8 +4,8 @@ import java.io.File;
 
 import io.quarkus.logging.Log;
 
-public class Util {
-    public static void removeAsync(File dir) {
+public interface Util {
+    static void removeAsync(File dir) {
         ProcessHandler.run("rm -rf " + dir.getAbsolutePath())
             .subscribe().with(
                 item -> {},

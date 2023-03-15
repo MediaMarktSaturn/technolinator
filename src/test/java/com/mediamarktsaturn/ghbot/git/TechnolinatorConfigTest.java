@@ -14,13 +14,13 @@ public class TechnolinatorConfigTest {
     static final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
     @Test
-    public void testEmptyConfig() throws JsonProcessingException {
+    void testEmptyConfig() throws JsonProcessingException {
         var config = configMapper.readValue("---", TechnolinatorConfig.class);
         assertThat(config).isNull();
     }
 
     @Test
-    public void testDisabledConfig() throws JsonProcessingException {
+    void testDisabledConfig() throws JsonProcessingException {
         @Language("yml")
         var value = """
             enable: false
@@ -37,7 +37,7 @@ public class TechnolinatorConfigTest {
     }
 
     @Test
-    public void testFullConfig() throws JsonProcessingException {
+    void testFullConfig() throws JsonProcessingException {
         @Language("yml")
         var value = """
             enable: true

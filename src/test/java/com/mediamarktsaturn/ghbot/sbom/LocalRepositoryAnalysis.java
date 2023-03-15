@@ -38,7 +38,7 @@ public class LocalRepositoryAnalysis {
         """;
 
     @Test
-    public void runLocalAnalysis() throws Exception {
+    void runLocalAnalysis() throws Exception {
         var folder = new File(dir);
         if (!folder.exists() || !folder.canRead()) {
             throw new IllegalArgumentException("Cannot access " + dir);

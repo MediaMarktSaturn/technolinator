@@ -46,7 +46,7 @@ public class PushHandlerTest {
     PushHandler cut;
 
     @Test
-    public void testSuccessfulProcess() throws IOException {
+    void testSuccessfulProcess() throws IOException {
         // Given
         var repoUrl = new URL("https://github.com/heubeck/examiner");
         var branch = "main";

@@ -30,7 +30,7 @@ public class CdxgenClientParsingTest {
     }
 
     @Test
-    public void testFailure() {
+    void testFailure() {
         // Given
         var file = new File("src/test/resources/sbom/invalid.json");
 
@@ -58,7 +58,7 @@ public class CdxgenClientParsingTest {
     }
 
     @Test
-    public void testFallbackMavenSBOM() {
+    void testFallbackMavenSBOM() {
         // Given
         var file = new File("src/test/resources/sbom/maven/fallback.json");
 
@@ -74,7 +74,7 @@ public class CdxgenClientParsingTest {
     }
 
     @Test
-    public void testDefaultMavenSBOM() {
+    void testDefaultMavenSBOM() {
         // Given
         var file = new File("src/test/resources/sbom/maven/default.json");
 

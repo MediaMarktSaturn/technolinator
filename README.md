@@ -51,6 +51,8 @@ analysis:
         - subfolder1
         - just/another/path/below/projectLocation
 gradle:
+    # define this project as gradle multi project (acc. to https://docs.gradle.org/current/userguide/intro_multi_project_builds.html)
+    multiProject: false
     # list of arguments to be provided to cdxgen as GRADLE_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:
         - -PyourProperitary=property

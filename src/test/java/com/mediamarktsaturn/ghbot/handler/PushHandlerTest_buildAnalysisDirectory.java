@@ -18,7 +18,7 @@ import io.quarkus.test.junit.QuarkusTest;
 public class PushHandlerTest_buildAnalysisDirectory {
 
     @Test
-    public void testConfigless() {
+    void testConfigless() {
         // Given
         var repo = new LocalRepository(new File("test_tmp"));
 
@@ -30,7 +30,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     }
 
     @Test
-    public void testConfigRelative() {
+    void testConfigRelative() {
         // Given
         var repo = new LocalRepository(new File("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("sub_dir", null, List.of())).build();
@@ -44,7 +44,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     }
 
     @Test
-    public void testConfigAbsolute() {
+    void testConfigAbsolute() {
         // Given
         var repo = new LocalRepository(new File("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("/sub_dir", true, List.of())).build();
@@ -57,7 +57,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     }
 
     @Test
-    public void testConfigRoot() {
+    void testConfigRoot() {
         // Given
         var repo = new LocalRepository(new File("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("/", false, List.of())).build();
@@ -70,7 +70,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     }
 
     @Test
-    public void testConfigEmpty() {
+    void testConfigEmpty() {
         // Given
         var repo = new LocalRepository(new File("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("", null, List.of())).build();
@@ -83,7 +83,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     }
 
     @Test
-    public void testConfigNull() {
+    void testConfigNull() {
         // Given
         var repo = new LocalRepository(new File("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, null, List.of())).build();
