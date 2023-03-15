@@ -15,7 +15,7 @@ import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.logging.Log;
 import io.quarkus.test.junit.QuarkusTest;
 
-// to be used for manual use only
+// to be used for manual, local testing only
 @Disabled
 @QuarkusTest
 public class LocalRepositoryAnalysis {
@@ -25,19 +25,17 @@ public class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/branded-services-support";
+    String dir = "/home/heubeck/w/sbom-test/gly-points-correction-backend";
 
     @Language("yml")
     String configString = """
+        analysis:
+            recursive: false
         gradle:
-            args:
-                - -PartifactoryUser=${ARTIFACTORY_USER}
-                - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
-                - -PartifactoryUrl=${ARTIFACTORY_URL}
-                - -PgithubToken=${GITHUB_TOKEN}
-                - -PgithubUser=${GITHUB_USER}
-                - -PgcpProjectId=nowhere
-                - -PgithubSHA=none
+          args:
+            - -PartifactoryUser=${ARTIFACTORY_USER}
+            - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
+            - -PartifactoryUrl=${ARTIFACTORY_URL}
         """;
 
     @Test
