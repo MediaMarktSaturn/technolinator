@@ -25,17 +25,16 @@ public class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/gly-points-correction-backend";
+    String dir = "/home/heubeck/w/sbom-test/fiscas-mono";
 
     @Language("yml")
     String configString = """
         analysis:
             recursive: false
-        gradle:
-          args:
-            - -PartifactoryUser=${ARTIFACTORY_USER}
-            - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
-            - -PartifactoryUrl=${ARTIFACTORY_URL}
+        env:
+            ORG_GRADLE_PROJECT_artifactoryUser: ${ARTIFACTORY_USER}
+            ORG_GRADLE_PROJECT_artifactoryPassword: ${ARTIFACTORY_PASSWORD}
+            ORG_GRADLE_PROJECT_artifactoryUrl: ${ARTIFACTORY_URL}
         """;
 
     @Test

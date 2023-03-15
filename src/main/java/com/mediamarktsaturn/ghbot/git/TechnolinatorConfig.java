@@ -25,6 +25,7 @@ public record TechnolinatorConfig(
     }
 
     public record GradleConfig(
+        Boolean multiProject,
         List<String> args
     ) {
     }

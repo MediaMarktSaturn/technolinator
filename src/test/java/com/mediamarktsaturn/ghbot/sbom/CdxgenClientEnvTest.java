@@ -60,6 +60,7 @@ public class CdxgenClientEnvTest {
     public void testGradleEnv() {
         // Given
         var config = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
+            false,
             List.of(
                 "-PartifactoryUser=\"${test_Env1}\"",
                 "-DartifactoryPassword=${test_Env2}",
@@ -73,6 +74,22 @@ public class CdxgenClientEnvTest {
         // Then
         assertThat(result)
             .containsEntry("GRADLE_ARGS", "-PartifactoryUser=\"this's just a test\" -DartifactoryPassword=oh_yeah-look_at_me -BgoAway=");
+    }
+
+    @Test
+    public void testGradleMultiProjectEnv() {
+        // Given
+        var config = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
+            true,
+            List.of())
+        ).build();
+
+        // When
+        var result = cut.buildEnv(Optional.of(config));
+
+        // Then
+        assertThat(result)
+            .containsEntry("GRADLE_MULTI_PROJECT_MODE", "true");
     }
 
     @Test
@@ -100,6 +117,7 @@ public class CdxgenClientEnvTest {
         var config = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
                 List.of("maven (${test_Env1})"))
             ).gradle(new TechnolinatorConfig.GradleConfig(
+                false,
                 List.of("gradle {${test_Env2}}"))
             ).env(Map.of("one", "ten"))
             .build();
