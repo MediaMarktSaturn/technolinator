@@ -16,8 +16,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
+import com.mediamarktsaturn.ghbot.Command;
+import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import io.quarkus.test.junit.QuarkusTest;
 
@@ -27,27 +30,47 @@ public class RepositoryServiceTest {
     @Inject
     RepositoryService cut;
 
+    @Test
+    void testCommandCreation() {
+        // Given
+        var pushEvent = mock(GHEventPayload.Push.class);
+        var ghRepo = mock(GHRepository.class);
+        when(ghRepo.getName()).thenReturn("examiner");
+        when(pushEvent.getRepository()).thenReturn(ghRepo);
+        when(pushEvent.getRef()).thenReturn("refs/heads/main");
+        var event = new PushEvent(
+            pushEvent,
+            Optional.empty()
+        );
+
+        // When
+        var cmd = cut.createCheckoutCommand(event);
+
+        // Then
+        assertThat(cmd.repositoryName()).hasToString("examiner");
+        assertThat(cmd.repository()).isSameAs(ghRepo);
+        assertThat(cmd.reference()).hasToString("refs/heads/main");
+    }
+
     @ParameterizedTest
     @CsvSource({
         "heubeck/examiner, refs/heads/main, pom.xml",
         "jug-in/jug-in.bayern, refs/heads/master, README.md",
         "jug-in/jug-in.bayern, refs/heads/gh-pages, index.html"
     })
-    public void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
-        // When
+    void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
+        // Given
         var ghRepo = GitHub.connectAnonymously().getRepository(repoName);
-        var pushEvent = mock(GHEventPayload.Push.class);
-        when(pushEvent.getRepository()).thenReturn(ghRepo);
-        when(pushEvent.getRef()).thenReturn(branch);
-        var event = new PushEvent(
-            pushEvent,
-            Optional.empty()
-        );
-        var result = await(cut.checkoutBranch(event));
+        var metadata = new Command.Metadata("main", "heubeck/examiner", "", "");
+
+        var cmd = new RepositoryService.CheckoutCommand(ghRepo, branch);
+
+        // When
+        var result = await(cmd.execute(metadata));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(RepositoryService.CheckoutResult.Success.class, success -> {
-            final LocalRepository repo = success.repo();
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
+            final LocalRepository repo = (LocalRepository) success.result();
             try (repo) {
                 assertThat(repo.dir()).exists();
                 assertThat(new File(repo.dir(), checkFile)).exists();
@@ -62,19 +85,16 @@ public class RepositoryServiceTest {
     void testInvalidBranch() throws IOException {
         // Given
         var ghRepo = GitHub.connectAnonymously().getRepository("heubeck/examiner");
-        var pushEvent = mock(GHEventPayload.Push.class);
-        when(pushEvent.getRepository()).thenReturn(ghRepo);
-        when(pushEvent.getRef()).thenReturn("never/ever");
-        var event = new PushEvent(
-            pushEvent,
-            Optional.empty()
-        );
+        var metadata = new Command.Metadata("main", "heubeck/examiner", "", "");
+
+        var cmd = new RepositoryService.CheckoutCommand(ghRepo, "never/ever");
 
         // When
-        var result = await(cut.checkoutBranch(event));
+        var result = await(cmd.execute(metadata));
+
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(RepositoryService.CheckoutResult.Failure.class, failure -> {
+        assertThat(result).isInstanceOfSatisfying(Result.Failure.class, failure -> {
             assertThat(failure.cause().toString()).isEqualTo("org.kohsuke.github.GHFileNotFoundException: https://api.github.com/repos/heubeck/examiner/zipball/never/ever 404: Not Found");
         });
     }

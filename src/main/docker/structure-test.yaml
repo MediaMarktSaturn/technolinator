@@ -49,6 +49,13 @@ commandTests:
       command: '/root/git_askpass.sh'
       expectedOutput:
           - ''
+    - name: "Application starts"
+      command: '/app/run-java.sh'
+      exitCode: 1
+      expectedOutput:
+          - '.*exec java --enable-preview .*'
+          - '.*Missing value for configuration properties.*'
+          -  '.*This configuration is required in prod mode.*'
 
 metadataTest:
     labels:

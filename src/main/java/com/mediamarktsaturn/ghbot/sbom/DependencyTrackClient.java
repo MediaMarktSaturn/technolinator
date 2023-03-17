@@ -10,6 +10,7 @@ import org.cyclonedx.generators.json.BomJsonGenerator14;
 import org.cyclonedx.model.Bom;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.mediamarktsaturn.ghbot.Result;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
@@ -38,7 +39,7 @@ public class DependencyTrackClient {
         this.dtrackApiUrl = dtrackBaseUrl + API_PATH;
     }
 
-    public Uni<UploadResult> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
+    public Uni<Result<String>> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
@@ -62,10 +63,10 @@ public class DependencyTrackClient {
             .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
             .chain(() -> deactivatePreviousVersion(projectName, projectVersion))
             .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
-            .onFailure().recoverWithItem(e -> (UploadResult) new UploadResult.Failure(dtrackBaseUrl, e));
+            .onFailure().recoverWithItem(Result.Failure::new);
     }
 
-    Uni<UploadResult> getCurrentVersionUrl(String projectName, String projectVersion) {
+    Uni<Result<String>> getCurrentVersionUrl(String projectName, String projectVersion) {
         return client.getAbs(dtrackApiUrl + "/project/lookup")
             .addQueryParam("name", projectName)
             .addQueryParam("version", projectVersion)
@@ -77,12 +78,12 @@ public class DependencyTrackClient {
             .chain(response -> {
                 if (response.statusCode() == 200) {
                     var projectUUID = response.bodyAsJsonObject().getString("uuid");
-                    return Uni.createFrom().item((UploadResult) new UploadResult.Success("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID)));
+                    return Uni.createFrom().item((Result<String>) new Result.Success<>("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID)));
                 } else {
                     Log.errorf("Failed to deactivate previous versions of project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());
                     return Uni.createFrom().failure(new Exception("Status " + response.statusCode()));
                 }
-            }).onFailure().recoverWithItem(failure -> (UploadResult) new UploadResult.Failure(dtrackBaseUrl, failure));
+            }).onFailure().recoverWithItem(Result.Failure::new);
     }
 
     Uni<Void> deactivatePreviousVersion(String projectName, String projectVersion) {
@@ -126,22 +127,4 @@ public class DependencyTrackClient {
             project.getString("name").equals(projectName)
                 && !project.getString("version").equals(projectVersion);
     }
-
-    public sealed interface UploadResult {
-        record Success(
-            String projectUrl
-        ) implements UploadResult {
-        }
-
-        record None(
-        ) implements UploadResult {
-        }
-
-        record Failure(
-            String baseUrl,
-            Throwable cause
-        ) implements UploadResult {
-        }
-    }
-
 }

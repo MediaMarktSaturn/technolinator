@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.unchecked.Unchecked;
@@ -24,8 +23,8 @@ public class ProcessHandler {
         return run(command, workingDir, env, new ProcessCallback.DefaultProcessCallback());
     }
 
-    public static Uni<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
-        Log.infof("[%s] Starting '%s' in %s", callback.getIdent(), command, workingDir);
+    static Uni<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
+        callback.log("Starting '%s' in %s".formatted(command, workingDir));
         List<String> outputLines = new ArrayList<>();
         return Uni.createFrom().completionStage(Unchecked.supplier(() -> {
                     var commandParts = command.trim().split("\\s+");

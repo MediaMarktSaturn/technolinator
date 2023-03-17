@@ -54,7 +54,7 @@ ENV JAVA_HOME="/usr/lib/jvm/jre" \
 
 ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
-ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_OPTIONS="--enable-preview -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="/app/quarkus-run.jar"
 
 CMD ["/app/run-java.sh"]

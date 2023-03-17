@@ -24,6 +24,7 @@ import org.mockserver.model.MediaType;
 
 import com.mediamarktsaturn.ghbot.DependencyTrackMockServer;
 import com.mediamarktsaturn.ghbot.MockServerResource;
+import com.mediamarktsaturn.ghbot.Result;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
@@ -44,7 +45,7 @@ public class DependencyTrackClientTest {
     }
 
     @Test
-    void testSuccessfulUpload() {
+    void testSuccessfulUpload() throws ParseException {
         // Given
         var name = "test-project";
         var version = "1.2.3";
@@ -139,8 +140,8 @@ public class DependencyTrackClientTest {
         var result = await(cut.uploadSBOM(name, version, sbom));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(DependencyTrackClient.UploadResult.Success.class, success -> {
-            assertThat(success.projectUrl()).endsWith("/projects/uuid-1");
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
+            assertThat(success.result()).isInstanceOfSatisfying(String.class, s -> assertThat(s).endsWith("/projects/uuid-1"));
         });
 
         var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
@@ -160,13 +161,9 @@ public class DependencyTrackClientTest {
 
         var uploadedBom = uploadedJson.getString("bom");
         var clearTextBom = new String(Base64.getDecoder().decode(uploadedBom), StandardCharsets.UTF_8);
-        try {
-            var bom = new JsonParser().parse(clearTextBom.getBytes(StandardCharsets.UTF_8));
-            assertThat(bom.getMetadata().getComponent().getName()).isEqualTo(name);
-            assertThat(bom.getMetadata().getComponent().getVersion()).isEqualTo(version);
-        } catch (ParseException parseException) {
-
-        }
+        var bom = new JsonParser().parse(clearTextBom.getBytes(StandardCharsets.UTF_8));
+        assertThat(bom.getMetadata().getComponent().getName()).isEqualTo(name);
+        assertThat(bom.getMetadata().getComponent().getVersion()).isEqualTo(version);
     }
 
     @Test
@@ -188,7 +185,7 @@ public class DependencyTrackClientTest {
         var result = await(cut.uploadSBOM(name, version, sbom));
 
         // Then
-        assertThat(result).isInstanceOf(DependencyTrackClient.UploadResult.Failure.class);
+        assertThat(result).isInstanceOf(Result.Failure.class);
         assertThat(dtrackMock.retrieveRecordedRequests(putBom)).hasSize(4);
     }
 }

@@ -1,14 +1,13 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Files;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -19,6 +18,8 @@ import org.cyclonedx.model.Bom;
 import org.cyclonedx.parsers.JsonParser;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import com.mediamarktsaturn.ghbot.Command;
+import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import io.quarkus.logging.Log;
@@ -42,6 +43,8 @@ public class CdxgenClient {
     private static final String DEFAULT_MAVEN_ARGS = "-B -ntp";
 
     private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{(\\w+)}");
+
+    private static final JsonParser SBOM_PARSER = new JsonParser();
 
     private static final List<String> WRAPPER_SCRIPT_NAMES = List.of("mvnw", "mvnw.bat", "mvnw.cmd", "gradlew", "gradlew.bat", "gradlew.cmd");
 
@@ -81,8 +84,26 @@ public class CdxgenClient {
 
     private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
 
-    public Uni<SBOMGenerationResult> generateSBOM(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
-        Boolean recursive =
+    public record SbomCreationCommand(
+        File repoDir,
+        String projectName,
+        String commandLine,
+        Map<String, String> environment,
+        List<String> excludeFiles
+    ) implements Command<SBOMGenerationResult> {
+
+        @Override
+        public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
+            metadata.toMDC();
+            return removeExcludedFiles(this)
+                .chain(() -> generateSbom(this, metadata))
+                .chain(result -> parseSbom(this, result, metadata));
+        }
+
+    }
+
+    public SbomCreationCommand createCommand(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
+        boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
             !config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false) &&
                 config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault);
@@ -94,25 +115,93 @@ public class CdxgenClient {
             projectName
         );
 
-        Function<ProcessHandler.ProcessResult, SBOMGenerationResult> mapResult = (ProcessHandler.ProcessResult processResult) -> {
-            var sbomFile = new File(repoDir, SBOM_JSON);
-            if (processResult instanceof ProcessHandler.ProcessResult.Success) {
-                return readAndParseSBOM(sbomFile);
-            } else {
-                var failure = (ProcessHandler.ProcessResult.Failure) processResult;
-                if (sbomFile.exists()) {
-                    Log.warnf(failure.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", projectName);
-                    return readAndParseSBOM(sbomFile);
-                } else {
-                    return new SBOMGenerationResult.Failure("Command failed: " + cdxgenCmd, failure.cause());
-                }
-            }
-        };
+        var environment = buildEnv(config);
+        var excludeList = buildExcludeList(config);
 
-        return prepareForAnalysis(repoDir.getAbsoluteFile(), config)
-            .chain(dir -> ProcessHandler.run(cdxgenCmd, dir, buildEnv(config)))
-            .map(mapResult);
+        return new SbomCreationCommand(
+            repoDir,
+            projectName,
+            cdxgenCmd,
+            environment,
+            excludeList
+        );
     }
+
+    static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
+        metadata.toMDC();
+        return ProcessHandler.run(cmd.commandLine, cmd.repoDir(), cmd.environment());
+    }
+
+    static Uni<Result<SBOMGenerationResult>> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
+        var sbomFile = new File(cmd.repoDir(), SBOM_JSON);
+        return Uni.createFrom().item(() -> {
+            metadata.toMDC();
+            return switch (generationResult) {
+                case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
+                case ProcessHandler.ProcessResult.Failure f -> {
+                    if (sbomFile.exists()) {
+                        Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
+                        yield parseSbomFile(sbomFile);
+                    } else {
+                        Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
+                        yield new Result.Failure<>(f.cause());
+                    }
+                }
+            };
+        });
+    }
+
+
+    static Result<SBOMGenerationResult> parseSbomFile(File sbomFile) {
+        if (!sbomFile.exists()) {
+            return new Result.Success<>(new SBOMGenerationResult.None());
+        } else if (sbomFile.canRead()) {
+            try {
+                return parseSbomBytes(Files.readAllBytes(sbomFile.toPath()));
+            } catch (Exception e) {
+                return new Result.Failure<>(e);
+            }
+        } else {
+            throw new IllegalStateException("Cannot read file " + sbomFile.getAbsolutePath());
+        }
+    }
+
+    private static Result<SBOMGenerationResult> parseSbomBytes(byte[] sbomContent) {
+        try {
+            final var validationResult = SBOM_PARSER.validate(sbomContent);
+
+            final var sbom = SBOM_PARSER.parse(sbomContent);
+
+            String group = null;
+            String name = null;
+            String version = null;
+            if (sbom.getMetadata() != null && sbom.getMetadata().getComponent() != null) {
+                group = sbom.getMetadata().getComponent().getGroup();
+                name = sbom.getMetadata().getComponent().getName();
+                version = sbom.getMetadata().getComponent().getVersion();
+            }
+            var named = isNotBlank(group) && isNotBlank(name) && isNotBlank(version);
+            if (!named &&
+                isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
+                return new Result.Success<>(new SBOMGenerationResult.None());
+            } else if (named) {
+                return new Result.Success<>(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult));
+            } else {
+                return new Result.Success<>(new SBOMGenerationResult.Fallback(sbom, validationResult));
+            }
+        } catch (Exception e) {
+            return new Result.Failure<>(e);
+        }
+    }
+
+    static boolean isEmpty(Collection<?> value) {
+        return value == null || value.isEmpty();
+    }
+
+    static boolean isNotBlank(String value) {
+        return value != null && !value.isBlank();
+    }
+
 
     Map<String, String> buildEnv(Optional<TechnolinatorConfig> config) {
         var gradleEnv = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::args).orElseGet(List::of);
@@ -148,6 +237,24 @@ public class CdxgenClient {
         return context;
     }
 
+    List<String> buildExcludeList(Optional<TechnolinatorConfig> config) {
+        var repoConfigExcludes = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::excludes).orElseGet(List::of);
+        if (repoConfigExcludes.stream().anyMatch(item -> item.contains("..") || item.trim().startsWith("/") || item.trim().startsWith("~") || item.trim().startsWith("$"))) {
+            throw new IllegalArgumentException("Not allowed to step up directories");
+        }
+
+        var excludeList = new ArrayList<>(repoConfigExcludes);
+
+        if (excludeGithubFolder) {
+            excludeList.add(".github");
+        }
+        if (cleanWrapperScripts) {
+            excludeList.addAll(WRAPPER_SCRIPT_NAMES);
+        }
+
+        return excludeList;
+    }
+
     /**
      * Replaces variable templates in form ${VAR} with the actual env value
      */
@@ -161,77 +268,14 @@ public class CdxgenClient {
         return value;
     }
 
-    static SBOMGenerationResult readAndParseSBOM(File sbomFile) {
-        if (!sbomFile.exists()) {
-            return new SBOMGenerationResult.None();
-        } else if (sbomFile.canRead()) {
-            try {
-                return parseSBOM(Files.readAllBytes(sbomFile.toPath()));
-            } catch (Exception e) {
-                return new SBOMGenerationResult.Failure("Failed to parse " + sbomFile.getAbsolutePath(), e);
-            }
+    static Uni<Void> removeExcludedFiles(SbomCreationCommand cmd) {
+        if (cmd.excludeFiles().isEmpty()) {
+            return Uni.createFrom().voidItem();
         } else {
-            return new SBOMGenerationResult.Failure("Cannot read file " + sbomFile.getAbsolutePath(), null);
-        }
-    }
-
-    private static SBOMGenerationResult parseSBOM(byte[] sbomContent) {
-        try {
-            final var jsonSBOMParser = new JsonParser();
-            final var validationResult = jsonSBOMParser.validate(sbomContent);
-
-            final var sbom = jsonSBOMParser.parse(sbomContent);
-
-            String group = null;
-            String name = null;
-            String version = null;
-            if (sbom.getMetadata() != null && sbom.getMetadata().getComponent() != null) {
-                group = sbom.getMetadata().getComponent().getGroup();
-                name = sbom.getMetadata().getComponent().getName();
-                version = sbom.getMetadata().getComponent().getVersion();
-            }
-            var named = isNotBlank(group) && isNotBlank(name) && isNotBlank(version);
-            if (!named &&
-                isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
-                return new SBOMGenerationResult.None();
-            } else if (named) {
-                return new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult);
-            } else {
-                return new SBOMGenerationResult.Fallback(sbom, validationResult);
-            }
-        } catch (ParseException parseException) {
-            return new SBOMGenerationResult.Failure("SBOM file is invalid", parseException);
-        } catch (IOException ioException) {
-            return new SBOMGenerationResult.Failure("SBOM file could not be read", ioException);
-        }
-    }
-
-    static boolean isEmpty(Collection<?> value) {
-        return value == null || value.isEmpty();
-    }
-
-    static boolean isNotBlank(String value) {
-        return value != null && !value.isBlank();
-    }
-
-    Uni<File> prepareForAnalysis(File dir, Optional<TechnolinatorConfig> config) {
-        var excludeList = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::excludes).orElseGet(List::of);
-        if (excludeList.stream().anyMatch(item -> item.contains("..") || item.trim().startsWith("/") || item.trim().startsWith("~") || item.trim().startsWith("$"))) {
-            throw new IllegalArgumentException("Not allowed to step up directories");
-        }
-        String toBeDeleted = String.join(" ", excludeList);
-
-        if (excludeGithubFolder) {
-            toBeDeleted += " .github ";
-        }
-        if (cleanWrapperScripts) {
-            toBeDeleted += String.join(" ", WRAPPER_SCRIPT_NAMES);
-        }
-        if (toBeDeleted.isBlank()) {
-            return Uni.createFrom().item(dir);
-        } else {
-            return ProcessHandler.run("rm -rf " + toBeDeleted, dir, Map.of())
-                .map(i -> dir);
+            var dir = cmd.repoDir().getAbsoluteFile();
+            var excludes = String.join(" ", cmd.excludeFiles());
+            return ProcessHandler.run("rm -rf " + excludes, dir, Map.of())
+                .onItem().ignore().andContinueWithNull();
         }
     }
 
@@ -252,12 +296,6 @@ public class CdxgenClient {
         }
 
         record None() implements SBOMGenerationResult {
-        }
-
-        record Failure(
-            String message,
-            Throwable cause
-        ) implements SBOMGenerationResult {
         }
     }
 

@@ -12,16 +12,16 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.MDC;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
+import com.mediamarktsaturn.ghbot.Command;
+import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.handler.PushHandler;
-import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -49,11 +49,14 @@ public class OnPushDispatcher {
 
     @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
-        MDC.put("flowid", UUID.randomUUID().toString().substring(0, 8));
-
+        var traceId = UUID.randomUUID().toString().substring(0, 8);
         var pushRef = pushPayload.getRef();
         var repo = pushPayload.getRepository();
         var repoUrl = repo.getUrl();
+        final var commitSha = getEventCommit(pushPayload);
+
+        final var metadata = new Command.Metadata(pushRef, repo.getFullName(), traceId, commitSha.orElseGet(String::new));
+        metadata.toMDC();
 
         // metric tags
         final MetricStatusRepo status;
@@ -72,10 +75,8 @@ public class OnPushDispatcher {
             Log.infof("Ref %s of repository %s eligible for analysis", pushRef, repoUrl);
             status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
 
-            var commitSha = getEventCommit(pushPayload);
-
             commitSha.ifPresent(commit ->
-                createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running")
+                createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
                     .subscribe().with(item -> {
                     }, failure -> {
                     })
@@ -83,15 +84,17 @@ public class OnPushDispatcher {
 
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
-            pushHandler.onPush(new PushEvent(pushPayload, config))
+            pushHandler.onPush(new PushEvent(pushPayload, config), metadata)
                 .ifNoItem().after(processTimeout).fail()
-                .chain(result -> reportAnalysisResult(result, repo, commitSha))
+                .chain(result -> reportAnalysisResult(result, repo, commitSha, metadata))
                 .onFailure().recoverWithUni(failure -> {
+                    metadata.toMDC();
                     Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
-                    return reportFailure(repo, commitSha, failure);
+                    return reportFailure(repo, commitSha, failure, metadata);
                 })
                 .subscribe().with(
                     pushResult -> {
+                        metadata.toMDC();
                         Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
                         meterRegistry.counter("analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
@@ -103,6 +106,7 @@ public class OnPushDispatcher {
                         ).increment();
                     },
                     failure -> {
+                        metadata.toMDC();
                         Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
                         meterRegistry.counter("last_analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
@@ -119,48 +123,55 @@ public class OnPushDispatcher {
         ).increment();
     }
 
-    Uni<PushResult> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure) {
+    Uni<PushResult> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure, Command.Metadata metadata) {
         var reason = failure instanceof TimeoutException ? "timed out" : "failed";
         return commitSha
-            .map(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason)
+            .map(commit -> createGHCommitStatus(commit, repo, GHCommitState.FAILURE, null, "SBOM analysis " + reason, metadata)
                 .map(commitStatus -> new PushResult(commitStatus, MetricStatusAnalysis.ERROR)))
             .orElseGet(() -> Uni.createFrom().item(new PushResult(null, MetricStatusAnalysis.NONE)));
     }
 
-    Uni<PushResult> reportAnalysisResult(DependencyTrackClient.UploadResult uploadResult, GHRepository repo, Optional<String> commitSha) {
+    Uni<PushResult> reportAnalysisResult(Result<String> uploadResult, GHRepository repo, Optional<String> commitSha, Command.Metadata metadata) {
         return commitSha.map(commit -> {
             final GHCommitState state;
             final MetricStatusAnalysis metricStatus;
             final String url;
             final String desc;
-            if (uploadResult instanceof DependencyTrackClient.UploadResult.Success) {
-                desc = "SBOM available";
-                state = GHCommitState.SUCCESS;
-                metricStatus = MetricStatusAnalysis.OK;
-                url = ((DependencyTrackClient.UploadResult.Success) uploadResult).projectUrl();
-            } else if (uploadResult instanceof DependencyTrackClient.UploadResult.Failure) {
-                desc = "SBOM creation failed";
-                state = GHCommitState.ERROR;
-                metricStatus = MetricStatusAnalysis.ERROR;
-                url = ((DependencyTrackClient.UploadResult.Failure) uploadResult).baseUrl();
-            } else {
-                desc = "SBOM not available";
-                state = GHCommitState.SUCCESS;
-                metricStatus = MetricStatusAnalysis.NONE;
-                url = null;
+            switch (uploadResult) {
+                case Result.Success<String> s -> {
+                    url = s.result();
+                    if (!url.isBlank()) {
+                        desc = "SBOM available";
+                    } else {
+                        desc = "SBOM not available";
+                    }
+                    state = GHCommitState.SUCCESS;
+                    metricStatus = MetricStatusAnalysis.OK;
+                }
+                case Result.Failure<String> f -> {
+                    desc = "SBOM creation failed";
+                    state = GHCommitState.ERROR;
+                    metricStatus = MetricStatusAnalysis.ERROR;
+                    url = null;
+                }
+                default -> throw new IllegalStateException();
             }
 
-            return createGHCommitStatus(commit, repo, state, url, desc)
+            return createGHCommitStatus(commit, repo, state, url, desc, metadata)
                 .map(commitStatus -> new PushResult(commitStatus, metricStatus));
         }).orElseGet(() -> Uni.createFrom().item(null));
     }
 
-    Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description) {
+    Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description, Command.Metadata metadata) {
         return Uni.createFrom().item(Unchecked.supplier(() -> {
+                metadata.toMDC();
                 Log.infof("Setting repo %s commit %s status to %s", repo.getUrl(), commitSha, state);
                 return repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security");
             }))
-            .onFailure().invoke(failure -> Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName()));
+            .onFailure().invoke(failure -> {
+                metadata.toMDC();
+                Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName());
+            });
     }
 
     private List<String> normalizedEnabledRepos;
