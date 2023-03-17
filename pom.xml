@@ -159,7 +159,7 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jacoco</artifactId>
             <scope>test</scope>
-          </dependency>
+        </dependency>
     </dependencies>
     <build>
         <plugins>
@@ -183,6 +183,7 @@
                 <version>${compiler-plugin.version}</version>
                 <configuration>
                     <compilerArgs>
+                        <arg>--enable-preview</arg>
                         <arg>-parameters</arg>
                     </compilerArgs>
                 </configuration>
@@ -191,6 +192,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire-plugin.version}</version>
                 <configuration>
+                    <argLine>--enable-preview</argLine>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -211,6 +213,7 @@
                             <goal>verify</goal>
                         </goals>
                         <configuration>
+                            <argLine>--enable-preview</argLine>
                             <systemPropertyVariables>
                                 <native.image.path>${project.build.directory}/${project.build.finalName}-runner
                                 </native.image.path>

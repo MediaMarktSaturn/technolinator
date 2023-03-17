@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
+import static com.mediamarktsaturn.ghbot.TestUtil.await;
+
 import java.io.File;
 import java.util.Optional;
 
@@ -11,6 +13,7 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import com.mediamarktsaturn.ghbot.Command;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.logging.Log;
 import io.quarkus.test.junit.QuarkusTest;
@@ -44,11 +47,15 @@ public class LocalRepositoryAnalysis {
             throw new IllegalArgumentException("Cannot access " + dir);
         }
         var projectName = folder.getName();
+        var metadata = new Command.Metadata("local", "local/" + projectName, "", "");
 
         TechnolinatorConfig config = configMapper.readValue(configString, TechnolinatorConfig.class);
 
-        var result = cdxgenClient.generateSBOM(folder, projectName, Optional.of(config))
-            .await().indefinitely();
+        var cmd = cdxgenClient.createCommand(folder, projectName, Optional.of(config));
+        Log.infof("Command: '%s'", cmd.commandLine());
+
+        var result = await(cmd.execute(metadata));
+
         Log.infof("Analysis success, got: %s", result.getClass().getSimpleName());
     }
 }

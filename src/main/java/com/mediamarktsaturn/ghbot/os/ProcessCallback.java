@@ -1,13 +1,12 @@
 package com.mediamarktsaturn.ghbot.os;
 
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.jboss.logging.MDC;
-
+import com.mediamarktsaturn.ghbot.Command;
 import io.quarkus.logging.Log;
 
 public interface ProcessCallback {
@@ -18,28 +17,18 @@ public interface ProcessCallback {
 
     void onFailure(Throwable failure);
 
-    String getIdent();
+    void log(String message);
 
     class DefaultProcessCallback implements ProcessCallback {
 
         private static final String SENSITIVE_ENV_VARS = System.getenv("SENSITIVE_ENV_VARS");
 
-        private final String ident;
+        private final Command.Metadata metadata;
+        private final long start;
         private Map<String, String> sensitiveEnv = Collections.emptyMap();
 
-
-        @Override
-        public String getIdent() {
-            return ident;
-        }
-
         public DefaultProcessCallback() {
-            var flowid = MDC.get("flowid");
-            if (flowid != null && !flowid.toString().isBlank()) {
-                this.ident = flowid.toString();
-            } else {
-                this.ident = UUID.randomUUID().toString().substring(0, 8);
-            }
+            this.metadata = Command.Metadata.fromMDC();
 
             if (SENSITIVE_ENV_VARS != null) {
                 var sensitiveEnvKeys = Arrays.stream(SENSITIVE_ENV_VARS.split(",")).map(String::trim).toList();
@@ -47,32 +36,40 @@ public interface ProcessCallback {
                     .filter(e -> sensitiveEnvKeys.contains(e.getKey()))
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
             }
+
+            start = System.currentTimeMillis();
         }
 
         @Override
         public void onComplete(int exitStatus) {
+            var duration = Duration.ofMillis(System.currentTimeMillis() - start);
             if (exitStatus == 0) {
-                Log.infof("[%s] succeeded", ident);
+                Log.infof("[%s] succeeded after %s", metadata.traceId(), duration);
             } else {
-                Log.warnf("[%s] failed (%s)", ident, exitStatus);
+                Log.warnf("[%s] failed (%s) after %s", metadata.traceId(), exitStatus, duration);
             }
         }
 
         @Override
         public void onOutput(String logLine) {
             if (Log.isDebugEnabled()) {
-                MDC.put("flowid", ident);
+                metadata.toMDC();
                 // hide (sensitive) env values from output
                 for (var env : sensitiveEnv.entrySet()) {
                     logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
                 }
-                Log.debugf("[%s]: %s", ident, logLine);
+                Log.debugf("[%s]: %s", metadata.traceId(), logLine);
             }
         }
 
         @Override
         public void onFailure(Throwable failure) {
-            Log.errorf(failure, "[%s] failed: %s", ident, failure.getMessage());
+            Log.errorf(failure, "[%s] failed: %s", metadata.traceId(), failure.getMessage());
+        }
+
+        @Override
+        public void log(String message) {
+            Log.infof("[%s] %s", metadata.traceId(), message);
         }
     }
 
@@ -93,8 +90,8 @@ public interface ProcessCallback {
         }
 
         @Override
-        public String getIdent() {
-            return "";
+        public void log(String message) {
+            Log.info(message);
         }
     };
 }
