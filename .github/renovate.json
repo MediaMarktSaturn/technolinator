@@ -8,7 +8,7 @@
     "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
     "onboarding": false,
     "platform": "github",
-    "includeForks": false,
+    "forkProcessing": "disabled",
     "semanticCommits": "enabled",
     "dependencyDashboard": false,
     "suppressNotifications": ["prIgnoreNotification"],
@@ -20,11 +20,11 @@
     "regexManagers": [
         {
         "description": "Update cdxgen version in GH action",
-        "fileMatch": ["ci.yml$"],
+        "fileMatch": [".*ci\\.yml$"],
         "matchStrings": [
-            "CDXGEN_VERSION: '(.*)'"
+            "CDXGEN_VERSION: '(?<currentValue>.*?)'"
         ],
-        "depNameTemplate": "cyclonedx/cdxgen",
+        "depNameTemplate": "@cyclonedx/cdxgen",
         "datasourceTemplate": "npm"
         }
     ]
