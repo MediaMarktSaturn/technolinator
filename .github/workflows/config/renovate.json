@@ -1,0 +1,31 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "labels": ["dependencies", "renovate"],
+    "extends": ["config:base"],
+    "dryRun": null,
+    "branchPrefix": "renovate/",
+    "username": "renovate[bot]",
+    "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
+    "onboarding": false,
+    "platform": "github",
+    "includeForks": false,
+    "semanticCommits": "enabled",
+    "dependencyDashboard": false,
+    "suppressNotifications": ["prIgnoreNotification"],
+    "rebaseWhen": "conflicted",
+    "branchConcurrentLimit": 0,
+    "prConcurrentLimit": 10,
+    "prHourlyLimit": 0,
+    "enabledManagers": ["regex"],
+    "regexManagers": [
+        {
+        "description": "Update cdxgen version in GH action",
+        "fileMatch": ["ci.yml$"],
+        "matchStrings": [
+            "CDXGEN_VERSION: '(.*)'"
+        ],
+        "depNameTemplate": "cyclonedx/cdxgen",
+        "datasourceTemplate": "npm"
+        }
+    ]
+}
