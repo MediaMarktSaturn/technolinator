@@ -19,7 +19,7 @@ public interface Command<T> {
             MDC.put("commitSha", commitSha);
         }
 
-        static public Metadata fromMDC() {
+        public static Metadata fromMDC() {
             return new Metadata(
                 orEmpty(MDC.get("ref")),
                 orEmpty(MDC.get("repository")),
