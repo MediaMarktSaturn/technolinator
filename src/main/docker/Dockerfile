@@ -5,7 +5,6 @@ ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 
 RUN mkdir /root/.m2 && mkdir /app
-COPY --chown=1001:root src/main/docker/assets/settings.xml /root/.m2/settings.xml
 COPY --chown=1001:root src/main/docker/assets/git_askpass.sh /root/git_askpass.sh
 COPY --chown=1001:root src/main/docker/assets/run-java.sh /app/run-java.sh
 
@@ -48,9 +47,8 @@ ENV JAVA_HOME="/usr/lib/jvm/jre" \
     GRADLE_HOME="/root/.sdkman/candidates/gradle/current" \
     MVN_CMD=mvn \
     GRADLE_CMD=gradle \
-    ARTIFACTORY_URL="https://artifactory.cloud.mmst.eu/artifactory" \
     GITHUB_USER="nobody" \
-    SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,ARTIFACTORY_USER,ARTIFACTORY_PASSWORD,GITHUB_TOKEN,DTRACK_APIKEY"
+    SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY"
 
 ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 

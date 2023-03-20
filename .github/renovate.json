@@ -1,7 +1,12 @@
 {
     "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "labels": ["dependencies", "renovate"],
-    "extends": ["config:base"],
+    "labels": [
+        "dependencies",
+        "renovate"
+    ],
+    "extends": [
+        "config:base"
+    ],
     "dryRun": null,
     "branchPrefix": "renovate/",
     "username": "renovate[bot]",
@@ -11,21 +16,38 @@
     "forkProcessing": "disabled",
     "semanticCommits": "enabled",
     "dependencyDashboard": false,
-    "suppressNotifications": ["prIgnoreNotification"],
+    "suppressNotifications": [
+        "prIgnoreNotification"
+    ],
     "rebaseWhen": "conflicted",
     "branchConcurrentLimit": 0,
     "prConcurrentLimit": 10,
     "prHourlyLimit": 0,
-    "enabledManagers": ["regex"],
+    "enabledManagers": [
+        "regex"
+    ],
     "regexManagers": [
         {
-        "description": "Update cdxgen version in GH action",
-        "fileMatch": [".*ci\\.yml$"],
-        "matchStrings": [
-            "CDXGEN_VERSION: '(?<currentValue>.*?)'"
-        ],
-        "depNameTemplate": "@cyclonedx/cdxgen",
-        "datasourceTemplate": "npm"
+            "description": "Update cdxgen version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$"
+            ],
+            "matchStrings": [
+                "CDXGEN_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "@cyclonedx/cdxgen",
+            "datasourceTemplate": "npm"
+        },
+        {
+            "description": "Update cdxgen-plugins-bin version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$"
+            ],
+            "matchStrings": [
+                "CDXGEN_PLUGINS_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "@cyclonedx/cdxgen-plugins-bin",
+            "datasourceTemplate": "npm"
         }
     ]
 }

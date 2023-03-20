@@ -4,11 +4,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.mediamarktsaturn.promotion</groupId>
-        <artifactId>promotion-frontend-parent</artifactId>
+        <groupId>com.mediamarktsaturn.test</groupId>
+        <artifactId>multi-module-test</artifactId>
         <version>3.2.7</version>
     </parent>
 
-    <artifactId>promotion-npm</artifactId>
+    <artifactId>test-npm</artifactId>
 
 </project>

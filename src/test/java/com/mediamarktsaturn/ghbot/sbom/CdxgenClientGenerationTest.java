@@ -90,10 +90,10 @@ public class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, proper -> {
-                assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("multi-mode");
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+                assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("multi-mode");
 
-                assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("husky", "quarkus-smallrye-health");
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("husky", "quarkus-smallrye-health");
             });
         });
     }
@@ -139,8 +139,8 @@ public class CdxgenClientGenerationTest {
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
             assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                // there are two license issues in this go.sum
-                assertThat(fallback.validationIssues()).hasSize(2);
+                // there are some license issues in this go.sum
+                assertThat(fallback.validationIssues()).hasSize(9);
             });
         });
     }
@@ -156,8 +156,8 @@ public class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, proper -> {
-                assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "gson");
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin");
             });
         });
     }

@@ -15,10 +15,6 @@ fileExistenceTests:
       shouldExist: true
       permissions: '-rwxr-xr-x'
 
-    - name: 'Maven settings file should exist'
-      path: /root/.m2/settings.xml
-      shouldExist: true
-
 commandTests:
     - name: 'Timezone is UTC'
       command: 'date'
@@ -72,8 +68,6 @@ metadataTest:
           value: 'mvn'
         - key: GRADLE_CMD
           value: 'gradle'
-        - key: ARTIFACTORY_URL
-          value: 'https://artifactory.cloud.mmst.eu/artifactory'
     cmd: ['/app/run-java.sh']
     entrypoint: []
     workdir: '/app'

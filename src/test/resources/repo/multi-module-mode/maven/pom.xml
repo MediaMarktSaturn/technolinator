@@ -4,422 +4,226 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.mediamarktsaturn.promotion</groupId>
-        <artifactId>promotion-frontend-parent</artifactId>
+        <groupId>com.mediamarktsaturn.test</groupId>
+        <artifactId>multi-module-test</artifactId>
         <version>3.2.7</version>
     </parent>
 
-    <artifactId>promotion-bos</artifactId>
+    <artifactId>test-mvn</artifactId>
 
     <properties>
-        <graphql-braid.version>0.23.15</graphql-braid.version>
-        <kgraphql.version>0.18.1</kgraphql.version>
-        <!-- jackson is required by kgraphql -->
-        <jackson.version>2.14.1</jackson.version>
-        <ktor.version>2.2.1</ktor.version>
-        <slf4j.version>2.0.6</slf4j.version>
-        <coroutines.version>1.6.4</coroutines.version>
-        <atomicfu.version>0.19.0</atomicfu.version>
-        <kotlinx-serialization.version>0.20.0</kotlinx-serialization.version>
-
-        <sonar.language>kotlin</sonar.language>
-        <sonar.sources>src/main/kotlin</sonar.sources>
-
-        <!-- test -->
-        <embedded-redis.version>0.7.3</embedded-redis.version>
-        <rest-assured.version>5.3.0</rest-assured.version>
-        <junit.version>5.9.1</junit.version>
-        <mock-server.version>5.14.0</mock-server.version>
-        <assertj.version>3.24.1</assertj.version>
-
-        <!-- plugins -->
-        <maven-assembly-plugin.version>3.4.2</maven-assembly-plugin.version>
-        <maven-jar-plugin.version>3.2.2</maven-jar-plugin.version>
-        <maven-compiler-plugin.version>3.10.1</maven-compiler-plugin.version>
-        <maven-surefire-plugin.version>3.0.0-M7</maven-surefire-plugin.version>
-        <maven-failsafe-plugin.version>3.0.0-M7</maven-failsafe-plugin.version>
-        <maven-license-plugin.version>2.0.0</maven-license-plugin.version>
+        <compiler-plugin.version>3.11.0</compiler-plugin.version>
+        <failsafe.useModulePath>false</failsafe.useModulePath>
+        <kotlin.version>1.8.10</kotlin.version>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+        <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
+        <quarkus.platform.version>2.16.4.Final</quarkus.platform.version>
+        <surefire-plugin.version>3.0.0</surefire-plugin.version>
+        <maven-dependency-check-plugin.version>8.1.2</maven-dependency-check-plugin.version>
+        <quarkus.native.container-build>true</quarkus.native.container-build>
     </properties>
-
-    <repositories>
-        <repository>
-            <id>AtlassianPkgs</id>
-            <url>https://packages.atlassian.com/maven-public/</url>
-            <releases/>
-        </repository>
-        <repository>
-            <id>kotlinx-html</id>
-            <url>https://maven.pkg.jetbrains.space/public/p/kotlinx-html/maven</url>
-            <releases/>
-        </repository>
-    </repositories>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.jetbrains.kotlin</groupId>
-                <artifactId>kotlin-bom</artifactId>
-                <version>${kotlin.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains.kotlinx</groupId>
-                <artifactId>kotlinx-coroutines-bom</artifactId>
-                <version>${coroutines.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>com.fasterxml.jackson</groupId>
-                <artifactId>jackson-bom</artifactId>
-                <version>${jackson.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-bom</artifactId>
-                <version>${netty.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-
-            <!-- transient dependencies to be under our control -->
-            <dependency>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-api</artifactId>
-                <version>${slf4j.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains.kotlinx</groupId>
-                <artifactId>atomicfu</artifactId>
-                <version>${atomicfu.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains.kotlinx</groupId>
-                <artifactId>kotlinx-serialization-runtime</artifactId>
-                <version>${kotlinx-serialization.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.jetbrains.kotlinx</groupId>
-                <artifactId>kotlinx-serialization-runtime-common</artifactId>
-                <version>${kotlinx-serialization.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>org.junit</groupId>
-                <artifactId>junit-bom</artifactId>
-                <version>${junit.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.ktor</groupId>
-                <artifactId>ktor-bom</artifactId>
-                <version>${ktor.version}</version>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>${quarkus.platform.artifact-id}</artifactId>
+                <version>${quarkus.platform.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
         </dependencies>
     </dependencyManagement>
-
     <dependencies>
         <dependency>
-            <groupId>com.mediamarktsaturn.reverse-proxy</groupId>
-            <artifactId>authentiktor</artifactId>
-            <version>${authentiktor.version}</version>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-resteasy-reactive</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mediamarktsaturn.kotlin</groupId>
-            <artifactId>kotlin-ktor-koin-commons</artifactId>
-            <version>${kotlin-ktor-koin-commons.version}</version>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-kotlin</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.ktor</groupId>
-            <artifactId>ktor-server-cors-jvm</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
         </dependency>
-        <!-- Begin workaround for PROCO-2303 -->
         <dependency>
-            <groupId>io.ktor</groupId>
-            <artifactId>ktor-server-double-receive-jvm</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
         </dependency>
-        <!-- End workaround for PROCO-2303 -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-health</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit5</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
             <artifactId>kotlin-stdlib-jdk8</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mediamarktsaturn.promotion</groupId>
-            <artifactId>promotion-api</artifactId>
-            <version>${promotions.version}</version>
-            <!-- We are only interested in its own classes -->
-            <exclusions>
-                <exclusion>
-                    <groupId>*</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.mediamarktsaturn.promotion</groupId>
-            <artifactId>promotion-commons</artifactId>
-            <version>${promotions.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.atlassian.braid</groupId>
-            <artifactId>graphql-braid</artifactId>
-            <version>${graphql-braid.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.apurebase</groupId>
-            <artifactId>kgraphql</artifactId>
-            <version>${kgraphql.version}</version>
-        </dependency>
-        <!-- For discount check (only) -->
-        <dependency>
-            <groupId>io.ktor</groupId>
-            <artifactId>ktor-server-html-builder-jvm</artifactId>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-util-klib</artifactId>
+            <version>${kotlin.version}</version>
         </dependency>
 
-        <!-- test stuff -->
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-test-junit5</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-api</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-engine</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.junit.jupiter</groupId>
-            <artifactId>junit-jupiter-params</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.insert-koin</groupId>
-            <artifactId>koin-test-junit5</artifactId>
-            <version>${koin.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>io.mockk</groupId>
-            <artifactId>mockk-jvm</artifactId>
-            <version>${mockK.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.mediamarktsaturn.promotion</groupId>
-            <artifactId>promotion-commons</artifactId>
-            <version>${promotions.version}</version>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers</artifactId>
-            <version>${testcontainers.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>it.ozimov</groupId>
-            <artifactId>embedded-redis</artifactId>
-            <version>${embedded-redis.version}</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <artifactId>slf4j-simple</artifactId>
-                    <groupId>org.slf4j</groupId>
-                </exclusion>
-            </exclusions>
-        </dependency>
         <dependency>
             <groupId>io.rest-assured</groupId>
-            <artifactId>rest-assured</artifactId>
-            <version>${rest-assured.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.mock-server</groupId>
-            <artifactId>mockserver-netty</artifactId>
-            <version>${mock-server.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.assertj</groupId>
-            <artifactId>assertj-core</artifactId>
-            <version>${assertj.version}</version>
+            <artifactId>kotlin-extensions</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
-
     <build>
         <sourceDirectory>src/main/kotlin</sourceDirectory>
+        <testSourceDirectory>src/test/kotlin</testSourceDirectory>
         <plugins>
             <plugin>
-                <artifactId>kotlin-maven-plugin</artifactId>
-                <groupId>org.jetbrains.kotlin</groupId>
-                <version>${kotlin.version}</version>
+                <groupId>${quarkus.platform.group-id}</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.platform.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${compiler-plugin.version}</version>
                 <configuration>
-                    <args>
-                        <arg>-opt-in=kotlin.RequiresOptIn</arg>
-                    </args>
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
                 </configuration>
+            </plugin>
+            <plugin>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire-plugin.version}</version>
+                <configuration>
+                    <systemPropertyVariables>
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                        <maven.home>${maven.home}</maven.home>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.jetbrains.kotlin</groupId>
+                <artifactId>kotlin-maven-plugin</artifactId>
+                <version>${kotlin.version}</version>
                 <executions>
                     <execution>
                         <id>compile</id>
                         <goals>
                             <goal>compile</goal>
                         </goals>
-                        <configuration>
-                            <sourceDirs>
-                                <sourceDir>${project.basedir}/src/main/kotlin</sourceDir>
-                            </sourceDirs>
-                        </configuration>
                     </execution>
                     <execution>
                         <id>test-compile</id>
                         <goals>
                             <goal>test-compile</goal>
                         </goals>
-                        <configuration>
-                            <sourceDirs>
-                                <sourceDir>${project.basedir}/src/test/kotlin</sourceDir>
-                            </sourceDirs>
-                        </configuration>
                     </execution>
                 </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>${maven-compiler-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>default-testCompile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>java-compile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>java-test-compile</id>
-                        <phase>none</phase>
-                    </execution>
-                </executions>
+                <dependencies>
+                    <dependency>
+                        <groupId>org.jetbrains.kotlin</groupId>
+                        <artifactId>kotlin-maven-allopen</artifactId>
+                        <version>${kotlin.version}</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
-                    <source>${kotlin.compiler.jvmTarget}</source>
-                    <target>${kotlin.compiler.jvmTarget}</target>
+                    <javaParameters>true</javaParameters>
+                    <jvmTarget>17</jvmTarget>
+                    <compilerPlugins>
+                        <plugin>all-open</plugin>
+                    </compilerPlugins>
+                    <pluginOptions>
+                        <option>all-open:annotation=javax.ws.rs.Path</option>
+                        <option>all-open:annotation=javax.enterprise.context.ApplicationScoped</option>
+                        <option>all-open:annotation=io.quarkus.test.junit.QuarkusTest</option>
+                    </pluginOptions>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>${maven-assembly-plugin.version}</version>
-                <configuration>
-                    <descriptorRefs>
-                        <descriptorRef>jar-with-dependencies</descriptorRef>
-                    </descriptorRefs>
-                    <archive>
-                        <manifest>
-                            <addClasspath>true</addClasspath>
-                            <mainClass>com.mediamarktsaturn.promotion.frontend.FrontendApplicationKt</mainClass>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
-                        </manifest>
-                    </archive>
-                    <finalName>${project.artifactId}</finalName>
-                    <appendAssemblyId>false</appendAssemblyId>
-                </configuration>
-                <executions>
-                    <execution>
-                        <id>assemble-all</id>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>single</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>${maven-surefire-plugin.version}</version>
-                <configuration>
-                    <excludes>
-                        <exclude>**/*ITest</exclude>
-                    </excludes>
-                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
-                    <reuseForks>false</reuseForks>
-                </configuration>
-            </plugin>
-            <plugin>
-                <artifactId>maven-failsafe-plugin</artifactId>
-                <version>${maven-failsafe-plugin.version}</version>
-                <configuration>
-                    <!-- GraphQLApiITest only runs successfully when it's the first one. -->
-                    <!-- See https://github.com/MediaMarktSaturn/proco-frontend/pull/157#issuecomment-654148651 -->
-                    <runOrder>alphabetical</runOrder>
-                    <includes>
-                        <include>**/*ITest</include>
-                    </includes>
-                    <!-- test execution fails due to fat-jar repackaging, see https://github.com/spring-projects/spring-boot/issues/6254#issuecomment-307151464 -->
-                    <classesDirectory>${project.build.directory}/classes</classesDirectory>
-                    <rerunFailingTestsCount>2</rerunFailingTestsCount>
-                    <reuseForks>false</reuseForks>
-                </configuration>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>integration-test</goal>
-                            <goal>verify</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>license-maven-plugin</artifactId>
-                <version>${maven-license-plugin.version}</version>
-                <executions>
-                    <execution>
-                        <id>default-cli</id>
-                        <phase>validate</phase>
-                        <goals>
-                            <goal>aggregate-add-third-party</goal>
-                        </goals>
-                        <configuration>
-                            <!-- sun stuff (com.sun, relaxngDataType) is licensed under the CDDL -->
-                            <!-- our own stuff is allowed even without specific license -->
-                            <excludedGroups>
-                                (^com\.sun)|^(relaxngDatatype)|(^com\.mediamarktsaturn)
-                            </excludedGroups>
-                            <!-- fail build on any license not listed as 'includedLicenses' -->
-                            <failOnBlacklist>true</failOnBlacklist>
-                            <!-- define aliases, first entry will be used -->
-                            <licenseMergesUrl>
-                                https://policies.mms.tech/maven/licenseMerges
-                            </licenseMergesUrl>
-                            <!-- the list of allowed licenses -->
-                            <includedLicenses>
-                                https://policies.mms.tech/maven/includedLicenses
-                            </includedLicenses>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
-
     </build>
-
+    <profiles>
+        <profile>
+            <id>native</id>
+            <activation>
+                <property>
+                    <name>native</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <systemPropertyVariables>
+                                        <native.image.path>
+                                            ${project.build.directory}/${project.build.finalName}-runner
+                                        </native.image.path>
+                                        <java.util.logging.manager>org.jboss.logmanager.LogManager
+                                        </java.util.logging.manager>
+                                        <maven.home>${maven.home}</maven.home>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+            <properties>
+                <quarkus.package.type>native</quarkus.package.type>
+            </properties>
+        </profile>
+        <profile>
+            <id>dependency-scan</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.owasp</groupId>
+                        <artifactId>dependency-check-maven</artifactId>
+                        <version>${maven-dependency-check-plugin.version}</version>
+                        <configuration>
+                            <failBuildOnCVSS>10</failBuildOnCVSS>
+                            <skipProvidedScope>true</skipProvidedScope>
+                            <skipRuntimeScope>true</skipRuntimeScope>
+                            <skipTestScope>true</skipTestScope>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>check</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
