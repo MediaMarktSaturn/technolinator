@@ -13,16 +13,15 @@ ENV configuration:
 
 | Parameter                         | Default                | Description                                                                 |
 |-----------------------------------|------------------------|-----------------------------------------------------------------------------|
+| PORT                              | 8080                   | Http port to listen to for GitHub Webhook events                            |
 | QUARKUS_GITHUB_APP_APP_ID         |                        | Created during app creation on GitHub                                       |
 | QUARKUS_GITHUB_APP_WEBHOOK_SECRET |                        | Created during app creation on GitHub                                       |
 | QUARKUS_GITHUB_APP_PRIVATE_KEY    |                        | Created during app creation on GitHub                                       |
 | GITHUB_TOKEN                      |                        | Optional. Raises GH api quota for cdxgen and enables `go mod` projects      |
 | DTRACK_APIKEY                     |                        | API key to access Dependency-Track                                          |
-| ARTIFACTORY_USER                  |                        | User for accessing internal repos                                           |
-| ARTIFACTORY_PASSWORD              |                        | PW for accessing internal repos                                             |
-| DTRACK_URL                        | https://dtrack.mmst.eu | Baseurl of Dependency-Track                                                 |
-| CDXGEN_FETCH_LICENSE              | true                   | see [cdxgen](https://github.com/AppThreat/cdxgen#environment-variables)     |
-| CDXGEN_USE_GOSUM                  | true                   | see [cdxgen](https://github.com/AppThreat/cdxgen#environment-variables)     |
+| DTRACK_URL                        |                        | Baseurl of Dependency-Track                                                 |
+| CDXGEN_FETCH_LICENSE              | true                   | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
+| CDXGEN_USE_GOSUM                  | true                   | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
 | ANALYSIS_RECURSIVE_DEFAULT        | true                   | default value for the `analysis.recursvie` config                           |
 | APP_CLEAN_WRAPPER_SCRIPTS         | true                   | Remove wrapper scripts like gradlew or mvnw for not downloading these tools |
 | APP_ANALYSIS_TIMEOUT              | 30M                    | Maximal duration of an analysis before getting aborted                      |
@@ -65,16 +64,13 @@ env:
     THIS_IS: just another value
 ```
 
-The configuration file is optional and only necessary to override default behaviour.
+The configuration file is optional and only necessary to override default behavior.
 
 ### Env vars available for use in repo specific configuration
 
-The following environment variables are available for use in e.g. `gradle.args` or `maven.args`:
+Any environment variable backed into the runtime can be referred to.
+Please mind to add sensitive env names (like GitHub token or artifact repository secrets) to the `SENSITIVE_ENV_VARS` to not having them outputted via logging, see the [Dockerfile](src/main/docker/Dockerfile) for the defaults.
 
-* GITHUB_TOKEN (Organization wide read token)
-* GITHUB_USER (nobody)
-* ARTIFACTORY_USER
-* ARTIFACTORY_PASSWORD
-* ARTIFACTORY_URL (https://artifactory.cloud.mmst.eu/artifactory)
+## Adopting for private use
 
-Please reach out if there's need for more.
+For using Technolinator inside your organization with private artifact repositories we recommend to create a derived container image containing needed configuration like Maven or Gradle setting files and ENV.

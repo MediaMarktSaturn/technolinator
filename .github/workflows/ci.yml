@@ -11,9 +11,7 @@ env:
     semantic_version: '19.0.5'
     java_version: '17'
     mvn_parameter: '-B -ntp'
-    image_name: 'europe-west4-docker.pkg.dev/mms-scs-service-x-1337/images/technolinator'
-    ARTIFACTORY_URL: 'https://artifactory.cloud.mmst.eu/artifactory/libs-release'
-    ARTIFACTORY_ID: "artifactory.cloud.mmst.eu"
+    image_name: 'ghcr.io/mediamarktsaturn/technolinator'
 jobs:
     ci:
         name: Application Build
@@ -28,12 +26,6 @@ jobs:
               with:
                   java-version: '${{ env.java_version }}'
                   distribution: 'temurin'
-
-            - name: Create Maven settings.xml
-              uses: whelk-io/maven-settings-xml-action@v21
-              with:
-                  servers: '[{ "id": "${{ env.ARTIFACTORY_ID }}", "username": "${{ secrets.CLP_ARTIFACTORY_SVCACC_USERNAME }}", "password": "${{ secrets.CLP_ARTIFACTORY_SVCACC_APIKEY }}" }]'
-                  repositories: '[{ "id": "${{ env.ARTIFACTORY_ID }}", "url": "${{ env.ARTIFACTORY_URL }}" }]'
 
             - name: Getting next release version
               id: semantic
@@ -100,22 +92,17 @@ jobs:
 
                   container-structure-test test --config src/main/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
 
-            - uses: 'google-github-actions/auth@v1'
-              if: github.ref == 'refs/heads/main'
+            - name: Login to GHCR
+              uses: docker/login-action@v2
+              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
               with:
-                  credentials_json: '${{ secrets.GCP_CONTAINER_REGISTRY_SERVICE_ACCOUNT }}'
-
-            - name: Setup gcloud CLI
-              if: github.ref == 'refs/heads/main'
-              uses: google-github-actions/setup-gcloud@v1
-              with:
-                  version: '415.0.0'
+                registry: ghcr.io
+                username: ${{ github.actor }}
+                password: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Docker push
               if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
               run: |
-                  # configure docker to use Google Container Registry
-                  gcloud auth configure-docker europe-west4-docker.pkg.dev
                   # upload image
                   docker push ${{ env.image_name }}:${{ env.VERSION }}
 
