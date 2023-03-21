@@ -88,6 +88,13 @@ ENV SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SEC
     DTRACK_URL="https://dependency-track.awesome.org"
 ```
 
+## Observability
+
+Technolinators process can best be followed using its log. Every push event received is noted, and the output of cdxgen is logged as well.
+In addition, Technolinator provides Prometheus metrics about push events and analysis results.
+
+There's a Grafana dashboard available in [here](_dashboards), that visualizes these metrics.
+
 ---
 
 _This repository is published under the [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)_
