@@ -41,6 +41,7 @@ public class CdxgenClient {
     private static final String CDXGEN_GRADLE_MULTI_PROJECT = "GRADLE_MULTI_PROJECT_MODE";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
     private static final String DEFAULT_MAVEN_ARGS = "-B -ntp";
+    private static final String JAVA_HOME = System.getenv("JAVA_HOME");
 
     private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{(\\w+)}");
 
@@ -49,6 +50,11 @@ public class CdxgenClient {
     private static final List<String> WRAPPER_SCRIPT_NAMES = List.of("mvnw", "mvnw.bat", "mvnw.cmd", "gradlew", "gradlew.bat", "gradlew.cmd");
 
     private final Map<String, String> cdxgenEnv;
+
+    /**
+     * Configurable, supported jdk versions.
+     */
+    private final Map<String, String> jdkHomes;
     private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, failOnError;
 
     public CdxgenClient(
@@ -80,6 +86,13 @@ public class CdxgenClient {
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
             "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000)
         );
+
+        jdkHomes = System.getenv().entrySet().stream()
+            .filter(e -> e.getKey().matches("JAVA\\d+_HOME"))
+            .collect(Collectors.toMap(
+                e -> e.getKey().replace("JAVA", "").replace("_HOME", ""),
+                Map.Entry::getValue
+            ));
     }
 
     private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
@@ -208,12 +221,11 @@ public class CdxgenClient {
         var gradleMultiProject = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false);
         var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
         var env = config.map(TechnolinatorConfig::env).orElseGet(Map::of);
-
-        if (gradleEnv.isEmpty() && mavenEnv.isEmpty() && env.isEmpty() && !gradleMultiProject) {
-            return cdxgenEnv;
-        }
+        var jdkHome = config.map(TechnolinatorConfig::jdk).map(TechnolinatorConfig.JdkConfig::version).map(jdkHomes::get).orElse(JAVA_HOME);
 
         var context = new HashMap<>(cdxgenEnv);
+        context.put("JAVA_HOME", jdkHome);
+
         var gradleEnvValue = gradleEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {
             context.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);

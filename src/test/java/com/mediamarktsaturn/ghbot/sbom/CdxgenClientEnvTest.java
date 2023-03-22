@@ -140,7 +140,22 @@ public class CdxgenClientEnvTest {
         // Then
         assertThat(result)
             .doesNotContainKey("GRADLE_ARGS")
-            .containsEntry("MVN_ARGS", "-B -ntp");
+            .containsEntry("MVN_ARGS", "-B -ntp")
+            .containsEntry("JAVA_HOME", System.getenv("JAVA_HOME"));
+    }
+
+    @Test
+    void testJdkVersionSelection() {
+        // Given
+        var config = ConfigBuilder.create()
+            .jdk(new TechnolinatorConfig.JdkConfig("19"))
+            .build();
+
+        // When
+        var result = cut.buildEnv(Optional.of(config));
+
+        // Then
+        assertThat(result).containsEntry("JAVA_HOME", "/path/to/jdk19");
     }
 
     @Test

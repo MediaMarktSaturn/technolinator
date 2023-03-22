@@ -63,11 +63,20 @@ maven:
 env:
     # additional env parameter for cdxgen; env vars notated with ${ENV_VAR} will be resolved (see below)
     THIS_IS: just another value
+jdk:
+    # select JDK version used by cdxgen on JVM based projects (options below)
+    version: 19
 ```
 
 The configuration file is optional and only necessary to override default behavior.
 
-### Env vars available for use in repo specific configuration
+### Config of jdk.version
+
+Different JDK installations can be provided to Technolinator by its own env.
+Env vars of pattern `JAVA\d+_HOME` will be detected, and the `\d+` values can be used for `jdk.version`.
+In the standard container image, JDK _17_ and _19_ are build in, with 19 used by default via `JAVA_HOME`.
+
+### Config of env vars available for use in repo specific configuration
 
 Any environment variable backed into the runtime can be referred to.
 Please mind to add sensitive env names (like GitHub token or artifact repository secrets) to the `SENSITIVE_ENV_VARS` to not having them outputted via logging, see the [Dockerfile](src/main/docker/Dockerfile) for the defaults.

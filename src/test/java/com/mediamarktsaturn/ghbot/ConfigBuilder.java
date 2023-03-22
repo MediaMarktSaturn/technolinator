@@ -11,6 +11,7 @@ public class ConfigBuilder {
     private TechnolinatorConfig.GradleConfig gradle;
     private TechnolinatorConfig.MavenConfig maven;
     private Map<String, String> env;
+    private TechnolinatorConfig.JdkConfig jdk;
 
     public static ConfigBuilder create() {
         return new ConfigBuilder();
@@ -23,6 +24,7 @@ public class ConfigBuilder {
             analysis,
             gradle,
             maven,
+            jdk,
             env
         );
     }
@@ -54,6 +56,11 @@ public class ConfigBuilder {
 
     public ConfigBuilder env(Map<String, String> env) {
         this.env = env;
+        return this;
+    }
+
+    public ConfigBuilder jdk(TechnolinatorConfig.JdkConfig jdk) {
+        this.jdk = jdk;
         return this;
     }
 }

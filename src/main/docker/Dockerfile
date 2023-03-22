@@ -21,7 +21,7 @@ ENV GIT_ASKPASS='/root/git_askpass.sh'
 RUN \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     microdnf update -y && \
-    microdnf install -y tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git java-17 nodejs npm golang && \
+    microdnf install -y tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang && \
     microdnf clean all -y
 
 # locale options
@@ -37,12 +37,16 @@ RUN \
     echo "-s" > $HOME/.curlrc && \
     curl -s "https://get.sdkman.io" | bash > /dev/null && \
     source "$HOME/.sdkman/bin/sdkman-init.sh" && \
+    sdk install java 17.0.6-tem && \
+    sdk install java 19-tem && \
     sdk install maven && \
     sdk install gradle 7.6 && \
     sdk install sbt
 
-# cdxgen env
-ENV JAVA_HOME="/usr/lib/jvm/jre" \
+# app & cdxgen env
+ENV JAVA17_HOME="/root/.sdkman/candidates/java/17.0.6-tem" \
+    JAVA19_HOME="/root/.sdkman/candidates/java/19-tem" \
+    JAVA_HOME="/root/.sdkman/candidates/java/19-tem" \
     MAVEN_HOME="/root/.sdkman/candidates/maven/current" \
     GRADLE_HOME="/root/.sdkman/candidates/gradle/current" \
     MVN_CMD=mvn \
