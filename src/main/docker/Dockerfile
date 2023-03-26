@@ -65,3 +65,5 @@ COPY --chown=1001:root target/quarkus-app/lib/ /app/lib/
 COPY --chown=1001:root target/quarkus-app/*.jar /app/
 COPY --chown=1001:root target/quarkus-app/app/ /app/app/
 COPY --chown=1001:root target/quarkus-app/quarkus/ /app/quarkus/
+
+# TODO: run app as non-root

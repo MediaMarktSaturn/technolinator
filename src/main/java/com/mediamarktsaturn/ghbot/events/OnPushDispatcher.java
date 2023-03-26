@@ -16,7 +16,6 @@ import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GitHub;
 
 import com.mediamarktsaturn.ghbot.Command;
 import com.mediamarktsaturn.ghbot.Result;
@@ -34,6 +33,7 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 @ApplicationScoped
 public class OnPushDispatcher {
 
+    // TODO: make a little bit clearer
     // no-arg constructor required for GitHub event consuming classes by the framework, thus no constructor injection here
     @Inject
     PushHandler pushHandler;
@@ -42,25 +42,25 @@ public class OnPushDispatcher {
     MeterRegistry meterRegistry;
 
     @ConfigProperty(name = "app.analysis_timeout")
-    Duration processTimeout;
+    Duration analysisTimeout;
 
     @ConfigProperty(name = "app.enabled_repos")
     List<String> enabledRepos;
 
-    @SuppressWarnings("unused")
-    void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config, GitHub githubApi) {
+    @SuppressWarnings("unused") // called by the quarkus-github-app extension
+    void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config) {
         var traceId = UUID.randomUUID().toString().substring(0, 8);
         var pushRef = pushPayload.getRef();
         var repo = pushPayload.getRepository();
         var repoUrl = repo.getUrl();
         final var commitSha = getEventCommit(pushPayload);
 
-        final var metadata = new Command.Metadata(pushRef, repo.getFullName(), traceId, commitSha.orElseGet(String::new));
-        metadata.toMDC();
+        final var metadata = new Command.Metadata(pushRef, repo.getFullName(), traceId, commitSha);
+        metadata.writeToMDC();
 
         // metric tags
         final MetricStatusRepo status;
-        final String repoName = getRepoName(repoUrl);
+        final var repoName = getRepoName(repoUrl);
 
         if (!isEnabledByConfig(repoName)) {
             Log.infof("Repo %s excluded by global config", repoUrl);
@@ -77,24 +77,27 @@ public class OnPushDispatcher {
 
             commitSha.ifPresent(commit ->
                 createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
+                    // TODO: check if NoopSubscriber makes sense
                     .subscribe().with(item -> {
+                        // result handled previously by pipeline
                     }, failure -> {
+                        // error logged previously by pipeline
                     })
             );
 
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
             pushHandler.onPush(new PushEvent(pushPayload, config), metadata)
-                .ifNoItem().after(processTimeout).fail()
+                .ifNoItem().after(analysisTimeout).fail()
                 .chain(result -> reportAnalysisResult(result, repo, commitSha, metadata))
                 .onFailure().recoverWithUni(failure -> {
-                    metadata.toMDC();
+                    metadata.writeToMDC();
                     Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
                     return reportFailure(repo, commitSha, failure, metadata);
                 })
                 .subscribe().with(
                     pushResult -> {
-                        metadata.toMDC();
+                        metadata.writeToMDC();
                         Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
                         meterRegistry.counter("analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
@@ -106,7 +109,7 @@ public class OnPushDispatcher {
                         ).increment();
                     },
                     failure -> {
-                        metadata.toMDC();
+                        metadata.writeToMDC();
                         Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
                         meterRegistry.counter("last_analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
@@ -164,12 +167,12 @@ public class OnPushDispatcher {
 
     Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description, Command.Metadata metadata) {
         return Uni.createFrom().item(Unchecked.supplier(() -> {
-                metadata.toMDC();
+                metadata.writeToMDC();
                 Log.infof("Setting repo %s commit %s status to %s", repo.getUrl(), commitSha, state);
                 return repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security");
             }))
             .onFailure().invoke(failure -> {
-                metadata.toMDC();
+                metadata.writeToMDC();
                 Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName());
             });
     }

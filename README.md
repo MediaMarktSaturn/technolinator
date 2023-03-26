@@ -8,6 +8,8 @@ The MediaMarktSaturn GitHub Bot for SBOM creation and upload to Dependency-Track
 It wraps around [cdxgen](https://github.com/CycloneDX/cdxgen) which covers many programming languages and build systems.
 It's build using [Quarkus](https://quarkus.io/) and handles GitHub webhooks by the [Quarkus GitHub App](https://quarkiverse.github.io/quarkiverse-docs/quarkus-github-app/dev/index.html).
 
+// TODO: "Adopter documentation"
+
 ## Runtime
 
 ENV configuration:
@@ -44,7 +46,7 @@ project:
 analysis:
     # the location targeted by cdxgen; default: repository root
     location: projectLocation
-    # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: false
+    # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: true
     recursive: false
     # folders within 'analysis.location' to exclude from created sbom (e.g. non-production stuff)
     excludes:
@@ -55,7 +57,7 @@ gradle:
     multiProject: false
     # list of arguments to be provided to cdxgen as GRADLE_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:
-        - -PyourProperitary=property
+        - -PyourProprietary=property
 maven:
     # list of arguments to be provided to cdxgen as MVN_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:

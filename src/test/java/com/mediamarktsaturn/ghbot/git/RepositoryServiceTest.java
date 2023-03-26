@@ -61,7 +61,7 @@ public class RepositoryServiceTest {
     void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
         // Given
         var ghRepo = GitHub.connectAnonymously().getRepository(repoName);
-        var metadata = new Command.Metadata("main", "heubeck/examiner", "", "");
+        var metadata = new Command.Metadata("main", "heubeck/examiner", "", Optional.empty());
 
         var cmd = new RepositoryService.CheckoutCommand(ghRepo, branch);
 
@@ -85,7 +85,7 @@ public class RepositoryServiceTest {
     void testInvalidBranch() throws IOException {
         // Given
         var ghRepo = GitHub.connectAnonymously().getRepository("heubeck/examiner");
-        var metadata = new Command.Metadata("main", "heubeck/examiner", "", "");
+        var metadata = new Command.Metadata("main", "heubeck/examiner", "", Optional.empty());
 
         var cmd = new RepositoryService.CheckoutCommand(ghRepo, "never/ever");
 

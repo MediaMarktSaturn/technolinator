@@ -47,7 +47,7 @@ public class LocalRepositoryAnalysis {
             throw new IllegalArgumentException("Cannot access " + dir);
         }
         var projectName = folder.getName();
-        var metadata = new Command.Metadata("local", "local/" + projectName, "", "");
+        var metadata = new Command.Metadata("local", "local/" + projectName, "", Optional.empty());
 
         TechnolinatorConfig config = configMapper.readValue(configString, TechnolinatorConfig.class);
 

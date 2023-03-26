@@ -6,6 +6,8 @@ public sealed interface Result<T> {
     ) implements Result<T> {
     }
 
+    // TODO: "mapOnSuccess" or similar to not handle failure just to forward it everywhere
+
     record Failure<T>(
         Throwable cause
     ) implements Result<T> {

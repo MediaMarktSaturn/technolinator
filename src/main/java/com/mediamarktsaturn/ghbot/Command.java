@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.ghbot;
 
+import java.util.Optional;
+
 import org.jboss.logging.MDC;
 
 import io.smallrye.mutiny.Uni;
@@ -10,13 +12,13 @@ public interface Command<T> {
         String gitRef,
         String repoFullName,
         String traceId,
-        String commitSha
+        Optional<String> commitSha
     ) {
-        public void toMDC() {
+        public void writeToMDC() {
             MDC.put("ref", gitRef);
             MDC.put("repository", repoFullName);
             MDC.put("traceId", traceId);
-            MDC.put("commitSha", commitSha);
+            commitSha.ifPresent(sha -> MDC.put("commitSha", commitSha));
         }
 
         public static Metadata fromMDC() {
@@ -24,8 +26,16 @@ public interface Command<T> {
                 orEmpty(MDC.get("ref")),
                 orEmpty(MDC.get("repository")),
                 orEmpty(MDC.get("traceId")),
-                orEmpty(MDC.get("commitSha"))
+                orEmptyOptional(MDC.get("commitSha"))
             );
+        }
+
+        private static Optional<String> orEmptyOptional(Object value) {
+            if (value instanceof String s) {
+                return Optional.of(s);
+            } else {
+                return Optional.empty();
+            }
         }
 
         private static String orEmpty(Object value) {

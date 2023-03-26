@@ -42,7 +42,7 @@ public class PushHandler {
     }
 
     Uni<Result<CdxgenClient.SBOMGenerationResult>> generateSbom(PushEvent event, Result<LocalRepository> checkoutResult, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
@@ -58,7 +58,7 @@ public class PushHandler {
     }
 
     Uni<Result<String>> uploadSbom(PushEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         return switch (sbomResult) {
             case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
                 // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track

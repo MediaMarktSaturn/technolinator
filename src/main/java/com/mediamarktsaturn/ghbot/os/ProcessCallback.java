@@ -53,7 +53,7 @@ public interface ProcessCallback {
         @Override
         public void onOutput(String logLine) {
             if (Log.isDebugEnabled()) {
-                metadata.toMDC();
+                metadata.writeToMDC();
                 // hide (sensitive) env values from output
                 for (var env : sensitiveEnv.entrySet()) {
                     logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");

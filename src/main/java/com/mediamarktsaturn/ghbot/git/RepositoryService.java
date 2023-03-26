@@ -56,7 +56,7 @@ public class RepositoryService {
     static Uni<Result<LocalRepository>> downloadReference(CheckoutCommand command, Command.Metadata metadata) {
         var ref = command.reference();
         return Uni.createFrom().item(() -> {
-            metadata.toMDC();
+            metadata.writeToMDC();
             File dir = null;
             try {
                 dir = createTempDir(command.repositoryName());
@@ -66,6 +66,8 @@ public class RepositoryService {
                         byte[] buffer = new byte[1048576];
                         int read;
                         while ((read = zis.read(buffer, 0, 1048576)) != -1) {
+                            // TODO: check for elegant jdk methods
+                            // TODO extract directly while downloading
                             fos.write(buffer, 0, read);
                         }
                         fos.flush();
@@ -83,11 +85,11 @@ public class RepositoryService {
     }
 
     static Uni<Result<LocalRepository>> unzip(LocalRepository localRepo, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         var dir = localRepo.dir();
         Uni<Result<LocalRepository>> result = ProcessHandler.run(UNZIP_CMD, dir, Map.of())
             .chain(processResult -> {
-                    metadata.toMDC();
+                    metadata.writeToMDC();
                     return switch (processResult) {
                         case ProcessHandler.ProcessResult.Success us ->
                             ProcessHandler.run("rm -f " + DOWNLOAD, dir, Map.of())

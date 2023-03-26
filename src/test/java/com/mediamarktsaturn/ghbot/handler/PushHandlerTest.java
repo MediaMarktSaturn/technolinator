@@ -56,7 +56,7 @@ public class PushHandlerTest {
         when(pushPayload.getRepository()).thenReturn(ghRepo);
         when(pushPayload.getRef()).thenReturn("refs/heads/" + branch);
 
-        var metadata = new Command.Metadata(branch, repoUrl, "", "");
+        var metadata = new Command.Metadata(branch, repoUrl, "", Optional.empty());
 
         var event = new PushEvent(
             pushPayload,

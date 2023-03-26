@@ -84,7 +84,7 @@ public class CdxgenClient {
             "FETCH_LICENSE", Boolean.toString(fetchLicense),
             "USE_GOSUM", Boolean.toString(useGosum),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000)
+            "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000) // TODO: make configurable
         );
 
         jdkHomes = System.getenv().entrySet().stream()
@@ -95,6 +95,7 @@ public class CdxgenClient {
             ));
     }
 
+    // TODO: DOKU!!!!!!
     private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
 
     public record SbomCreationCommand(
@@ -107,7 +108,7 @@ public class CdxgenClient {
 
         @Override
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
-            metadata.toMDC();
+            metadata.writeToMDC();
             return removeExcludedFiles(this)
                 .chain(() -> generateSbom(this, metadata))
                 .chain(result -> parseSbom(this, result, metadata));
@@ -115,6 +116,7 @@ public class CdxgenClient {
 
     }
 
+    // TODO: announce config errors to repo
     public SbomCreationCommand createCommand(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
@@ -141,14 +143,14 @@ public class CdxgenClient {
     }
 
     static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         return ProcessHandler.run(cmd.commandLine, cmd.repoDir(), cmd.environment());
     }
 
     static Uni<Result<SBOMGenerationResult>> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
         var sbomFile = new File(cmd.repoDir(), SBOM_JSON);
         return Uni.createFrom().item(() -> {
-            metadata.toMDC();
+            metadata.writeToMDC();
             return switch (generationResult) {
                 case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
                 case ProcessHandler.ProcessResult.Failure f -> {
@@ -269,6 +271,7 @@ public class CdxgenClient {
 
     /**
      * Replaces variable templates in form ${VAR} with the actual env value
+     * // TODO: access secrets from repo secrets instead of env?
      */
     static String resolveEnvVars(String value) {
         var matcher = ENV_VAR_PATTERN.matcher(value);
@@ -286,6 +289,7 @@ public class CdxgenClient {
         } else {
             var dir = cmd.repoDir().getAbsoluteFile();
             var excludes = String.join(" ", cmd.excludeFiles());
+            // TODO: preserve root | use limited user rights
             return ProcessHandler.run("rm -rf " + excludes, dir, Map.of())
                 .onItem().ignore().andContinueWithNull();
         }
