@@ -8,8 +8,8 @@ import java.util.UUID;
 import java.util.function.DoubleSupplier;
 import java.util.function.Predicate;
 
-import javax.enterprise.context.ApplicationScoped;
-import javax.inject.Inject;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;

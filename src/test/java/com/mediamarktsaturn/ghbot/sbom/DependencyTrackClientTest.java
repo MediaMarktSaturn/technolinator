@@ -10,7 +10,7 @@ import static org.mockserver.model.HttpResponse.response;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;

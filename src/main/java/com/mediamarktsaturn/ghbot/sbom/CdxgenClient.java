@@ -11,7 +11,7 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import javax.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.ApplicationScoped;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;

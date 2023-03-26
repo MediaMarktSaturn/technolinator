@@ -7,7 +7,7 @@ import java.io.File;
 import java.util.List;
 import java.util.Optional;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.cyclonedx.model.Component;
 import org.junit.jupiter.api.Test;

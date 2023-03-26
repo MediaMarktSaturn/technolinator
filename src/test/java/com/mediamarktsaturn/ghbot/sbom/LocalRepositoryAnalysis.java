@@ -5,7 +5,7 @@ import static com.mediamarktsaturn.ghbot.TestUtil.await;
 import java.io.File;
 import java.util.Optional;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Disabled;
