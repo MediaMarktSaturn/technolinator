@@ -130,7 +130,7 @@ public class OnPushDispatcherTest {
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {
         return got ->
-            got.repoUrl().equals(url(repoUrl))
+            got.repoUrl().sameFile(url(repoUrl))
                 && got.pushRef().equals(pushRef)
                 && got.defaultBranch().equals(defaultBranch)
                 && got.config().equals(Optional.ofNullable(config));

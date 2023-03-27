@@ -3,7 +3,7 @@ package com.mediamarktsaturn.ghbot.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 
@@ -20,7 +20,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     void testConfigless() {
         // Given
-        var repo = new LocalRepository(new File("test_tmp"));
+        var repo = new LocalRepository(Paths.get("test_tmp"));
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.empty());
@@ -32,7 +32,7 @@ public class PushHandlerTest_buildAnalysisDirectory {
     @Test
     void testConfigRelative() {
         // Given
-        var repo = new LocalRepository(new File("test_tmp"));
+        var repo = new LocalRepository(Paths.get("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("sub_dir", null, List.of())).build();
 
 
@@ -40,58 +40,58 @@ public class PushHandlerTest_buildAnalysisDirectory {
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
-        assertThat(location).isEqualTo(new File("test_tmp/sub_dir"));
+        assertThat(location).isEqualTo(Paths.get("test_tmp/sub_dir"));
     }
 
     @Test
     void testConfigAbsolute() {
         // Given
-        var repo = new LocalRepository(new File("test_tmp"));
+        var repo = new LocalRepository(Paths.get("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("/sub_dir", true, List.of())).build();
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
-        assertThat(location).isEqualTo(new File("test_tmp/sub_dir"));
+        assertThat(location).isEqualTo(Paths.get("test_tmp/sub_dir"));
     }
 
     @Test
     void testConfigRoot() {
         // Given
-        var repo = new LocalRepository(new File("test_tmp"));
+        var repo = new LocalRepository(Paths.get("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("/", false, List.of())).build();
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
-        assertThat(location).isEqualTo(new File("test_tmp", "/"));
+        assertThat(location).isEqualTo(Paths.get("test_tmp", "/"));
     }
 
     @Test
     void testConfigEmpty() {
         // Given
-        var repo = new LocalRepository(new File("test_tmp"));
+        var repo = new LocalRepository(Paths.get("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("", null, List.of())).build();
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
-        assertThat(location).isEqualTo(new File("test_tmp"));
+        assertThat(location).isEqualTo(Paths.get("test_tmp"));
     }
 
     @Test
     void testConfigNull() {
         // Given
-        var repo = new LocalRepository(new File("test_tmp"));
+        var repo = new LocalRepository(Paths.get("test_tmp"));
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, null, List.of())).build();
 
         // When
         var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
-        assertThat(location).isEqualTo(new File("test_tmp"));
+        assertThat(location).isEqualTo(Paths.get("test_tmp"));
     }
 }

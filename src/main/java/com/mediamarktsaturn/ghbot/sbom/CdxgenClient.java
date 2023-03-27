@@ -1,7 +1,7 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
-import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -98,7 +98,7 @@ public class CdxgenClient {
     private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
 
     public record SbomCreationCommand(
-        File repoDir,
+        Path repoDir,
         String projectName,
         String commandLine,
         Map<String, String> environment,
@@ -116,7 +116,7 @@ public class CdxgenClient {
     }
 
     // TODO: announce config errors to repo
-    public SbomCreationCommand createCommand(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
+    public SbomCreationCommand createCommand(Path repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
             !config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false) &&
@@ -147,39 +147,36 @@ public class CdxgenClient {
     }
 
     static Uni<Result<SBOMGenerationResult>> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
-        var sbomFile = new File(cmd.repoDir(), SBOM_JSON);
+        var sbomFile = cmd.repoDir().resolve(SBOM_JSON);
         return Uni.createFrom().item(() -> {
             metadata.writeToMDC();
-            switch (generationResult) {
-                case ProcessHandler.ProcessResult.Success s -> {
-                    return parseSbomFile(sbomFile);
-                }
+            return switch (generationResult) {
+                case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
                 case ProcessHandler.ProcessResult.Failure f -> {
-                    if (sbomFile.exists()) {
+                    if (Files.exists(sbomFile)) {
                         Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
-                        return parseSbomFile(sbomFile);
+                        yield parseSbomFile(sbomFile);
                     } else {
                         Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                        return new Result.Failure<>(f.cause());
+                        yield new Result.Failure<>(f.cause());
                     }
                 }
-            }
-            // TODO: refactor to switch/yield as soon as supported by underlying smallrye frameworks
+            };
         });
     }
 
 
-    static Result<SBOMGenerationResult> parseSbomFile(File sbomFile) {
-        if (!sbomFile.exists()) {
+    static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile) {
+        if (!Files.exists(sbomFile)) {
             return new Result.Success<>(new SBOMGenerationResult.None());
-        } else if (sbomFile.canRead()) {
+        } else if (Files.isReadable(sbomFile)) {
             try {
-                return parseSbomBytes(Files.readAllBytes(sbomFile.toPath()));
+                return parseSbomBytes(Files.readAllBytes(sbomFile));
             } catch (Exception e) {
                 return new Result.Failure<>(e);
             }
         } else {
-            throw new IllegalStateException("Cannot read file " + sbomFile.getAbsolutePath());
+            throw new IllegalStateException("Cannot read file " + sbomFile.toAbsolutePath());
         }
     }
 
@@ -289,7 +286,7 @@ public class CdxgenClient {
         if (cmd.excludeFiles().isEmpty()) {
             return Uni.createFrom().voidItem();
         } else {
-            var dir = cmd.repoDir().getAbsoluteFile();
+            var dir = cmd.repoDir();
             var excludes = String.join(" ", cmd.excludeFiles());
             // TODO: preserve root | use limited user rights
             return ProcessHandler.run("rm -rf " + excludes, dir, Map.of())

@@ -1,11 +1,11 @@
 package com.mediamarktsaturn.ghbot.git;
 
-import java.io.File;
+import java.nio.file.Path;
 
 import com.mediamarktsaturn.ghbot.os.Util;
 
 public record LocalRepository(
-    File dir
+    Path dir
 ) implements AutoCloseable {
 
     @Override

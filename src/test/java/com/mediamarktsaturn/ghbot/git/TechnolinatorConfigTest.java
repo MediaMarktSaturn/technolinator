@@ -59,7 +59,7 @@ public class TechnolinatorConfigTest {
                 PROP: value1
                 yea: haa
             jdk:
-                version: 19
+                version: 20
             """;
         var config = configMapper.readValue(value, TechnolinatorConfig.class);
         assertThat(config).isNotNull().satisfies(c -> {
@@ -78,7 +78,7 @@ public class TechnolinatorConfigTest {
                 .containsEntry("PROP", "value1")
                 .containsEntry("yea", "haa");
             assertThat(c.jdk()).satisfies(j -> {
-                assertThat(j.version()).hasToString("19");
+                assertThat(j.version()).hasToString("20");
             });
         });
     }

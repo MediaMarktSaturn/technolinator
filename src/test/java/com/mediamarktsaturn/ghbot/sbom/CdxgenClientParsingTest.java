@@ -2,7 +2,7 @@ package com.mediamarktsaturn.ghbot.sbom;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
+import java.nio.file.Paths;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,7 +21,7 @@ public class CdxgenClientParsingTest {
     })
     public void testInvalids(String filename) {
         // Given
-        var file = new File(filename);
+        var file = Paths.get(filename);
 
         // when
         var result = CdxgenClient.parseSbomFile(file);
@@ -34,7 +34,7 @@ public class CdxgenClientParsingTest {
     @Test
     void testFailure() {
         // Given
-        var file = new File("src/test/resources/sbom/invalid.json");
+        var file = Paths.get("src/test/resources/sbom/invalid.json");
 
         // when
         var result = CdxgenClient.parseSbomFile(file);
@@ -50,7 +50,7 @@ public class CdxgenClientParsingTest {
     })
     public void testNone(String filename) {
         // Given
-        var file = new File(filename);
+        var file = Paths.get(filename);
 
         // when
         var result = CdxgenClient.parseSbomFile(file);
@@ -63,7 +63,7 @@ public class CdxgenClientParsingTest {
     @Test
     void testFallbackMavenSBOM() {
         // Given
-        var file = new File("src/test/resources/sbom/maven/fallback.json");
+        var file = Paths.get("src/test/resources/sbom/maven/fallback.json");
 
         // When
         var result = CdxgenClient.parseSbomFile(file);
@@ -81,7 +81,7 @@ public class CdxgenClientParsingTest {
     @Test
     void testDefaultMavenSBOM() {
         // Given
-        var file = new File("src/test/resources/sbom/maven/default.json");
+        var file = Paths.get("src/test/resources/sbom/maven/default.json");
 
         // When
         var result = CdxgenClient.parseSbomFile(file);

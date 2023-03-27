@@ -1,11 +1,9 @@
 package com.mediamarktsaturn.ghbot.handler;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import jakarta.enterprise.context.ApplicationScoped;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
@@ -20,6 +18,7 @@ import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class PushHandler {
@@ -43,49 +42,45 @@ public class PushHandler {
 
     Uni<Result<CdxgenClient.SBOMGenerationResult>> generateSbom(PushEvent event, Result<LocalRepository> checkoutResult, Command.Metadata metadata) {
         metadata.writeToMDC();
-        switch (checkoutResult) {
+        return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
                 var cmd = cdxgenClient.createCommand(localRepo.dir(), buildProjectNameFromEvent(event), event.config());
-                return cmd.execute(metadata)
+                yield cmd.execute(metadata)
                     .onTermination().invoke((uploadResult, uploadFailure, wasCancelled) -> localRepo.close());
             }
             case Result.Failure<LocalRepository> f -> {
                 Log.errorf(f.cause(), "Aborting analysis of repo %s, branch %s because of checkout failure", event.repoUrl(), event.getBranch());
-                return Uni.createFrom().item(new Result.Failure<>(f.cause()));
+                yield Uni.createFrom().item(new Result.Failure<>(f.cause()));
             }
-        }
-        // TODO: refactor to switch/yield as soon as supported by underlying smallrye frameworks
+        };
     }
 
     Uni<Result<String>> uploadSbom(PushEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
         metadata.writeToMDC();
-        switch (sbomResult) {
-            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> {
-                switch (s.result()) {
-                    // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
-                    case CdxgenClient.SBOMGenerationResult.Proper p -> {
-                        logValidationIssues(event, p.validationIssues());
-                        return doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), p.sbom());
-                    }
-                    case CdxgenClient.SBOMGenerationResult.Fallback f -> {
-                        Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
-                        logValidationIssues(event, f.validationIssues());
-                        return doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), f.sbom());
-                    }
-                    case CdxgenClient.SBOMGenerationResult.None n -> {
-                        Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
-                        return Uni.createFrom().item(new Result.Success<>(""));
-                    }
+        return switch (sbomResult) {
+            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
+                // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
+                case CdxgenClient.SBOMGenerationResult.Proper p -> {
+                    logValidationIssues(event, p.validationIssues());
+                    yield doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), p.sbom());
                 }
-            }
+                case CdxgenClient.SBOMGenerationResult.Fallback f -> {
+                    Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
+                    logValidationIssues(event, f.validationIssues());
+                    yield doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), f.sbom());
+                }
+                case CdxgenClient.SBOMGenerationResult.None n -> {
+                    Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
+                    yield Uni.createFrom().item(new Result.Success<>(""));
+                }
+            };
 
             case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
                 Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), event.pushRef());
-                return Uni.createFrom().failure(f.cause());
+                yield Uni.createFrom().failure(f.cause());
             }
-        }
-        // TODO: refactor to switch/yield as soon as supported by underlying smallrye frameworks
+        };
     }
 
     Uni<Result<String>> doUploadSbom(String projectName, String projectVersion, Bom sbom) {
@@ -99,12 +94,12 @@ public class PushHandler {
         }
     }
 
-    static File buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
+    static Path buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
         return config
             .map(TechnolinatorConfig::analysis)
             .map(TechnolinatorConfig.AnalysisConfig::location)
             .map(String::trim)
-            .map(location -> new File(repo.dir(), location))
+            .map(repo.dir()::resolve)
             .orElse(repo.dir());
     }
 

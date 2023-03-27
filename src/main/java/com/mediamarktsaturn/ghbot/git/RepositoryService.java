@@ -1,12 +1,11 @@
 package com.mediamarktsaturn.ghbot.git;
 
-import java.io.File;
-import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.file.Files;
-import java.util.Map;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Objects;
-
-import jakarta.enterprise.context.ApplicationScoped;
+import java.util.zip.ZipInputStream;
 
 import org.kohsuke.github.GHRepository;
 
@@ -15,11 +14,11 @@ import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.Result.Failure;
 import com.mediamarktsaturn.ghbot.Result.Success;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
-import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import com.mediamarktsaturn.ghbot.os.Util;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class RepositoryService {
@@ -39,13 +38,7 @@ public class RepositoryService {
         @Override
         public Uni<Result<LocalRepository>> execute(Metadata metadata) {
             return downloadReference(this, metadata)
-                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-                .chain(result ->
-                    switch (result) {
-                        case Success<LocalRepository> s -> unzip(s.result(), metadata);
-                        case Failure<LocalRepository> f -> Uni.createFrom().item(f);
-                    }
-                );
+                .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
         }
     }
 
@@ -57,24 +50,15 @@ public class RepositoryService {
         var ref = command.reference();
         return Uni.createFrom().item(() -> {
             metadata.writeToMDC();
-            File dir = null;
+            Path dir = null;
             try {
                 dir = createTempDir(command.repositoryName());
                 final var tmpDir = dir;
-                command.repository().readZip(zis -> {
-                    try (FileOutputStream fos = new FileOutputStream(new File(tmpDir, DOWNLOAD)); zis) {
-                        byte[] buffer = new byte[1048576];
-                        int read;
-                        while ((read = zis.read(buffer, 0, 1048576)) != -1) {
-                            // TODO: check for elegant jdk methods
-                            // TODO extract directly while downloading
-                            fos.write(buffer, 0, read);
-                        }
-                        fos.flush();
-                    }
+                command.repository().readZip(is -> {
+                    extractToDirectory(new ZipInputStream(is), tmpDir);
                     return null;
                 }, ref);
-                Log.infof("Branch %s of %s downloaded to %s", metadata.gitRef(), metadata.repoFullName(), dir.getAbsolutePath());
+                Log.infof("Branch %s of %s downloaded to %s", metadata.gitRef(), metadata.repoFullName(), dir.toString());
                 return new Success<>(new LocalRepository(dir));
             } catch (Exception e) {
                 Log.errorf(e, "Failed to provide ref %s of %s", ref, metadata.repoFullName());
@@ -84,38 +68,31 @@ public class RepositoryService {
         });
     }
 
-    static Uni<Result<LocalRepository>> unzip(LocalRepository localRepo, Command.Metadata metadata) {
-        metadata.writeToMDC();
-        var dir = localRepo.dir();
-        Uni<Result<LocalRepository>> result = ProcessHandler.run(UNZIP_CMD, dir, Map.of())
-            .chain(processResult -> {
-                    metadata.writeToMDC();
-                    return switch (processResult) {
-                        case ProcessHandler.ProcessResult.Success us ->
-                            ProcessHandler.run("rm -f " + DOWNLOAD, dir, Map.of())
-                                .map(deleteResult ->
-                                    switch (deleteResult) {
-                                        case ProcessHandler.ProcessResult.Success ds ->
-                                            new Success<>(new LocalRepository(Objects.requireNonNull(dir.listFiles())[0]));
-                                        case ProcessHandler.ProcessResult.Failure df -> new Failure<>(df.cause());
-                                    }
-                                );
-                        case ProcessHandler.ProcessResult.Failure uf -> Uni.createFrom().item(new Failure<>(uf.cause()));
-                    };
-                }
-            );
-        return result.onTermination().invoke((unzipResult, unzipFailure, wasCancelled) -> {
-            if (unzipResult instanceof Failure<LocalRepository> || unzipFailure != null) {
-                localRepo.close();
+    static void extractToDirectory(ZipInputStream zis, Path dir) throws IOException {
+        try (zis) {
+            var entry = Objects.requireNonNull(zis.getNextEntry());
+            // Downloaded zip from GitHub always wraps the content in a single folder, we unwrap that.
+            var wrappingFolderName = entry.getName();
+            if (!entry.isDirectory() || wrappingFolderName.startsWith("/") || !wrappingFolderName.endsWith("/")) {
+                throw new IllegalStateException("Zip does not start with a folder");
             }
-        });
+            var wrappingDirLength = wrappingFolderName.length();
+            while ((entry = zis.getNextEntry()) != null) {
+                var zipFile = dir.resolve(entry.getName().substring(wrappingDirLength));
+                if (entry.isDirectory()) {
+                    Files.createDirectories(zipFile);
+                } else {
+                    Files.write(zipFile, zis.readAllBytes(), StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+                }
+            }
+        }
     }
 
-    private static File createTempDir(String repositoryName) throws Exception {
-        return Files.createTempDirectory(repositoryName).toFile();
+    private static Path createTempDir(String repositoryName) throws IOException {
+        return Files.createTempDirectory(repositoryName);
     }
 
-    private static void removeTempDir(File dir) {
+    private static void removeTempDir(Path dir) {
         if (dir != null) {
             Util.removeAsync(dir);
         }

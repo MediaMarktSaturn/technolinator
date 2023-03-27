@@ -3,11 +3,10 @@ package com.mediamarktsaturn.ghbot.sbom;
 import static com.mediamarktsaturn.ghbot.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
-
-import jakarta.inject.Inject;
 
 import org.cyclonedx.model.Component;
 import org.junit.jupiter.api.Test;
@@ -17,6 +16,7 @@ import com.mediamarktsaturn.ghbot.ConfigBuilder;
 import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 
 @QuarkusTest
 public class CdxgenClientGenerationTest {
@@ -27,7 +27,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testMavenProject() {
         // Given
-        var file = new File("src/test/resources/repo/maven");
+        var file = Paths.get("src/test/resources/repo/maven");
 
         // When
         var result = generateSBOM(file, "examiner", Optional.empty());
@@ -45,7 +45,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testMavenWrapperProject() {
         // Given
-        var file = new File("src/test/resources/repo/maven_wrapper");
+        var file = Paths.get("src/test/resources/repo/maven_wrapper");
 
         // When
         var result = generateSBOM(file, "examiner", Optional.empty());
@@ -63,7 +63,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testMavenFallbackProject() {
         // Given
-        var file = new File("src/test/resources/repo/maven_fallback");
+        var file = Paths.get("src/test/resources/repo/maven_fallback");
 
         // When
         var result = generateSBOM(file, "cdxgen-is-awesome", Optional.empty());
@@ -82,7 +82,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testRecurseMixedProject() {
         // Given
-        var file = new File("src/test/resources/repo/multi-mode");
+        var file = Paths.get("src/test/resources/repo/multi-mode");
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();
 
         // When
@@ -101,7 +101,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testNodeProject() {
         // Given
-        var file = new File("src/test/resources/repo/node");
+        var file = Paths.get("src/test/resources/repo/node");
 
         // When
         var result = generateSBOM(file, "node", Optional.empty());
@@ -117,7 +117,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testNoopProject() {
         // Given
-        var file = new File("src/test/resources/repo/noop");
+        var file = Paths.get("src/test/resources/repo/noop");
 
         // When
         var result = generateSBOM(file, "noop", Optional.empty());
@@ -131,7 +131,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testGoProjectWithIssues() {
         // Given
-        var file = new File("src/test/resources/repo/go");
+        var file = Paths.get("src/test/resources/repo/go");
 
         // When
         var result = generateSBOM(file, "go", Optional.empty());
@@ -148,7 +148,7 @@ public class CdxgenClientGenerationTest {
     @Test
     void testMultiModuleMavenNodeProject() {
         // Given
-        var file = new File("src/test/resources/repo/multi-module-mode");
+        var file = Paths.get("src/test/resources/repo/multi-module-mode");
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();
 
         // When
@@ -163,7 +163,7 @@ public class CdxgenClientGenerationTest {
     }
 
     // TODO: split tests in command generation and command execution
-    Result<CdxgenClient.SBOMGenerationResult> generateSBOM(File file, String projectName, Optional<TechnolinatorConfig> config) {
+    Result<CdxgenClient.SBOMGenerationResult> generateSBOM(Path file, String projectName, Optional<TechnolinatorConfig> config) {
         var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
         var cmd = cut.createCommand(file, projectName, config);
 

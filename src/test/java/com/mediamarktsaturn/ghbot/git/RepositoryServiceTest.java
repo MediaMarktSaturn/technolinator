@@ -6,11 +6,8 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Optional;
-
-import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +20,7 @@ import com.mediamarktsaturn.ghbot.Command;
 import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 
 @QuarkusTest
 public class RepositoryServiceTest {
@@ -73,7 +71,7 @@ public class RepositoryServiceTest {
             final LocalRepository repo = (LocalRepository) success.result();
             try (repo) {
                 assertThat(repo.dir()).exists();
-                assertThat(new File(repo.dir(), checkFile)).exists();
+                assertThat(repo.dir().resolve(checkFile)).exists();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
