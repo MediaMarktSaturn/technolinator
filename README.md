@@ -67,7 +67,7 @@ env:
     THIS_IS: just another value
 jdk:
     # select JDK version used by cdxgen on JVM based projects (options below)
-    version: 19
+    version: 20
 ```
 
 The configuration file is optional and only necessary to override default behavior.
@@ -76,7 +76,7 @@ The configuration file is optional and only necessary to override default behavi
 
 Different JDK installations can be provided to Technolinator by its own env.
 Env vars of pattern `JAVA\d+_HOME` will be detected, and the `\d+` values can be used for `jdk.version`.
-In the standard container image, JDK _17_ and _19_ are build in, with 19 used by default via `JAVA_HOME`.
+In the standard container image, JDK _17_ and _20_ are build in, with 20 used by default via `JAVA_HOME`.
 
 ### Config of env vars available for use in repo specific configuration
 

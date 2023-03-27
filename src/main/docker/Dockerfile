@@ -38,15 +38,15 @@ RUN \
     curl -s "https://get.sdkman.io" | bash > /dev/null && \
     source "$HOME/.sdkman/bin/sdkman-init.sh" && \
     sdk install java 17.0.6-tem && \
-    sdk install java 19-tem && \
+    sdk install java 20-tem && \
     sdk install maven && \
     sdk install gradle 7.6 && \
     sdk install sbt
 
 # app & cdxgen env
 ENV JAVA17_HOME="/root/.sdkman/candidates/java/17.0.6-tem" \
-    JAVA19_HOME="/root/.sdkman/candidates/java/19-tem" \
-    JAVA_HOME="/root/.sdkman/candidates/java/19-tem" \
+    JAVA20_HOME="/root/.sdkman/candidates/java/20-tem" \
+    JAVA_HOME="/root/.sdkman/candidates/java/20-tem" \
     MAVEN_HOME="/root/.sdkman/candidates/maven/current" \
     GRADLE_HOME="/root/.sdkman/candidates/gradle/current" \
     MVN_CMD=mvn \

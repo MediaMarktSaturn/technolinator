@@ -148,14 +148,14 @@ public class CdxgenClientEnvTest {
     void testJdkVersionSelection() {
         // Given
         var config = ConfigBuilder.create()
-            .jdk(new TechnolinatorConfig.JdkConfig("19"))
+            .jdk(new TechnolinatorConfig.JdkConfig("20"))
             .build();
 
         // When
         var result = cut.buildEnv(Optional.of(config));
 
         // Then
-        assertThat(result).containsEntry("JAVA_HOME", "/path/to/jdk19");
+        assertThat(result).containsEntry("JAVA_HOME", "/path/to/jdk20");
     }
 
     @Test

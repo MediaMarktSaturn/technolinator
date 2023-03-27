@@ -59,11 +59,11 @@ commandTests:
       expectedOutput:
           - '.*openjdk 17.0.6.*'
 
-    - name: "Java 19 available"
-      command: '$JAVA19_HOME/bin/java'
+    - name: "Java 20 available"
+      command: '$JAVA20_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk 19.*'
+          - '.*openjdk version "20".*'
 
 metadataTest:
     labels:
@@ -71,11 +71,11 @@ metadataTest:
           value: 'MediaMarktSaturn Technology'
     envVars:
         - key: JAVA_HOME
-          value: '/root/.sdkman/candidates/java/19-tem'
+          value: '/root/.sdkman/candidates/java/20-tem'
         - key: JAVA17_HOME
           value: '/root/.sdkman/candidates/java/17.0.6-tem'
-        - key: JAVA19_HOME
-          value: '/root/.sdkman/candidates/java/19-tem'
+        - key: JAVA20_HOME
+          value: '/root/.sdkman/candidates/java/20-tem'
         - key: MAVEN_HOME
           value: '/root/.sdkman/candidates/maven/current'
         - key: GRADLE_HOME
