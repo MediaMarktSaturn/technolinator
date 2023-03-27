@@ -21,7 +21,7 @@ public interface Command<T> {
             commitSha.ifPresent(sha -> MDC.put("commitSha", commitSha));
         }
 
-        public static Metadata fromMDC() {
+        public static Metadata readFromMDC() {
             return new Metadata(
                 orEmpty(MDC.get("ref")),
                 orEmpty(MDC.get("repository")),

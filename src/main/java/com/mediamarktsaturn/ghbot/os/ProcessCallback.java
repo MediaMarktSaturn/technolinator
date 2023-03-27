@@ -28,7 +28,7 @@ public interface ProcessCallback {
         private Map<String, String> sensitiveEnv = Collections.emptyMap();
 
         public DefaultProcessCallback() {
-            this.metadata = Command.Metadata.fromMDC();
+            this.metadata = Command.Metadata.readFromMDC();
 
             if (SENSITIVE_ENV_VARS != null) {
                 var sensitiveEnvKeys = Arrays.stream(SENSITIVE_ENV_VARS.split(",")).map(String::trim).toList();

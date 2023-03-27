@@ -11,8 +11,6 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import jakarta.enterprise.context.ApplicationScoped;
-
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.parsers.JsonParser;
@@ -24,6 +22,7 @@ import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class CdxgenClient {
@@ -151,18 +150,21 @@ public class CdxgenClient {
         var sbomFile = new File(cmd.repoDir(), SBOM_JSON);
         return Uni.createFrom().item(() -> {
             metadata.writeToMDC();
-            return switch (generationResult) {
-                case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
+            switch (generationResult) {
+                case ProcessHandler.ProcessResult.Success s -> {
+                    return parseSbomFile(sbomFile);
+                }
                 case ProcessHandler.ProcessResult.Failure f -> {
                     if (sbomFile.exists()) {
                         Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
-                        yield parseSbomFile(sbomFile);
+                        return parseSbomFile(sbomFile);
                     } else {
                         Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                        yield new Result.Failure<>(f.cause());
+                        return new Result.Failure<>(f.cause());
                     }
                 }
-            };
+            }
+            // TODO: refactor to switch/yield as soon as supported by underlying smallrye frameworks
         });
     }
 
