@@ -1,7 +1,7 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
-import java.io.File;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -10,8 +10,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.enterprise.context.ApplicationScoped;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
@@ -24,6 +22,8 @@ import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class CdxgenClient {
@@ -41,6 +41,7 @@ public class CdxgenClient {
     private static final String CDXGEN_GRADLE_MULTI_PROJECT = "GRADLE_MULTI_PROJECT_MODE";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
     private static final String DEFAULT_MAVEN_ARGS = "-B -ntp";
+    private static final String JAVA_HOME = System.getenv("JAVA_HOME");
 
     private static final Pattern ENV_VAR_PATTERN = Pattern.compile("\\$\\{(\\w+)}");
 
@@ -49,6 +50,11 @@ public class CdxgenClient {
     private static final List<String> WRAPPER_SCRIPT_NAMES = List.of("mvnw", "mvnw.bat", "mvnw.cmd", "gradlew", "gradlew.bat", "gradlew.cmd");
 
     private final Map<String, String> cdxgenEnv;
+
+    /**
+     * Configurable, supported jdk versions.
+     */
+    private final Map<String, String> jdkHomes;
     private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, failOnError;
 
     public CdxgenClient(
@@ -78,14 +84,22 @@ public class CdxgenClient {
             "FETCH_LICENSE", Boolean.toString(fetchLicense),
             "USE_GOSUM", Boolean.toString(useGosum),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000)
+            "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000) // TODO: make configurable
         );
+
+        jdkHomes = System.getenv().entrySet().stream()
+            .filter(e -> e.getKey().matches("JAVA\\d+_HOME"))
+            .collect(Collectors.toMap(
+                e -> e.getKey().replace("JAVA", "").replace("_HOME", ""),
+                Map.Entry::getValue
+            ));
     }
 
+    // TODO: DOKU!!!!!!
     private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
 
     public record SbomCreationCommand(
-        File repoDir,
+        Path repoDir,
         String projectName,
         String commandLine,
         Map<String, String> environment,
@@ -94,15 +108,17 @@ public class CdxgenClient {
 
         @Override
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
-            metadata.toMDC();
+            metadata.writeToMDC();
             return removeExcludedFiles(this)
+                .emitOn(Infrastructure.getDefaultWorkerPool())
                 .chain(() -> generateSbom(this, metadata))
-                .chain(result -> parseSbom(this, result, metadata));
+                .map(result -> parseSbom(this, result, metadata));
         }
 
     }
 
-    public SbomCreationCommand createCommand(File repoDir, String projectName, Optional<TechnolinatorConfig> config) {
+    // TODO: announce config errors to repo
+    public SbomCreationCommand createCommand(Path repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
             !config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false) &&
@@ -128,41 +144,38 @@ public class CdxgenClient {
     }
 
     static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         return ProcessHandler.run(cmd.commandLine, cmd.repoDir(), cmd.environment());
     }
 
-    static Uni<Result<SBOMGenerationResult>> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
-        var sbomFile = new File(cmd.repoDir(), SBOM_JSON);
-        return Uni.createFrom().item(() -> {
-            metadata.toMDC();
-            return switch (generationResult) {
-                case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
-                case ProcessHandler.ProcessResult.Failure f -> {
-                    if (sbomFile.exists()) {
-                        Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
-                        yield parseSbomFile(sbomFile);
-                    } else {
-                        Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                        yield new Result.Failure<>(f.cause());
-                    }
+    static Result<SBOMGenerationResult> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
+        var sbomFile = cmd.repoDir().resolve(SBOM_JSON);
+        metadata.writeToMDC();
+        return switch (generationResult) {
+            case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
+            case ProcessHandler.ProcessResult.Failure f -> {
+                if (Files.exists(sbomFile)) {
+                    Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
+                    yield parseSbomFile(sbomFile);
+                } else {
+                    Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
+                    yield new Result.Failure<>(f.cause());
                 }
-            };
-        });
+            }
+        };
     }
 
-
-    static Result<SBOMGenerationResult> parseSbomFile(File sbomFile) {
-        if (!sbomFile.exists()) {
+    static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile) {
+        if (!Files.exists(sbomFile)) {
             return new Result.Success<>(new SBOMGenerationResult.None());
-        } else if (sbomFile.canRead()) {
+        } else if (Files.isReadable(sbomFile)) {
             try {
-                return parseSbomBytes(Files.readAllBytes(sbomFile.toPath()));
+                return parseSbomBytes(Files.readAllBytes(sbomFile));
             } catch (Exception e) {
                 return new Result.Failure<>(e);
             }
         } else {
-            throw new IllegalStateException("Cannot read file " + sbomFile.getAbsolutePath());
+            throw new IllegalStateException("Cannot read file " + sbomFile.toAbsolutePath());
         }
     }
 
@@ -208,12 +221,11 @@ public class CdxgenClient {
         var gradleMultiProject = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false);
         var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
         var env = config.map(TechnolinatorConfig::env).orElseGet(Map::of);
-
-        if (gradleEnv.isEmpty() && mavenEnv.isEmpty() && env.isEmpty() && !gradleMultiProject) {
-            return cdxgenEnv;
-        }
+        var jdkHome = config.map(TechnolinatorConfig::jdk).map(TechnolinatorConfig.JdkConfig::version).map(jdkHomes::get).orElse(JAVA_HOME);
 
         var context = new HashMap<>(cdxgenEnv);
+        context.put("JAVA_HOME", jdkHome);
+
         var gradleEnvValue = gradleEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {
             context.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
@@ -257,6 +269,7 @@ public class CdxgenClient {
 
     /**
      * Replaces variable templates in form ${VAR} with the actual env value
+     * // TODO: access secrets from repo secrets instead of env?
      */
     static String resolveEnvVars(String value) {
         var matcher = ENV_VAR_PATTERN.matcher(value);
@@ -272,8 +285,9 @@ public class CdxgenClient {
         if (cmd.excludeFiles().isEmpty()) {
             return Uni.createFrom().voidItem();
         } else {
-            var dir = cmd.repoDir().getAbsoluteFile();
+            var dir = cmd.repoDir();
             var excludes = String.join(" ", cmd.excludeFiles());
+            // TODO: preserve root | use limited user rights
             return ProcessHandler.run("rm -rf " + excludes, dir, Map.of())
                 .onItem().ignore().andContinueWithNull();
         }

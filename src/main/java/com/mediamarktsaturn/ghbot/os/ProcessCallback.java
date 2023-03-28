@@ -28,7 +28,7 @@ public interface ProcessCallback {
         private Map<String, String> sensitiveEnv = Collections.emptyMap();
 
         public DefaultProcessCallback() {
-            this.metadata = Command.Metadata.fromMDC();
+            this.metadata = Command.Metadata.readFromMDC();
 
             if (SENSITIVE_ENV_VARS != null) {
                 var sensitiveEnvKeys = Arrays.stream(SENSITIVE_ENV_VARS.split(",")).map(String::trim).toList();
@@ -43,6 +43,7 @@ public interface ProcessCallback {
         @Override
         public void onComplete(int exitStatus) {
             var duration = Duration.ofMillis(System.currentTimeMillis() - start);
+            metadata.writeToMDC();
             if (exitStatus == 0) {
                 Log.infof("[%s] succeeded after %s", metadata.traceId(), duration);
             } else {
@@ -53,7 +54,7 @@ public interface ProcessCallback {
         @Override
         public void onOutput(String logLine) {
             if (Log.isDebugEnabled()) {
-                metadata.toMDC();
+                metadata.writeToMDC();
                 // hide (sensitive) env values from output
                 for (var env : sensitiveEnv.entrySet()) {
                     logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
@@ -64,11 +65,13 @@ public interface ProcessCallback {
 
         @Override
         public void onFailure(Throwable failure) {
+            metadata.writeToMDC();
             Log.errorf(failure, "[%s] failed: %s", metadata.traceId(), failure.getMessage());
         }
 
         @Override
         public void log(String message) {
+            metadata.writeToMDC();
             Log.infof("[%s] %s", metadata.traceId(), message);
         }
     }

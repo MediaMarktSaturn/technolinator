@@ -8,6 +8,8 @@ The MediaMarktSaturn GitHub Bot for SBOM creation and upload to Dependency-Track
 It wraps around [cdxgen](https://github.com/CycloneDX/cdxgen) which covers many programming languages and build systems.
 It's build using [Quarkus](https://quarkus.io/) and handles GitHub webhooks by the [Quarkus GitHub App](https://quarkiverse.github.io/quarkiverse-docs/quarkus-github-app/dev/index.html).
 
+// TODO: "Adopter documentation"
+
 ## Runtime
 
 ENV configuration:
@@ -44,7 +46,7 @@ project:
 analysis:
     # the location targeted by cdxgen; default: repository root
     location: projectLocation
-    # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: false
+    # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: true
     recursive: false
     # folders within 'analysis.location' to exclude from created sbom (e.g. non-production stuff)
     excludes:
@@ -55,7 +57,7 @@ gradle:
     multiProject: false
     # list of arguments to be provided to cdxgen as GRADLE_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:
-        - -PyourProperitary=property
+        - -PyourProprietary=property
 maven:
     # list of arguments to be provided to cdxgen as MVN_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
     args:
@@ -63,11 +65,20 @@ maven:
 env:
     # additional env parameter for cdxgen; env vars notated with ${ENV_VAR} will be resolved (see below)
     THIS_IS: just another value
+jdk:
+    # select JDK version used by cdxgen on JVM based projects (options below)
+    version: 20
 ```
 
 The configuration file is optional and only necessary to override default behavior.
 
-### Env vars available for use in repo specific configuration
+### Config of jdk.version
+
+Different JDK installations can be provided to Technolinator by its own env.
+Env vars of pattern `JAVA\d+_HOME` will be detected, and the `\d+` values can be used for `jdk.version`.
+In the standard container image, JDK _17_ and _20_ are build in, with 20 used by default via `JAVA_HOME`.
+
+### Config of env vars available for use in repo specific configuration
 
 Any environment variable backed into the runtime can be referred to.
 Please mind to add sensitive env names (like GitHub token or artifact repository secrets) to the `SENSITIVE_ENV_VARS` to not having them outputted via logging, see the [Dockerfile](src/main/docker/Dockerfile) for the defaults.

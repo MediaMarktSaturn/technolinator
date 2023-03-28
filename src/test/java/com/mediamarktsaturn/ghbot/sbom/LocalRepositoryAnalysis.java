@@ -2,10 +2,11 @@ package com.mediamarktsaturn.ghbot.sbom;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.await;
 
-import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Optional;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Disabled;
@@ -42,16 +43,16 @@ public class LocalRepositoryAnalysis {
 
     @Test
     void runLocalAnalysis() throws Exception {
-        var folder = new File(dir);
-        if (!folder.exists() || !folder.canRead()) {
+        var folder = Paths.get(dir);
+        if (!Files.exists(folder) || !Files.isReadable(folder)) {
             throw new IllegalArgumentException("Cannot access " + dir);
         }
-        var projectName = folder.getName();
-        var metadata = new Command.Metadata("local", "local/" + projectName, "", "");
+        var projectName = folder.getFileName();
+        var metadata = new Command.Metadata("local", "local/" + projectName, "", Optional.empty());
 
         TechnolinatorConfig config = configMapper.readValue(configString, TechnolinatorConfig.class);
 
-        var cmd = cdxgenClient.createCommand(folder, projectName, Optional.of(config));
+        var cmd = cdxgenClient.createCommand(folder, projectName.toString(), Optional.of(config));
         Log.infof("Command: '%s'", cmd.commandLine());
 
         var result = await(cmd.execute(metadata));

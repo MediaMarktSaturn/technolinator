@@ -53,13 +53,29 @@ commandTests:
           - '.*Missing value for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
+    - name: "Java 17 available"
+      command: '$JAVA17_HOME/bin/java'
+      args: ["--version"]
+      expectedOutput:
+          - '.*openjdk 17.0.6.*'
+
+    - name: "Java 20 available"
+      command: '$JAVA20_HOME/bin/java'
+      args: ["--version"]
+      expectedOutput:
+          - '.*openjdk 20.*'
+
 metadataTest:
     labels:
         - key: 'maintainer'
           value: 'MediaMarktSaturn Technology'
     envVars:
         - key: JAVA_HOME
-          value: '/usr/lib/jvm/jre'
+          value: '/root/.sdkman/candidates/java/20-tem'
+        - key: JAVA17_HOME
+          value: '/root/.sdkman/candidates/java/17.0.6-tem'
+        - key: JAVA20_HOME
+          value: '/root/.sdkman/candidates/java/20-tem'
         - key: MAVEN_HOME
           value: '/root/.sdkman/candidates/maven/current'
         - key: GRADLE_HOME

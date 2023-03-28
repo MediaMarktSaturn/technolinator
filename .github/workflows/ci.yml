@@ -9,7 +9,7 @@ env:
     CDXGEN_VERSION: '8.2.0'
     CDXGEN_PLUGINS_VERSION: '1.0.5'
     semantic_version: '19.0.5'
-    java_version: '17'
+    java_version: '20'
     mvn_parameter: '-B -ntp'
     image_name: 'ghcr.io/mediamarktsaturn/technolinator'
 jobs:
@@ -51,7 +51,7 @@ jobs:
                   DTRACK_APIKEY: theres-nothing-to-see-here
               run: |
                   if [ -n "$sem_ver" ]; then
-                    mvn -B -ntp versions:set -DnewVersion="$sem_ver"
+                    mvn ${{ env.mvn_parameter }} versions:set -DnewVersion="$sem_ver"
                   fi
 
                   mvn ${{ env.mvn_parameter }} clean install

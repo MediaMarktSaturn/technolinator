@@ -1,11 +1,9 @@
 package com.mediamarktsaturn.ghbot.handler;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import javax.enterprise.context.ApplicationScoped;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
@@ -20,6 +18,7 @@ import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class PushHandler {
@@ -42,7 +41,7 @@ public class PushHandler {
     }
 
     Uni<Result<CdxgenClient.SBOMGenerationResult>> generateSbom(PushEvent event, Result<LocalRepository> checkoutResult, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
@@ -58,7 +57,7 @@ public class PushHandler {
     }
 
     Uni<Result<String>> uploadSbom(PushEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
-        metadata.toMDC();
+        metadata.writeToMDC();
         return switch (sbomResult) {
             case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
                 // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
@@ -95,12 +94,12 @@ public class PushHandler {
         }
     }
 
-    static File buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
+    static Path buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
         return config
             .map(TechnolinatorConfig::analysis)
             .map(TechnolinatorConfig.AnalysisConfig::location)
             .map(String::trim)
-            .map(location -> new File(repo.dir(), location))
+            .map(repo.dir()::resolve)
             .orElse(repo.dir());
     }
 

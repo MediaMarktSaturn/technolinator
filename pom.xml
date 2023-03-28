@@ -8,15 +8,15 @@
     <description>The MMS GitHub Bot</description>
     <version>0.0.0-SNAPSHOT</version>
     <properties>
-        <maven.compiler.release>17</maven.compiler.release>
+        <maven.compiler.release>20</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>2.16.3.Final</quarkus.platform.version>
+        <quarkus.platform.version>3.0.0.Beta1</quarkus.platform.version>
 
-        <quarkus-github-app.version>1.16.0</quarkus-github-app.version>
+        <quarkus-github-app.version>2.0.0.Alpha2</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>7.3.2</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
@@ -35,6 +35,7 @@
         <compiler-plugin.version>3.11.0</compiler-plugin.version>
         <clean-plugin.version>3.2.0</clean-plugin.version>
         <dependency-plugin.version>3.5.0</dependency-plugin.version>
+        <maven-license-plugin.version>2.0.0</maven-license-plugin.version>
     </properties>
     <dependencyManagement>
         <dependencies>
@@ -65,16 +66,12 @@
             <artifactId>quarkus-arc</artifactId>
         </dependency>
         <dependency>
-            <groupId>io.smallrye.reactive</groupId>
-            <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-smallrye-context-propagation</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-health</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-smallrye-context-propagation</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -87,6 +84,10 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-logging-json</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.smallrye.reactive</groupId>
+            <artifactId>smallrye-mutiny-vertx-web-client</artifactId>
         </dependency>
         <dependency>
             <groupId>org.cyclonedx</groupId>
@@ -179,9 +180,12 @@
                 </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>${compiler-plugin.version}</version>
                 <configuration>
+                    <source>${maven.compiler.release}</source>
+                    <target>${maven.compiler.release}</target>
                     <compilerArgs>
                         <arg>--enable-preview</arg>
                         <arg>-parameters</arg>
@@ -200,6 +204,8 @@
                     <environmentVariables>
                         <test_Env1>this's just a test</test_Env1>
                         <test_Env2>oh_yeah-look_at_me</test_Env2>
+                        <JAVA17_HOME>/path/to/jdk17</JAVA17_HOME>
+                        <JAVA20_HOME>/path/to/jdk20</JAVA20_HOME>
                     </environmentVariables>
                 </configuration>
             </plugin>
@@ -239,6 +245,32 @@
                         </fileset>
                     </filesets>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+                <version>${maven-license-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <id>default-cli</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>add-third-party</goal>
+                        </goals>
+                        <configuration>
+                            <excludedGroups>
+                                (^com\.sun)|^(relaxngDatatype)
+                            </excludedGroups>
+                            <failOnBlacklist>true</failOnBlacklist>
+                            <licenseMergesUrl>
+                                https://policies.mms.tech/maven/licenseMerges
+                            </licenseMergesUrl>
+                            <includedLicenses>
+                                https://policies.mms.tech/maven/includedLicenses
+                            </includedLicenses>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

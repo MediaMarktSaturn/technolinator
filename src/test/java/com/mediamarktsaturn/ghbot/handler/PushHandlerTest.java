@@ -11,7 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Optional;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
@@ -56,7 +56,7 @@ public class PushHandlerTest {
         when(pushPayload.getRepository()).thenReturn(ghRepo);
         when(pushPayload.getRef()).thenReturn("refs/heads/" + branch);
 
-        var metadata = new Command.Metadata(branch, repoUrl, "", "");
+        var metadata = new Command.Metadata(branch, repoUrl, "", Optional.empty());
 
         var event = new PushEvent(
             pushPayload,

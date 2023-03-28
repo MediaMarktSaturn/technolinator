@@ -1,8 +1,9 @@
 package com.mediamarktsaturn.ghbot.os;
 
 import java.io.BufferedReader;
-import java.io.File;
 import java.io.InputStreamReader;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -13,23 +14,24 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 
 public class ProcessHandler {
 
-    public static final File CURRENT_DIR = new File(".");
+    public static final Path CURRENT_DIR = Paths.get(".");
 
     public static Uni<ProcessResult> run(String command) {
         return run(command, CURRENT_DIR, Map.of(), new ProcessCallback.DefaultProcessCallback());
     }
 
-    public static Uni<ProcessResult> run(String command, File workingDir, Map<String, String> env) {
+    public static Uni<ProcessResult> run(String command, Path workingDir, Map<String, String> env) {
         return run(command, workingDir, env, new ProcessCallback.DefaultProcessCallback());
     }
 
-    static Uni<ProcessResult> run(String command, File workingDir, Map<String, String> env, ProcessCallback callback) {
+    static Uni<ProcessResult> run(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
         callback.log("Starting '%s' in %s".formatted(command, workingDir));
         List<String> outputLines = new ArrayList<>();
-        return Uni.createFrom().completionStage(Unchecked.supplier(() -> {
+        return Uni.createFrom().item(
+                Unchecked.supplier(() -> {
                     var commandParts = command.trim().split("\\s+");
                     var processBuilder = new ProcessBuilder(commandParts)
-                        .directory(workingDir)
+                        .directory(workingDir.toFile())
                         .redirectErrorStream(true);
                     processBuilder.environment().putAll(env);
 
@@ -41,11 +43,10 @@ public class ProcessHandler {
                         callback.onOutput(line);
                         outputLines.add(line);
                     }
-                    return process.onExit();
+                    return process.waitFor();
                 })
             ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-            .map(process -> {
-                int exit = process.exitValue();
+            .map(exit -> {
                 callback.onComplete(exit);
                 if (exit != 0) {
                     return (ProcessResult) new ProcessResult.Failure(outputLines, exit, new Exception(command + " exited with " + exit));

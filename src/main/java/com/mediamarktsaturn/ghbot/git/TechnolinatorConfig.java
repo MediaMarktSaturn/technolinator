@@ -9,6 +9,7 @@ public record TechnolinatorConfig(
     AnalysisConfig analysis,
     GradleConfig gradle,
     MavenConfig maven,
+    JdkConfig jdk,
     Map<String, String> env
 ) {
 
@@ -32,6 +33,11 @@ public record TechnolinatorConfig(
 
     public record MavenConfig(
         List<String> args
+    ) {
+    }
+
+    public record JdkConfig(
+        String version
     ) {
     }
 }

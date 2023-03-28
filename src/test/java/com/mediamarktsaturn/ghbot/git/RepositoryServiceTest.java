@@ -6,11 +6,8 @@ import static org.awaitility.Awaitility.await;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.io.File;
 import java.io.IOException;
 import java.util.Optional;
-
-import javax.inject.Inject;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -23,6 +20,7 @@ import com.mediamarktsaturn.ghbot.Command;
 import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.events.PushEvent;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 
 @QuarkusTest
 public class RepositoryServiceTest {
@@ -61,7 +59,7 @@ public class RepositoryServiceTest {
     void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
         // Given
         var ghRepo = GitHub.connectAnonymously().getRepository(repoName);
-        var metadata = new Command.Metadata("main", "heubeck/examiner", "", "");
+        var metadata = new Command.Metadata("main", "heubeck/examiner", "", Optional.empty());
 
         var cmd = new RepositoryService.CheckoutCommand(ghRepo, branch);
 
@@ -73,7 +71,7 @@ public class RepositoryServiceTest {
             final LocalRepository repo = (LocalRepository) success.result();
             try (repo) {
                 assertThat(repo.dir()).exists();
-                assertThat(new File(repo.dir(), checkFile)).exists();
+                assertThat(repo.dir().resolve(checkFile)).exists();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -85,7 +83,7 @@ public class RepositoryServiceTest {
     void testInvalidBranch() throws IOException {
         // Given
         var ghRepo = GitHub.connectAnonymously().getRepository("heubeck/examiner");
-        var metadata = new Command.Metadata("main", "heubeck/examiner", "", "");
+        var metadata = new Command.Metadata("main", "heubeck/examiner", "", Optional.empty());
 
         var cmd = new RepositoryService.CheckoutCommand(ghRepo, "never/ever");
 
