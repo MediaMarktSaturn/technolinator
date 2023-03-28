@@ -29,16 +29,12 @@ public class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/fiscas-mono";
+    String dir = "/home/heubeck/w/sbom-test/mms-sales-price-lop-history";
 
     @Language("yml")
     String configString = """
         analysis:
-            recursive: false
-        env:
-            ORG_GRADLE_PROJECT_artifactoryUser: ${ARTIFACTORY_USER}
-            ORG_GRADLE_PROJECT_artifactoryPassword: ${ARTIFACTORY_PASSWORD}
-            ORG_GRADLE_PROJECT_artifactoryUrl: ${ARTIFACTORY_URL}
+            recursive: true
         """;
 
     @Test

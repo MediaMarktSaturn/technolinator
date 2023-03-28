@@ -4,18 +4,26 @@ LABEL maintainer="MediaMarktSaturn Technology"
 ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 
-RUN mkdir /root/.m2 && mkdir /app
-COPY --chown=1001:root src/main/docker/assets/git_askpass.sh /root/git_askpass.sh
-COPY --chown=1001:root src/main/docker/assets/run-java.sh /app/run-java.sh
+ARG APPLICATION_USER='app'
+ARG APPLICATION_USER_ID='201'
+ARG APPLICATION_GROUP='apps'
+ARG APPLICATION_GROUP_ID='101'
+
+RUN mkdir -p /app/.m2 && \
+    echo "${APPLICATION_USER}:x:${APPLICATION_USER_ID}:100::/app:/sbin/nologin" >> /etc/passwd && \
+    echo "${APPLICATION_GROUP}:x:${APPLICATION_GROUP_ID}:${APPLICATION_USER}" >> /etc/group
+
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} src/main/docker/assets/git_askpass.sh /app/git_askpass.sh
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} src/main/docker/assets/run-java.sh /app/run-java.sh
 
 WORKDIR /app
-RUN chown 1001 /app \
+RUN chown ${APPLICATION_USER_ID} -R /app \
     && chmod "g+rwX" /app \
-    && chown 1001:root /app \
-    && chmod "a+x" /root/git_askpass.sh \
+    && chown ${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} /app \
+    && chmod "a+x" /app/git_askpass.sh \
     && chmod "a+x" /app/run-java.sh
 
-ENV GIT_ASKPASS='/root/git_askpass.sh'
+ENV GIT_ASKPASS='/app/git_askpass.sh'
 
 # update system and install requirements
 RUN \
@@ -37,22 +45,27 @@ RUN \
     echo "-s" > $HOME/.curlrc && \
     curl -s "https://get.sdkman.io" | bash > /dev/null
 
-COPY --chown=1001:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
-COPY --chown=1001:root src/main/docker/assets/curlrc /root/.curlrc
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} src/main/docker/assets/sdkman.config $HOME/.sdkman/etc/config
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} src/main/docker/assets/curlrc $HOME/.curlrc
+
+ENV SDK_DIR="/app/sdks"
 
 RUN source "$HOME/.sdkman/bin/sdkman-init.sh" && \
     sdk install java 17.0.6-tem && \
     sdk install java 20-tem && \
     sdk install maven && \
     sdk install gradle 7.6 && \
-    sdk install sbt
+    sdk install sbt && \
+    mv $HOME/.sdkman/candidates $SDK_DIR && \
+    chown ${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} -R $SDK_DIR && \
+    rm -rf $HOME/.sdkman
 
 # app & cdxgen env
-ENV JAVA17_HOME="/root/.sdkman/candidates/java/17.0.6-tem" \
-    JAVA20_HOME="/root/.sdkman/candidates/java/20-tem" \
-    JAVA_HOME="/root/.sdkman/candidates/java/20-tem" \
-    MAVEN_HOME="/root/.sdkman/candidates/maven/current" \
-    GRADLE_HOME="/root/.sdkman/candidates/gradle/current" \
+ENV JAVA17_HOME="$SDK_DIR/java/17.0.6-tem" \
+    JAVA20_HOME="$SDK_DIR/java/20-tem" \
+    JAVA_HOME="$SDK_DIR/java/20-tem" \
+    MAVEN_HOME="$SDK_DIR/maven/current" \
+    GRADLE_HOME="$SDK_DIR/gradle/current" \
     MVN_CMD=mvn \
     GRADLE_CMD=gradle \
     GITHUB_USER="nobody" \
@@ -65,9 +78,9 @@ ENV JAVA_APP_JAR="/app/quarkus-run.jar"
 
 CMD ["/app/run-java.sh"]
 
-COPY --chown=1001:root target/quarkus-app/lib/ /app/lib/
-COPY --chown=1001:root target/quarkus-app/*.jar /app/
-COPY --chown=1001:root target/quarkus-app/app/ /app/app/
-COPY --chown=1001:root target/quarkus-app/quarkus/ /app/quarkus/
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} target/quarkus-app/lib/ /app/lib/
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} target/quarkus-app/*.jar /app/
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} target/quarkus-app/app/ /app/app/
+COPY --chown=${APPLICATION_USER_ID}:${APPLICATION_GROUP_ID} target/quarkus-app/quarkus/ /app/quarkus/
 
-# TODO: run app as non-root
+USER $APPLICATION_USER

@@ -5,15 +5,21 @@ fileExistenceTests:
       path: /app
       shouldExist: true
       permissions: 'drwxrwxr-x'
+      uid: 201
+      gid: 101
 
     - name: 'App runner jar exists'
       path: /app/quarkus-run.jar
       shouldExist: true
+      uid: 201
+      gid: 101
 
     - name: 'App start script exists and has the right permissions'
       path: /app/run-java.sh
       shouldExist: true
       permissions: '-rwxr-xr-x'
+      uid: 201
+      gid: 101
 
 commandTests:
     - name: 'Timezone is UTC'
@@ -42,7 +48,7 @@ commandTests:
       expectedOutput:
           - '.*Gradle 7.*'
     - name: "Git ask pass runs"
-      command: '/root/git_askpass.sh'
+      command: '/app/git_askpass.sh'
       expectedOutput:
           - ''
     - name: "Application starts"
@@ -65,21 +71,28 @@ commandTests:
       expectedOutput:
           - '.*openjdk 20.*'
 
+    - name: "Running as non-root"
+      command: 'whoami'
+      expectedOutput:
+          - 'app'
+
 metadataTest:
     labels:
         - key: 'maintainer'
           value: 'MediaMarktSaturn Technology'
     envVars:
+        - key: GIT_ASKPASS
+          value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/root/.sdkman/candidates/java/20-tem'
+          value: '/app/sdks/java/20-tem'
         - key: JAVA17_HOME
-          value: '/root/.sdkman/candidates/java/17.0.6-tem'
+          value: '/app/sdks/java/17.0.6-tem'
         - key: JAVA20_HOME
-          value: '/root/.sdkman/candidates/java/20-tem'
+          value: '/app/sdks/java/20-tem'
         - key: MAVEN_HOME
-          value: '/root/.sdkman/candidates/maven/current'
+          value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
-          value: '/root/.sdkman/candidates/gradle/current'
+          value: '/app/sdks/gradle/current'
         - key: MVN_CMD
           value: 'mvn'
         - key: GRADLE_CMD
@@ -87,3 +100,4 @@ metadataTest:
     cmd: ['/app/run-java.sh']
     entrypoint: []
     workdir: '/app'
+    user: 'app'
