@@ -140,6 +140,7 @@ public class CdxgenClientEnvTest {
         // Then
         assertThat(result)
             .doesNotContainKey("GRADLE_ARGS")
+            .containsEntry("CDXGEN_TIMEOUT_MS", Long.toString(30 * 60 * 1000))
             .containsEntry("MVN_ARGS", "-B -ntp")
             .containsEntry("JAVA_HOME", System.getenv("JAVA_HOME"));
     }

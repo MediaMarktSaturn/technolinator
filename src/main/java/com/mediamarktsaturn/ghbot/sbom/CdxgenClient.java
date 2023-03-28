@@ -2,6 +2,7 @@ package com.mediamarktsaturn.ghbot.sbom;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -71,7 +72,9 @@ public class CdxgenClient {
         @ConfigProperty(name = "analysis.recursive_default")
         boolean recursiveDefault,
         @ConfigProperty(name = "cdxgen.fail_on_error")
-        boolean failOnError
+        boolean failOnError,
+        @ConfigProperty(name = "app.analysis_timeout")
+        Duration analysisTimeout
     ) {
         this.cleanWrapperScripts = cleanWrapperScripts;
         this.excludeGithubFolder = excludeGithubFolder;
@@ -84,7 +87,7 @@ public class CdxgenClient {
             "FETCH_LICENSE", Boolean.toString(fetchLicense),
             "USE_GOSUM", Boolean.toString(useGosum),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            "CDXGEN_TIMEOUT_MS", Integer.toString(10 * 60 * 1000) // TODO: make configurable
+            "CDXGEN_TIMEOUT_MS", Long.toString(analysisTimeout.toMillis())
         );
 
         jdkHomes = System.getenv().entrySet().stream()

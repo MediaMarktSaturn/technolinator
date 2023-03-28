@@ -33,8 +33,8 @@ public class LocalRepositoryAnalysis {
 
     @Language("yml")
     String configString = """
-        analysis:
-            recursive: true
+        jdk:
+            version: 17
         """;
 
     @Test
