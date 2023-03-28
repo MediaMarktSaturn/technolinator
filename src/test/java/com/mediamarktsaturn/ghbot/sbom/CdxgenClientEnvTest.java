@@ -6,13 +6,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import jakarta.inject.Inject;
-
 import org.junit.jupiter.api.Test;
 
 import com.mediamarktsaturn.ghbot.ConfigBuilder;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 
 @QuarkusTest
 public class CdxgenClientEnvTest {
@@ -142,6 +141,8 @@ public class CdxgenClientEnvTest {
             .doesNotContainKey("GRADLE_ARGS")
             .containsEntry("CDXGEN_TIMEOUT_MS", Long.toString(30 * 60 * 1000))
             .containsEntry("MVN_ARGS", "-B -ntp")
+            .containsEntry("FETCH_LICENSE", "false")
+            .containsEntry("USE_GOSUM", "true")
             .containsEntry("JAVA_HOME", System.getenv("JAVA_HOME"));
     }
 

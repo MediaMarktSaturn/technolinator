@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.parsers.JsonParser;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.config.ConfigProvider;
 
 import com.mediamarktsaturn.ghbot.Command;
 import com.mediamarktsaturn.ghbot.Result;
@@ -58,36 +58,20 @@ public class CdxgenClient {
     private final Map<String, String> jdkHomes;
     private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, failOnError;
 
-    public CdxgenClient(
-        @ConfigProperty(name = "github.token")
-        String githubToken,
-        @ConfigProperty(name = "cdxgen.fetch_license")
-        boolean fetchLicense,
-        @ConfigProperty(name = "cdxgen.use_gosum")
-        boolean useGosum,
-        @ConfigProperty(name = "app.clean_wrapper_scripts")
-        boolean cleanWrapperScripts,
-        @ConfigProperty(name = "app.exclude_github_folder")
-        boolean excludeGithubFolder,
-        @ConfigProperty(name = "analysis.recursive_default")
-        boolean recursiveDefault,
-        @ConfigProperty(name = "cdxgen.fail_on_error")
-        boolean failOnError,
-        @ConfigProperty(name = "app.analysis_timeout")
-        Duration analysisTimeout
-    ) {
-        this.cleanWrapperScripts = cleanWrapperScripts;
-        this.excludeGithubFolder = excludeGithubFolder;
-        this.recursiveDefault = recursiveDefault;
-        this.failOnError = failOnError;
+    public CdxgenClient() {
+        var config = ConfigProvider.getConfig();
+        this.cleanWrapperScripts = config.getValue("app.clean_wrapper_scripts", Boolean.TYPE);
+        this.excludeGithubFolder = config.getValue("app.exclude_github_folder", Boolean.TYPE);
+        this.recursiveDefault = config.getValue("analysis.recursive_default", Boolean.TYPE);
+        this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
 
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
-            "GITHUB_TOKEN", githubToken.trim(),
-            "FETCH_LICENSE", Boolean.toString(fetchLicense),
-            "USE_GOSUM", Boolean.toString(useGosum),
+            "GITHUB_TOKEN", config.getValue("github.token", String.class).trim(),
+            "FETCH_LICENSE", config.getValue("cdxgen.fetch_license", Boolean.class).toString(),
+            "USE_GOSUM", config.getValue("cdxgen.use_gosum", Boolean.class).toString(),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            "CDXGEN_TIMEOUT_MS", Long.toString(analysisTimeout.toMillis())
+            "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
         );
 
         jdkHomes = System.getenv().entrySet().stream()
