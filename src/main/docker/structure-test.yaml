@@ -81,6 +81,8 @@ metadataTest:
         - key: 'maintainer'
           value: 'MediaMarktSaturn Technology'
     envVars:
+        - key: ENSITIVE_ENV_VARS
+          value: 'QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY'
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME

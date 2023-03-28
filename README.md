@@ -90,11 +90,12 @@ For using Technolinator inside your organization with private artifact repositor
 This could look like:
 
 ```dockerfile
-FROM ghcr.io/mediamarktsaturn/technolinator:1.27.0
+FROM ghcr.io/mediamarktsaturn/technolinator:1.29.0
 
-COPY --chown=1001:root assets/settings.xml /root/.m2/settings.xml
+# app runs as user 201 in group 101
+COPY --chown=201:101 assets/settings.xml /app/.m2/settings.xml
 
-ENV SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,ARTIFACTORY_USER,ARTIFACTORY_PASSWORD,GITHUB_TOKEN,DTRACK_APIKEY" \
+ENV SENSITIVE_ENV_VARS="${SENSITIVE_ENV_VARS},ARTIFACTORY_USER,ARTIFACTORY_PASSWORD" \
     ARTIFACTORY_URL="https://cloud.artifactory.com/artifactory" \
     DTRACK_URL="https://dependency-track.awesome.org"
 ```
