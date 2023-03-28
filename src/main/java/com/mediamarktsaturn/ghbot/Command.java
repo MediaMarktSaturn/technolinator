@@ -18,7 +18,7 @@ public interface Command<T> {
             MDC.put("ref", gitRef);
             MDC.put("repository", repoFullName);
             MDC.put("traceId", traceId);
-            commitSha.ifPresent(sha -> MDC.put("commitSha", commitSha));
+            commitSha.ifPresent(sha -> MDC.put("commitSha", sha));
         }
 
         public static Metadata readFromMDC() {
