@@ -63,7 +63,7 @@ commandTests:
       command: '$JAVA20_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk version "20".*'
+          - '.*openjdk 20.*'
 
 metadataTest:
     labels:

@@ -43,6 +43,7 @@ public interface ProcessCallback {
         @Override
         public void onComplete(int exitStatus) {
             var duration = Duration.ofMillis(System.currentTimeMillis() - start);
+            metadata.writeToMDC();
             if (exitStatus == 0) {
                 Log.infof("[%s] succeeded after %s", metadata.traceId(), duration);
             } else {
@@ -64,11 +65,13 @@ public interface ProcessCallback {
 
         @Override
         public void onFailure(Throwable failure) {
+            metadata.writeToMDC();
             Log.errorf(failure, "[%s] failed: %s", metadata.traceId(), failure.getMessage());
         }
 
         @Override
         public void log(String message) {
+            metadata.writeToMDC();
             Log.infof("[%s] %s", metadata.traceId(), message);
         }
     }

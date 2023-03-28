@@ -21,7 +21,7 @@ ENV GIT_ASKPASS='/root/git_askpass.sh'
 RUN \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     microdnf update -y && \
-    microdnf install -y tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang && \
+    microdnf install -y which tar tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang && \
     microdnf clean all -y
 
 # locale options
@@ -35,8 +35,12 @@ RUN \
 # install sdkman & sdks
 RUN \
     echo "-s" > $HOME/.curlrc && \
-    curl -s "https://get.sdkman.io" | bash > /dev/null && \
-    source "$HOME/.sdkman/bin/sdkman-init.sh" && \
+    curl -s "https://get.sdkman.io" | bash > /dev/null
+
+COPY --chown=1001:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
+COPY --chown=1001:root src/main/docker/assets/curlrc /root/.curlrc
+
+RUN source "$HOME/.sdkman/bin/sdkman-init.sh" && \
     sdk install java 17.0.6-tem && \
     sdk install java 20-tem && \
     sdk install maven && \
@@ -54,7 +58,7 @@ ENV JAVA17_HOME="/root/.sdkman/candidates/java/17.0.6-tem" \
     GITHUB_USER="nobody" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY"
 
-ENV PATH="$PATH:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
+ENV PATH="$PATH:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
 ENV JAVA_OPTIONS="--enable-preview -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="/app/quarkus-run.jar"

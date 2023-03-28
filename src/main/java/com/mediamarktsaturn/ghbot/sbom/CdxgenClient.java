@@ -22,6 +22,7 @@ import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.os.ProcessHandler;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
@@ -109,8 +110,9 @@ public class CdxgenClient {
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
             metadata.writeToMDC();
             return removeExcludedFiles(this)
+                .emitOn(Infrastructure.getDefaultWorkerPool())
                 .chain(() -> generateSbom(this, metadata))
-                .chain(result -> parseSbom(this, result, metadata));
+                .map(result -> parseSbom(this, result, metadata));
         }
 
     }
@@ -146,25 +148,22 @@ public class CdxgenClient {
         return ProcessHandler.run(cmd.commandLine, cmd.repoDir(), cmd.environment());
     }
 
-    static Uni<Result<SBOMGenerationResult>> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
+    static Result<SBOMGenerationResult> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
         var sbomFile = cmd.repoDir().resolve(SBOM_JSON);
-        return Uni.createFrom().item(() -> {
-            metadata.writeToMDC();
-            return switch (generationResult) {
-                case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
-                case ProcessHandler.ProcessResult.Failure f -> {
-                    if (Files.exists(sbomFile)) {
-                        Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
-                        yield parseSbomFile(sbomFile);
-                    } else {
-                        Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                        yield new Result.Failure<>(f.cause());
-                    }
+        metadata.writeToMDC();
+        return switch (generationResult) {
+            case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
+            case ProcessHandler.ProcessResult.Failure f -> {
+                if (Files.exists(sbomFile)) {
+                    Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
+                    yield parseSbomFile(sbomFile);
+                } else {
+                    Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
+                    yield new Result.Failure<>(f.cause());
                 }
-            };
-        });
+            }
+        };
     }
-
 
     static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile) {
         if (!Files.exists(sbomFile)) {
