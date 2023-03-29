@@ -31,7 +31,7 @@ import io.vertx.core.json.JsonObject;
 
 @QuarkusTest
 @QuarkusTestResource(value = MockServerResource.class, restrictToAnnotatedClass = true)
-public class DependencyTrackClientTest {
+class DependencyTrackClientTest {
 
     @DependencyTrackMockServer
     MockServerClient dtrackMock;
@@ -40,7 +40,7 @@ public class DependencyTrackClientTest {
     DependencyTrackClient cut;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         dtrackMock.reset();
     }
 

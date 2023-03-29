@@ -23,7 +23,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 
 @QuarkusTest
-public class RepositoryServiceTest {
+class RepositoryServiceTest {
 
     @Inject
     RepositoryService cut;

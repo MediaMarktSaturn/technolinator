@@ -12,14 +12,14 @@ import com.mediamarktsaturn.ghbot.Result;
 import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
-public class CdxgenClientParsingTest {
+class CdxgenClientParsingTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
         "src/test/resources/sbom/empty.json",
         "src/test/resources/sbom/unkown.json"
     })
-    public void testInvalids(String filename) {
+    void testInvalids(String filename) {
         // Given
         var file = Paths.get(filename);
 

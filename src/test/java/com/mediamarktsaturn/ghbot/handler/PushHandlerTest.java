@@ -29,7 +29,7 @@ import io.quarkus.test.junit.mockito.InjectSpy;
 import io.smallrye.mutiny.Uni;
 
 @QuarkusTest
-public class PushHandlerTest {
+class PushHandlerTest {
 
     @InjectSpy
     RepositoryService repoService;

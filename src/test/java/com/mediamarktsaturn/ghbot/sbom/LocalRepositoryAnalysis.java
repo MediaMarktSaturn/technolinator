@@ -22,7 +22,7 @@ import io.quarkus.test.junit.QuarkusTest;
 // to be used for manual, local testing only
 @Disabled
 @QuarkusTest
-public class LocalRepositoryAnalysis {
+class LocalRepositoryAnalysis {
 
     @Inject
     CdxgenClient cdxgenClient;

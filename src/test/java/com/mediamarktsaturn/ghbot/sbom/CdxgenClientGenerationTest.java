@@ -19,7 +19,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 
 @QuarkusTest
-public class CdxgenClientGenerationTest {
+class CdxgenClientGenerationTest {
 
     @Inject
     CdxgenClient cut;

@@ -27,13 +27,13 @@ import io.quarkus.test.junit.mockito.InjectMock;
 
 @QuarkusTest
 @GitHubAppTest
-public class OnPushDispatcherTest {
+class OnPushDispatcherTest {
 
     @InjectMock
     PushHandler pushHandler;
 
     @BeforeEach
-    public void setup() {
+    void setup() {
         Mockito.reset(pushHandler);
     }
 

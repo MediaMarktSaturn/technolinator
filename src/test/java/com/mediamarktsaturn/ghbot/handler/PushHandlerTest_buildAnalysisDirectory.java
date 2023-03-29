@@ -15,7 +15,7 @@ import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
-public class PushHandlerTest_buildAnalysisDirectory {
+class PushHandlerTest_buildAnalysisDirectory {
 
     @Test
     void testConfigless() {

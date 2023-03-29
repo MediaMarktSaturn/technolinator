@@ -12,7 +12,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
-public class ProcessHandlerTest {
+class ProcessHandlerTest {
 
     @Test
     void testLogResult() {
