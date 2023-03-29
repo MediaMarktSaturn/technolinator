@@ -4,22 +4,37 @@ fileExistenceTests:
     - name: 'App folder exists and has the right permissions'
       path: /app
       shouldExist: true
-      permissions: 'drwxrwxr-x'
-      uid: 201
-      gid: 101
+      permissions: 'dr-xr-xr-x'
+      uid: 0
+      gid: 0
 
-    - name: 'App runner jar exists'
+    - name: 'App runner jar exists and has the right permissions'
       path: /app/quarkus-run.jar
       shouldExist: true
-      uid: 201
-      gid: 101
+      permissions: '-rw-r--r--'
+      uid: 0
+      gid: 0
+
+    - name: 'App folder exists and has the right permissions'
+      path: /app/quarkus
+      shouldExist: true
+      permissions: 'drwxr-xr-x'
+      uid: 0
+      gid: 0
 
     - name: 'App start script exists and has the right permissions'
       path: /app/run-java.sh
       shouldExist: true
-      permissions: '-rwxr-xr-x'
-      uid: 201
-      gid: 101
+      permissions: '-r-xr-xr-x'
+      uid: 0
+      gid: 0
+
+    - name: 'Git ask pass exists with right permissions'
+      path: /app/git_askpass.sh
+      shouldExist: true
+      permissions: '-r-xr-xr-x'
+      uid: 0
+      gid: 0
 
 commandTests:
     - name: 'Timezone is UTC'
@@ -99,7 +114,9 @@ metadataTest:
           value: 'mvn'
         - key: GRADLE_CMD
           value: 'gradle'
+        - key: APP_DATA
+          value: '/data'
     cmd: ['/app/run-java.sh']
     entrypoint: []
-    workdir: '/app'
+    workdir: '/data'
     user: 'app'
