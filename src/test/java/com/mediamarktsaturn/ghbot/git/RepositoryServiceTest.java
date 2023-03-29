@@ -93,7 +93,7 @@ class RepositoryServiceTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Failure.class, failure -> {
-            assertThat(failure.cause().toString()).isEqualTo("org.kohsuke.github.GHFileNotFoundException: https://api.github.com/repos/heubeck/examiner/zipball/never/ever 404: Not Found");
+            assertThat(failure.cause().toString()).hasToString("org.kohsuke.github.GHFileNotFoundException: https://api.github.com/repos/heubeck/examiner/zipball/never/ever 404: Not Found");
         });
     }
 

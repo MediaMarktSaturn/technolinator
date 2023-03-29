@@ -21,7 +21,7 @@ import io.vertx.mutiny.ext.web.client.WebClient;
 @ApplicationScoped
 public class DependencyTrackClient {
 
-    private final static String API_PATH = "/api/v1";
+    private static final String API_PATH = "/api/v1", API_KEY = "X-API-Key";
 
     private final WebClient client;
     private final String dtrackBaseUrl, dtrackApiUrl, dtrackApikey;
@@ -49,7 +49,7 @@ public class DependencyTrackClient {
         ));
 
         return client.putAbs(dtrackApiUrl + "/bom")
-            .putHeader("X-API-Key", dtrackApikey)
+            .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(payload)
             .map(Unchecked.function(result -> {
                 if (result.statusCode() == 200) {
@@ -70,7 +70,7 @@ public class DependencyTrackClient {
         return client.getAbs(dtrackApiUrl + "/project/lookup")
             .addQueryParam("name", projectName)
             .addQueryParam("version", projectVersion)
-            .putHeader("X-API-Key", dtrackApikey)
+            .putHeader(API_KEY, dtrackApikey)
             .putHeader("Accept", "application/json")
             .send()
             .onFailure().retry().atMost(3)
@@ -90,7 +90,7 @@ public class DependencyTrackClient {
         return client.getAbs(dtrackApiUrl + "/project")
             .addQueryParam("name", projectName)
             .addQueryParam("excludeInactive", "true")
-            .putHeader("X-API-Key", dtrackApikey)
+            .putHeader(API_KEY, dtrackApikey)
             .putHeader("Accept", "application/json")
             .send()
             .onFailure().retry().atMost(3)
@@ -113,7 +113,7 @@ public class DependencyTrackClient {
 
     Uni<Void> deactivateProject(String projectUUID) {
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
-            .putHeader("X-API-Key", dtrackApikey)
+            .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(JsonObject.of("active", false))
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.warnf(e, "Failed to disabled project %s", projectUUID))

@@ -23,9 +23,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 @ApplicationScoped
 public class RepositoryService {
 
-    private static final String DOWNLOAD = "download.zip";
-    private static final String UNZIP_CMD = "unzip -q " + DOWNLOAD;
-
     public record CheckoutCommand(
         GHRepository repository,
         String reference

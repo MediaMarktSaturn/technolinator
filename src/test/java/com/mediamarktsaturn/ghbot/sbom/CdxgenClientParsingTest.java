@@ -48,7 +48,7 @@ class CdxgenClientParsingTest {
         "src/test/resources/sbom/does-not-exist.json",
         "src/test/resources/sbom/noop.json"
     })
-    public void testNone(String filename) {
+    void testNone(String filename) {
         // Given
         var file = Paths.get(filename);
 
