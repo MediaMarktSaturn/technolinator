@@ -14,22 +14,23 @@ It's build using [Quarkus](https://quarkus.io/) and handles GitHub webhooks by t
 
 ENV configuration:
 
-| Parameter                         | Default                | Description                                                                 |
-|-----------------------------------|------------------------|-----------------------------------------------------------------------------|
-| PORT                              | 8080                   | Http port to listen to for GitHub Webhook events                            |
-| QUARKUS_GITHUB_APP_APP_ID         |                        | Created during app creation on GitHub                                       |
-| QUARKUS_GITHUB_APP_WEBHOOK_SECRET |                        | Created during app creation on GitHub                                       |
-| QUARKUS_GITHUB_APP_PRIVATE_KEY    |                        | Created during app creation on GitHub                                       |
-| GITHUB_TOKEN                      |                        | Optional. Raises GH api quota for cdxgen and enables `go mod` projects      |
-| DTRACK_APIKEY                     |                        | API key to access Dependency-Track                                          |
-| DTRACK_URL                        |                        | Baseurl of Dependency-Track                                                 |
-| CDXGEN_FETCH_LICENSE              | true                   | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
-| CDXGEN_USE_GOSUM                  | true                   | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
-| ANALYSIS_RECURSIVE_DEFAULT        | true                   | default value for the `analysis.recursvie` config                           |
-| APP_CLEAN_WRAPPER_SCRIPTS         | true                   | Remove wrapper scripts like gradlew or mvnw for not downloading these tools |
-| APP_ANALYSIS_TIMEOUT              | 30M                    | Maximal duration of an analysis before getting aborted                      |
-| APP_ENABLED_REPOS                 |                        | Comma separated list of repo names that should be analyzed; all if empty    |
-| SENSITIVE_ENV_VARS                | sentivie from above    | Comma separated list of env var names that must not be logged               |
+| Parameter                         | Default             | Description                                                                 |
+|-----------------------------------|---------------------|-----------------------------------------------------------------------------|
+| PORT                              | 8080                | Http port to listen to for GitHub Webhook events                            |
+| QUARKUS_GITHUB_APP_APP_ID         |                     | Created during app creation on GitHub                                       |
+| QUARKUS_GITHUB_APP_WEBHOOK_SECRET |                     | Created during app creation on GitHub                                       |
+| QUARKUS_GITHUB_APP_PRIVATE_KEY    |                     | Created during app creation on GitHub                                       |
+| GITHUB_TOKEN                      |                     | Optional. Raises GH api quota for cdxgen and enables `go mod` projects      |
+| DTRACK_APIKEY                     |                     | API key to access Dependency-Track                                          |
+| DTRACK_URL                        |                     | Baseurl of Dependency-Track                                                 |
+| CDXGEN_FETCH_LICENSE              | true                | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
+| CDXGEN_USE_GOSUM                  | true                | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
+| ANALYSIS_RECURSIVE_DEFAULT        | true                | default value for the `analysis.recursvie` config                           |
+| APP_CLEAN_WRAPPER_SCRIPTS         | true                | Remove wrapper scripts like gradlew or mvnw for not downloading these tools |
+| APP_ANALYSIS_TIMEOUT              | 30M                 | Maximal duration of an analysis before getting aborted                      |
+| APP_ENABLED_REPOS                 |                     | Comma separated list of repo names that should be analyzed; all if empty    |
+| APP_PROCESS_LOGLEVEL              | INFO                | Log config for OS commands like 'cdxgen', set to 'DEBUG' to see its output  |
+| SENSITIVE_ENV_VARS                | sentivie from above | Comma separated list of env var names that must not be logged               |
 
 ## Repository specific configuration
 
@@ -90,10 +91,10 @@ For using Technolinator inside your organization with private artifact repositor
 This could look like:
 
 ```dockerfile
-FROM ghcr.io/mediamarktsaturn/technolinator:1.29.0
+FROM ghcr.io/mediamarktsaturn/technolinator:1.29.5
 
 # app runs as user 201 in group 101
-COPY --chown=201:101 assets/settings.xml /app/.m2/settings.xml
+COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
 
 ENV SENSITIVE_ENV_VARS="${SENSITIVE_ENV_VARS},ARTIFACTORY_USER,ARTIFACTORY_PASSWORD" \
     ARTIFACTORY_URL="https://cloud.artifactory.com/artifactory" \
