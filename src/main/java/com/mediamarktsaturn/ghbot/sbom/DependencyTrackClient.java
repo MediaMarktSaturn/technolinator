@@ -4,8 +4,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
 
-import jakarta.enterprise.context.ApplicationScoped;
-
 import org.cyclonedx.generators.json.BomJsonGenerator14;
 import org.cyclonedx.model.Bom;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -17,6 +15,7 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
+import jakarta.enterprise.context.ApplicationScoped;
 
 @ApplicationScoped
 public class DependencyTrackClient {
@@ -39,7 +38,7 @@ public class DependencyTrackClient {
         this.dtrackApiUrl = dtrackBaseUrl + API_PATH;
     }
 
-    public Uni<Result<String>> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
+    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
@@ -66,7 +65,7 @@ public class DependencyTrackClient {
             .onFailure().recoverWithItem(Result.Failure::new);
     }
 
-    Uni<Result<String>> getCurrentVersionUrl(String projectName, String projectVersion) {
+    Uni<Result<Project>> getCurrentVersionUrl(String projectName, String projectVersion) {
         return client.getAbs(dtrackApiUrl + "/project/lookup")
             .addQueryParam("name", projectName)
             .addQueryParam("version", projectVersion)
@@ -78,7 +77,7 @@ public class DependencyTrackClient {
             .chain(response -> {
                 if (response.statusCode() == 200) {
                     var projectUUID = response.bodyAsJsonObject().getString("uuid");
-                    return Uni.createFrom().item((Result<String>) new Result.Success<>("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID)));
+                    return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID))));
                 } else {
                     Log.errorf("Failed to deactivate previous versions of project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());
                     return Uni.createFrom().failure(new Exception("Status " + response.statusCode()));

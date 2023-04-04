@@ -15,8 +15,16 @@ public sealed interface Result<T> {
 
     default <U> Result<U> mapSuccess(Function<T, U> successMapper) {
         return switch (this) {
-            case Success<T> s -> new Result.Success<>(successMapper.apply(s.result));
-            case Failure<T> f -> new Result.Failure<U>(f.cause());
+            case Success<T> s -> Result.success(successMapper.apply(s.result));
+            case Failure<T> f -> Result.failure(f.cause());
         };
+    }
+
+    static <T> Result<T> success(T result) {
+        return new Success<>(result);
+    }
+
+    static <T> Result<T> failure(Throwable cause) {
+        return new Failure<>(cause);
     }
 }

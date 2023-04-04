@@ -16,6 +16,7 @@ import com.mediamarktsaturn.ghbot.git.RepositoryService;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.sbom.CdxgenClient;
 import com.mediamarktsaturn.ghbot.sbom.DependencyTrackClient;
+import com.mediamarktsaturn.ghbot.sbom.Project;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -33,7 +34,7 @@ public class PushHandler {
         this.dtrackClient = dtrackClient;
     }
 
-    public Uni<Result<String>> onPush(PushEvent event, Command.Metadata metadata) {
+    public Uni<Result<Project>> onPush(PushEvent event, Command.Metadata metadata) {
         var checkout = repoService.createCheckoutCommand(event);
         return checkout.execute(metadata)
             .chain(checkoutResult -> generateSbom(event, checkoutResult, metadata))
@@ -51,12 +52,12 @@ public class PushHandler {
             }
             case Result.Failure<LocalRepository> f -> {
                 Log.errorf(f.cause(), "Aborting analysis of repo %s, branch %s because of checkout failure", event.repoUrl(), event.getBranch());
-                yield Uni.createFrom().item(new Result.Failure<>(f.cause()));
+                yield Uni.createFrom().item(Result.failure(f.cause()));
             }
         };
     }
 
-    Uni<Result<String>> uploadSbom(PushEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
+    Uni<Result<Project>> uploadSbom(PushEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
         metadata.writeToMDC();
         return switch (sbomResult) {
             case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
@@ -72,7 +73,7 @@ public class PushHandler {
                 }
                 case CdxgenClient.SBOMGenerationResult.None n -> {
                     Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
-                    yield Uni.createFrom().item(new Result.Success<>(""));
+                    yield Uni.createFrom().item(Result.success(Project.none()));
                 }
             };
 
@@ -83,7 +84,7 @@ public class PushHandler {
         };
     }
 
-    Uni<Result<String>> doUploadSbom(String projectName, String projectVersion, Bom sbom) {
+    Uni<Result<Project>> doUploadSbom(String projectName, String projectVersion, Bom sbom) {
         return dtrackClient.uploadSBOM(projectName, projectVersion, sbom);
     }
 

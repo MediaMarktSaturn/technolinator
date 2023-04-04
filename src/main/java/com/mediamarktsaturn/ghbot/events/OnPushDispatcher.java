@@ -8,9 +8,6 @@ import java.util.UUID;
 import java.util.function.DoubleSupplier;
 import java.util.function.Predicate;
 
-import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
-
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
@@ -18,9 +15,11 @@ import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 
 import com.mediamarktsaturn.ghbot.Command;
+import com.mediamarktsaturn.ghbot.Commons;
 import com.mediamarktsaturn.ghbot.Result;
 import com.mediamarktsaturn.ghbot.git.TechnolinatorConfig;
 import com.mediamarktsaturn.ghbot.handler.PushHandler;
+import com.mediamarktsaturn.ghbot.sbom.Project;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -29,12 +28,13 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 
 @ApplicationScoped
 public class OnPushDispatcher {
 
-    // TODO: make a little bit clearer
-    // no-arg constructor required for GitHub event consuming classes by the framework, thus no constructor injection here
+    // constructor injection not possible here, because GH app extension requires a no-arg constructor
     @Inject
     PushHandler pushHandler;
 
@@ -47,7 +47,8 @@ public class OnPushDispatcher {
     @ConfigProperty(name = "app.enabled_repos")
     List<String> enabledRepos;
 
-    @SuppressWarnings("unused") // called by the quarkus-github-app extension
+    @SuppressWarnings("unused")
+        // called by the quarkus-github-app extension
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config) {
         var traceId = UUID.randomUUID().toString().substring(0, 8);
         var pushRef = pushPayload.getRef();
@@ -77,12 +78,8 @@ public class OnPushDispatcher {
 
             commitSha.ifPresent(commit ->
                 createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
-                    // TODO: check if NoopSubscriber makes sense
-                    .subscribe().with(item -> {
-                        // result handled previously by pipeline
-                    }, failure -> {
-                        // error logged previously by pipeline
-                    })
+                    // Uni events handled upstream, just need to run pipeline
+                    .subscribe().withSubscriber(Commons.NoOpSubscriber)
             );
 
             final double analysisStart = System.currentTimeMillis();
@@ -134,24 +131,29 @@ public class OnPushDispatcher {
             .orElseGet(() -> Uni.createFrom().item(new PushResult(null, MetricStatusAnalysis.NONE)));
     }
 
-    Uni<PushResult> reportAnalysisResult(Result<String> uploadResult, GHRepository repo, Optional<String> commitSha, Command.Metadata metadata) {
+    Uni<PushResult> reportAnalysisResult(Result<Project> uploadResult, GHRepository repo, Optional<String> commitSha, Command.Metadata metadata) {
         return commitSha.map(commit -> {
             final GHCommitState state;
             final MetricStatusAnalysis metricStatus;
             final String url;
             final String desc;
             switch (uploadResult) {
-                case Result.Success<String> s -> {
-                    url = s.result();
-                    if (!url.isBlank()) {
-                        desc = "SBOM available";
-                    } else {
-                        desc = "SBOM not available";
-                    }
+                case Result.Success<Project> s -> {
                     state = GHCommitState.SUCCESS;
                     metricStatus = MetricStatusAnalysis.OK;
+                    switch (s.result()) {
+                        case Project.Available a -> {
+                            url = a.url();
+                            desc = "SBOM available";
+                        }
+                        case Project.None n -> {
+                            url = null;
+                            desc = "SBOM not available";
+                        }
+                        default -> throw new IllegalStateException();
+                    }
                 }
-                case Result.Failure<String> f -> {
+                case Result.Failure<Project> f -> {
                     desc = "SBOM creation failed";
                     state = GHCommitState.ERROR;
                     metricStatus = MetricStatusAnalysis.ERROR;

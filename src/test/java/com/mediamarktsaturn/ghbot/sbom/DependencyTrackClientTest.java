@@ -141,7 +141,7 @@ class DependencyTrackClientTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
-            assertThat(success.result()).isInstanceOfSatisfying(String.class, s -> assertThat(s).endsWith("/projects/uuid-1"));
+            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, s -> assertThat(s.url()).endsWith("/projects/uuid-1"));
         });
 
         var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();

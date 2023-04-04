@@ -104,7 +104,6 @@ public class CdxgenClient {
 
     }
 
-    // TODO: announce config errors to repo
     public SbomCreationCommand createCommand(Path repoDir, String projectName, Optional<TechnolinatorConfig> config) {
         boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
@@ -146,7 +145,7 @@ public class CdxgenClient {
                     yield parseSbomFile(sbomFile);
                 } else {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                    yield new Result.Failure<>(f.cause());
+                    yield Result.failure(f.cause());
                 }
             }
         };
@@ -154,12 +153,12 @@ public class CdxgenClient {
 
     static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile) {
         if (!Files.exists(sbomFile)) {
-            return new Result.Success<>(new SBOMGenerationResult.None());
+            return Result.success(SBOMGenerationResult.none());
         } else if (Files.isReadable(sbomFile)) {
             try {
                 return parseSbomBytes(Files.readAllBytes(sbomFile));
             } catch (Exception e) {
-                return new Result.Failure<>(e);
+                return Result.failure(e);
             }
         } else {
             throw new IllegalStateException("Cannot read file " + sbomFile.toAbsolutePath());
@@ -183,14 +182,14 @@ public class CdxgenClient {
             var named = isNotBlank(group) && isNotBlank(name) && isNotBlank(version);
             if (!named &&
                 isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
-                return new Result.Success<>(new SBOMGenerationResult.None());
+                return Result.success(SBOMGenerationResult.none());
             } else if (named) {
-                return new Result.Success<>(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult));
+                return Result.success(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult));
             } else {
-                return new Result.Success<>(new SBOMGenerationResult.Fallback(sbom, validationResult));
+                return Result.success(new SBOMGenerationResult.Fallback(sbom, validationResult));
             }
         } catch (Exception e) {
-            return new Result.Failure<>(e);
+            return Result.failure(e);
         }
     }
 
@@ -274,7 +273,6 @@ public class CdxgenClient {
         } else {
             var dir = cmd.repoDir();
             var excludes = String.join(" ", cmd.excludeFiles());
-            // TODO: preserve root | use limited user rights
             return ProcessHandler.run("rm -rf " + excludes, dir, Map.of())
                 .onItem().ignore().andContinueWithNull();
         }
@@ -297,6 +295,10 @@ public class CdxgenClient {
         }
 
         record None() implements SBOMGenerationResult {
+        }
+
+        static SBOMGenerationResult none() {
+            return new None();
         }
     }
 

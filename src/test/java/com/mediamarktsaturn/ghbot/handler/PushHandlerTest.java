@@ -11,6 +11,7 @@ import static org.mockito.Mockito.when;
 import java.io.IOException;
 import java.util.Optional;
 
+import com.mediamarktsaturn.ghbot.sbom.Project;
 import jakarta.inject.Inject;
 
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ class PushHandlerTest {
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
 
         when(dtrackClient.uploadSBOM(eq(projectName), eq(branch), any()))
-            .thenReturn(Uni.createFrom().item(new Result.Success<>("yehaaa")));
+            .thenReturn(Uni.createFrom().item(Result.success(Project.available("yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
         when(pushPayload.getRepository()).thenReturn(ghRepo);
