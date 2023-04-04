@@ -1,11 +1,14 @@
 package com.mediamarktsaturn.ghbot.sbom;
 
 import static com.mediamarktsaturn.ghbot.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Optional;
 
+import com.mediamarktsaturn.ghbot.Result;
 import jakarta.inject.Inject;
 
 import org.intellij.lang.annotations.Language;
@@ -29,18 +32,15 @@ class LocalRepositoryAnalysis {
 
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/gly-commons";
+    String dir = "/home/heubeck/w/sbom-test/ccr-customers";
 
     @Language("yml")
     String configString = """
 ---
-analysis:
-  recursive: true
 gradle:
   args:
-    - -PartifactoryUser=${ARTIFACTORY_USER}
-    - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
-    - -PartifactoryUrl=${ARTIFACTORY_URL}
+    - -PmavenUser=${ARTIFACTORY_USER}
+    - -PmavenPassword=${ARTIFACTORY_PASSWORD}
 jdk:
   version: 17
         """;
@@ -61,6 +61,9 @@ jdk:
 
         var result = await(cmd.execute(metadata));
 
-        Log.infof("Analysis success, got: %s", result.getClass().getSimpleName());
+        switch (result) {
+            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> System.out.println("Success");
+            case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> fail("Failed", f.cause());
+        }
     }
 }

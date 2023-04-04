@@ -79,7 +79,7 @@ public class OnPushDispatcher {
             commitSha.ifPresent(commit ->
                 createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
                     // Uni events handled upstream, just need to run pipeline
-                    .subscribe().withSubscriber(Commons.NoOpSubscriber)
+                    .subscribe().withSubscriber(Commons.NOOP_SUBSCRIBER)
             );
 
             final double analysisStart = System.currentTimeMillis();

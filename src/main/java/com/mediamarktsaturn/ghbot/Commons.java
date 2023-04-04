@@ -4,9 +4,13 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.subscription.UniSubscriber;
 import io.smallrye.mutiny.subscription.UniSubscription;
 
-public interface Commons {
+public final class Commons {
 
-    UniSubscriber<? super Object> NoOpSubscriber = new UniSubscriber<>() {
+    private Commons() {
+        // utility stuff only
+    }
+
+    public static UniSubscriber<? super Object> NOOP_SUBSCRIBER = new UniSubscriber<>() {
 
         @Override
         public void onSubscribe(UniSubscription subscription) {
