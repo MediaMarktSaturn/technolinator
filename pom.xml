@@ -14,7 +14,7 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.0.0.CR1</quarkus.platform.version>
+        <quarkus.platform.version>3.0.0.CR2</quarkus.platform.version>
 
         <quarkus-github-app.version>2.0.0.Alpha2</quarkus-github-app.version>
 
@@ -26,7 +26,7 @@
         <assertj.version>3.24.2</assertj.version>
         <awaitility.version>4.2.0</awaitility.version>
 
-        <testcontainers.version>1.17.6</testcontainers.version>
+        <testcontainers.version>1.18.0</testcontainers.version>
         <!-- must be same as server version bundled in org.testcontainers.mockserver -->
         <mockserver.version>5.13.2</mockserver.version>
 
