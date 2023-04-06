@@ -91,6 +91,16 @@ commandTests:
       expectedOutput:
           - 'app'
 
+    - name: "Write access is prohibited"
+      command: 'rm'
+      args: ["-rf", "/app/run-java.sh", "/app/git_askpass.sh", "/app/quarkus-run.jar", "/etc/localtime"]
+      exitCode: 1
+      expectedError:
+          - "rm: cannot remove '/app/run-java.sh': Permission denied"
+          - "rm: cannot remove '/app/git_askpass.sh': Permission denied"
+          - "rm: cannot remove '/app/quarkus-run.jar': Permission denied"
+          - "rm: cannot remove '/etc/localtime': Permission denied"
+
 metadataTest:
     labels:
         - key: 'maintainer'
