@@ -10,7 +10,7 @@ public final class Commons {
         // utility stuff only
     }
 
-    public static UniSubscriber<? super Object> NOOP_SUBSCRIBER = new UniSubscriber<>() {
+    public static final UniSubscriber<? super Object> NOOP_SUBSCRIBER = new UniSubscriber<>() {
 
         @Override
         public void onSubscribe(UniSubscription subscription) {
