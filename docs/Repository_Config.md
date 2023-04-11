@@ -8,7 +8,7 @@ with the following options:
 # whether Technolinator does analysis at all; default: true
 enable: true
 project:
-    # desired name of the project in dependency-track; default depends on build system, for maven it's: "groupId:artifactId"
+    # desired name of the project in dependency-track; default is the GitHub repository name
     name: awesomeProject
 analysis:
     # the location targeted by cdxgen; default: repository root

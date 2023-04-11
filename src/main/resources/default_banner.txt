@@ -1,1 +1,1 @@
-Technolinator - The MMS GitHub Bot
+Technolinator - The SBOM handling GitHub bot
