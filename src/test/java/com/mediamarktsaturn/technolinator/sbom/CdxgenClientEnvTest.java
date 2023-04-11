@@ -25,7 +25,7 @@ class CdxgenClientEnvTest {
         var value = "-PdingsTeil=${test_Env1}";
 
         // When
-        var result = CdxgenClient.resolveEnvVars(value);
+        var result = cut.resolveEnvVars(value);
 
         // Then
         assertThat(result).isEqualTo("-PdingsTeil=this's just a test");
@@ -37,7 +37,7 @@ class CdxgenClientEnvTest {
         var value = "-PdingsTeil=${test_Env1} -Doh=${test_Env2} --yeah=${test_Env1}";
 
         // When
-        var result = CdxgenClient.resolveEnvVars(value);
+        var result = cut.resolveEnvVars(value);
 
         // Then
         assertThat(result).isEqualTo("-PdingsTeil=this's just a test -Doh=oh_yeah-look_at_me --yeah=this's just a test");
@@ -49,10 +49,10 @@ class CdxgenClientEnvTest {
         var value = "-PdingsTeil=${never_WILL_be_there} $ever ";
 
         // When
-        var result = CdxgenClient.resolveEnvVars(value);
+        var result = cut.resolveEnvVars(value);
 
         // Then
-        assertThat(result).isEqualTo("-PdingsTeil= $ever ");
+        assertThat(result).isEqualTo("-PdingsTeil=never_WILL_be_there $ever ");
     }
 
     @Test
@@ -72,7 +72,7 @@ class CdxgenClientEnvTest {
 
         // Then
         assertThat(result)
-            .containsEntry("GRADLE_ARGS", "-PartifactoryUser=\"this's just a test\" -DartifactoryPassword=oh_yeah-look_at_me -BgoAway=");
+            .containsEntry("GRADLE_ARGS", "-PartifactoryUser=\"this's just a test\" -DartifactoryPassword=oh_yeah-look_at_me -BgoAway=withThis");
     }
 
     @Test
@@ -107,7 +107,7 @@ class CdxgenClientEnvTest {
 
         // Then
         assertThat(result)
-            .containsEntry("MVN_ARGS", "-B -ntp -P\"this's just a test\" -DRUN=oh_yeah-look_at_me -BgoAway=");
+            .containsEntry("MVN_ARGS", "-B -ntp -P\"this's just a test\" -DRUN=oh_yeah-look_at_me -BgoAway=withThis");
     }
 
     @Test

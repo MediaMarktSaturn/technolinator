@@ -41,7 +41,7 @@ The configuration file is optional and only necessary to override default behavi
 
 ## ${Parameter}
 
-ENV available to the Technolinators runtime can be referred to from the repository configuration.
+ENV available to the Technolinators runtime, and listed in ENV var `ALLOWED_ENV_SUBSTITUTIONS` can be referred to from the repository configuration.
 This is an effective way of central configuration for things like artifact repository urls and its access credentials.
 Please see the [adoption documentation](Adoption.md) for details.
 

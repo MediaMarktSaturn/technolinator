@@ -11,6 +11,7 @@ FROM ghcr.io/mediamarktsaturn/technolinator:1.29.5
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
 
 ENV SENSITIVE_ENV_VARS="${SENSITIVE_ENV_VARS},ARTIFACTORY_USER,ARTIFACTORY_PASSWORD" \
+    ALLOWED_ENV_SUBSTITUTIONS="ARTIFACTORY_USER,ARTIFACTORY_PASSWORD,ARTIFACTORY_URL" \
     ARTIFACTORY_URL="https://cloud.artifactory.com/artifactory" \
     DTRACK_URL="https://dependency-track.awesome.org"
 ```

@@ -204,6 +204,7 @@
                     <environmentVariables>
                         <test_Env1>this's just a test</test_Env1>
                         <test_Env2>oh_yeah-look_at_me</test_Env2>
+                        <ALLOWED_ENV_SUBSTITUTIONS>test_Env1, test_Env2</ALLOWED_ENV_SUBSTITUTIONS>
                         <JAVA17_HOME>/path/to/jdk17</JAVA17_HOME>
                         <JAVA20_HOME>/path/to/jdk20</JAVA20_HOME>
                     </environmentVariables>

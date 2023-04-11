@@ -4,6 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -74,6 +75,11 @@ public class CdxgenClient {
     private final Map<String, String> cdxgenEnv;
 
     /**
+     * Variable names that are allowed to be resolved from ENV.
+     */
+    private final List<String> allowedEnvSubstitutions;
+
+    /**
      * Configurable, supported jdk versions.
      */
     private final Map<String, String> jdkHomes;
@@ -85,6 +91,10 @@ public class CdxgenClient {
         this.excludeGithubFolder = config.getValue("app.exclude_github_folder", Boolean.TYPE);
         this.recursiveDefault = config.getValue("analysis.recursive_default", Boolean.TYPE);
         this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
+
+        this.allowedEnvSubstitutions = Arrays.stream(
+            config.getValue("app.allowed_env_substitutions", String.class).split(",")
+        ).map(String::trim).toList();
 
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
@@ -101,6 +111,7 @@ public class CdxgenClient {
                 e -> e.getKey().replace("JAVA", "").replace("_HOME", ""),
                 Map.Entry::getValue
             ));
+
     }
 
     /**
@@ -239,7 +250,7 @@ public class CdxgenClient {
         var context = new HashMap<>(cdxgenEnv);
         context.put("JAVA_HOME", jdkHome);
 
-        var gradleEnvValue = gradleEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
+        var gradleEnvValue = gradleEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {
             context.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
         }
@@ -247,7 +258,7 @@ public class CdxgenClient {
             context.put(CDXGEN_GRADLE_MULTI_PROJECT, "true");
         }
 
-        var mavenEnvValue = mavenEnv.stream().map(CdxgenClient::resolveEnvVars).collect(Collectors.joining(" "));
+        var mavenEnvValue = mavenEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
         if (!mavenEnvValue.isBlank()) {
             context.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnvValue);
         }
@@ -282,13 +293,12 @@ public class CdxgenClient {
 
     /**
      * Replaces variable templates in form ${VAR} with the actual env value
-     * // TODO: access secrets from repo secrets instead of env?
      */
-    static String resolveEnvVars(String value) {
+    String resolveEnvVars(String value) {
         var matcher = ENV_VAR_PATTERN.matcher(value);
         while (matcher.find()) {
             var envVar = matcher.group(1);
-            var envVal = System.getenv(envVar);
+            String envVal = allowedEnvSubstitutions.contains(envVar) ? System.getenv(envVar) : envVar;
             value = value.replace("${" + envVar + "}", envVal == null ? "" : envVal);
         }
         return value;

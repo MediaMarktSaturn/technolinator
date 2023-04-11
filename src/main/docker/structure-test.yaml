@@ -108,6 +108,8 @@ metadataTest:
     envVars:
         - key: SENSITIVE_ENV_VARS
           value: 'QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY'
+        - key: ALLOWED_ENV_SUBSTITUTIONS
+          value: ''
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
