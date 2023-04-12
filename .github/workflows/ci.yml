@@ -61,8 +61,8 @@ jobs:
             - name: Static code analysis
               if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
               env:
-                SONAR_TOKEN: ${{ secrets.CLP_SONARQUBE_ACCESS_TOKEN }}
-                SONAR_HOST: ${{ secrets.CLP_SONARQUBE_HOST_URL }}
+                SONAR_TOKEN: ${{ secrets.SONARQUBE_ANALYSIS_TOKEN }}
+                SONAR_HOST: ${{ secrets.SONARQUBE_HOST_URL }}
                 PROJECT_KEY: technolinator:main
               run: |
                   mvn ${{ env.mvn_parameter }} org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \

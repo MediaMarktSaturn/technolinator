@@ -1,1 +1,1 @@
-Technolinator - The SBOM handling GitHub bot
+Technolinator - The SBOM handling GitHub app

@@ -15,7 +15,7 @@ Technolinator is configured via the following parameter which can either be prov
 | CDXGEN_USE_GOSUM                  | true                                         | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)     |
 | ANALYSIS_RECURSIVE_DEFAULT        | true                                         | default value for the `analysis.recursvie` config                           |
 | APP_CLEAN_WRAPPER_SCRIPTS         | true                                         | Remove wrapper scripts like gradlew or mvnw for not downloading these tools |
-| APP_ANALYSIS_TIMEOUT              | 30M                                          | Maximal duration of an analysis before getting aborted                      |
+| APP_ANALYSIS_TIMEOUT              | 60M                                          | Maximal duration of an analysis before getting aborted                      |
 | APP_ENABLED_REPOS                 |                                              | Comma separated list of repo names that should be analyzed; all if empty    |
 | APP_PROCESS_LOGLEVEL              | INFO                                         | Log config for OS commands like 'cdxgen', set to 'DEBUG' to see its output  |
 | SENSITIVE_ENV_VARS                | see [Dockerfile](src/main/docker/Dockerfile) | Comma separated list of env var names, that must not be logged              |

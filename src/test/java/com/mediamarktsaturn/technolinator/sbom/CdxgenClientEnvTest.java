@@ -139,7 +139,7 @@ class CdxgenClientEnvTest {
         // Then
         assertThat(result)
             .doesNotContainKey("GRADLE_ARGS")
-            .containsEntry("CDXGEN_TIMEOUT_MS", Long.toString(30 * 60 * 1000))
+            .containsEntry("CDXGEN_TIMEOUT_MS", Long.toString(60 * 60 * 1000))
             .containsEntry("MVN_ARGS", "-B -ntp")
             .containsEntry("FETCH_LICENSE", "false")
             .containsEntry("USE_GOSUM", "true")
