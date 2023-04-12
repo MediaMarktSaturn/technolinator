@@ -5,7 +5,7 @@ For using Technolinator inside your organization with private artifact repositor
 This could look like:
 
 ```dockerfile
-FROM ghcr.io/mediamarktsaturn/technolinator:1.29.5
+FROM ghcr.io/mediamarktsaturn/technolinator:1.30.2
 
 # app runs as user 201 in group 101
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
