@@ -138,9 +138,10 @@ class DependencyTrackClientTest {
 
         var tags = List.of("thisIsGreat", "awesome_project", "42");
         var description = "this is just a great test project";
+        var url = "https://github.com/MediaMarktSaturn/awesome-project";
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom, tags, description));
+        var result = await(cut.uploadSBOM(name, version, sbom, tags, description, url));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -169,6 +170,12 @@ class DependencyTrackClientTest {
                 JsonObject.of("name", "thisIsGreat"),
                 JsonObject.of("name", "awesome_project"),
                 JsonObject.of("name", "42")
+            );
+            assertThat(json.getJsonArray("externalReferences")).containsExactly(
+                JsonObject.of(
+                    "type", "vcs",
+                    "url", url
+                )
             );
         });
 
@@ -204,7 +211,7 @@ class DependencyTrackClientTest {
         var version = "3.2.1";
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom, List.of(), null));
+        var result = await(cut.uploadSBOM(name, version, sbom, List.of(), null, ""));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);

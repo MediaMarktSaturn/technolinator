@@ -94,8 +94,13 @@ public class PushHandler {
             buildProjectVersionFromEvent(event),
             sbom,
             getProjectTags(event),
-            getProjectDescription(event)
+            getProjectDescription(event),
+            getRepositoryUrl(event)
         );
+    }
+
+    static String getRepositoryUrl(PushEvent event) {
+        return event.pushPayload().getRepository().getHtmlUrl().toString();
     }
 
     static List<String> getProjectTags(PushEvent event) {

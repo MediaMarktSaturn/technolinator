@@ -46,7 +46,7 @@ public class DependencyTrackClient {
     /**
      * Uploads the given  [sbom] to Dependency-Track, deactivating other versions of the same project if any
      */
-    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom, List<String> projectTags, String projectDescription) {
+    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom, List<String> projectTags, String projectDescription, String repoUrl) {
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
@@ -72,7 +72,7 @@ public class DependencyTrackClient {
             .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
-                    return tagAndDescribeProject(p.projectId(), projectTags, projectDescription);
+                    return tagAndDescribeProject(p.projectId(), projectTags, projectDescription, repoUrl);
                 } else {
                     return Uni.createFrom().voidItem();
                 }
@@ -136,17 +136,22 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    Uni<Void> tagAndDescribeProject(String projectUUID, List<String> tags, String description) {
+    Uni<Void> tagAndDescribeProject(String projectUUID, List<String> tags, String description, String repoUrl) {
         var tagsArray = new JsonArray(tags.stream()
             .filter(t -> t != null && !t.isBlank())
             .map(tag -> JsonObject.of("name", tag)
             ).toList());
         var descValue = description == null || description.isBlank() ? "" : description;
+        var extRefs = JsonArray.of(JsonObject.of(
+            "type", "vcs",
+            "url", repoUrl
+        ));
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(JsonObject.of(
                 "tags", tagsArray,
-                "description", descValue
+                "description", descValue,
+                "externalReferences", extRefs
             )).onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.warnf(e, "Failed to tag and describe project %s", projectUUID))
             .onFailure().recoverWithNull()
