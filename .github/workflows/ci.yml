@@ -16,7 +16,6 @@ jobs:
     ci:
         name: Application Build
         runs-on: ubuntu-latest
-        if: github.actor != 'dependabot[bot]'
         steps:
             - name: Checkout Code
               uses: actions/checkout@v3
@@ -85,7 +84,7 @@ jobs:
                     CDXGEN_VERSION=${{ env.CDXGEN_VERSION }}
                     CDXGEN_PLUGINS_VERSION=${{ env.CDXGEN_PLUGINS_VERSION }}
 
-            - name: Docker structure test
+            - name: Container structure test
               run: |
                   sudo curl -Lso /usr/local/bin/container-structure-test https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
                   sudo chmod a+x /usr/local/bin/container-structure-test

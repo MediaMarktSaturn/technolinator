@@ -5,14 +5,14 @@ package com.mediamarktsaturn.technolinator.sbom;
  */
 public sealed interface Project {
 
-    record Available(String url) implements Project {
+    record Available(String url, String projectId) implements Project {
     }
 
     record None() implements Project {
     }
 
-    static Project available(String url) {
-        return new Available(url);
+    static Project available(String url, String projectId) {
+        return new Available(url, projectId);
     }
 
     static Project none() {

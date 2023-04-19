@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.sbom;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import org.cyclonedx.generators.json.BomJsonGenerator14;
@@ -12,6 +13,7 @@ import com.mediamarktsaturn.technolinator.Result;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
@@ -44,7 +46,7 @@ public class DependencyTrackClient {
     /**
      * Uploads the given  [sbom] to Dependency-Track, deactivating other versions of the same project if any
      */
-    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom) {
+    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom, List<String> projectTags, String projectDescription) {
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
@@ -66,8 +68,15 @@ public class DependencyTrackClient {
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s", projectName, projectVersion))
             .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
-            .chain(() -> deactivatePreviousVersion(projectName, projectVersion))
+            .call(() -> deactivatePreviousVersion(projectName, projectVersion))
             .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
+            .call(r -> {
+                if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
+                    return tagAndDescribeProject(p.projectId(), projectTags, projectDescription);
+                } else {
+                    return Uni.createFrom().voidItem();
+                }
+            })
             .onFailure().recoverWithItem(Result.Failure::new);
     }
 
@@ -83,7 +92,7 @@ public class DependencyTrackClient {
             .chain(response -> {
                 if (response.statusCode() == 200) {
                     var projectUUID = response.bodyAsJsonObject().getString("uuid");
-                    return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID))));
+                    return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID), projectUUID)));
                 } else {
                     Log.errorf("Failed to deactivate previous versions of project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());
                     return Uni.createFrom().failure(new Exception("Status " + response.statusCode()));
@@ -123,6 +132,23 @@ public class DependencyTrackClient {
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.warnf(e, "Failed to disabled project %s", projectUUID))
             .onItem().invoke(() -> Log.infof("Disabled project %s", projectUUID))
+            .onFailure().recoverWithNull()
+            .replaceWithVoid();
+    }
+
+    Uni<Void> tagAndDescribeProject(String projectUUID, List<String> tags, String description) {
+        var tagsArray = new JsonArray(tags.stream()
+            .filter(t -> t != null && !t.isBlank())
+            .map(tag -> JsonObject.of("name", tag)
+            ).toList());
+        var descValue = description == null || description.isBlank() ? "" : description;
+        return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
+            .putHeader(API_KEY, dtrackApikey)
+            .sendJsonObject(JsonObject.of(
+                "tags", tagsArray,
+                "description", descValue
+            )).onFailure().retry().atMost(3)
+            .onFailure().invoke(e -> Log.warnf(e, "Failed to tag and describe project %s", projectUUID))
             .onFailure().recoverWithNull()
             .replaceWithVoid();
     }
