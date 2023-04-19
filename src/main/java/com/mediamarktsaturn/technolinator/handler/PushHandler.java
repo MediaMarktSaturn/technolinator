@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.technolinator.handler;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -67,12 +68,12 @@ public class PushHandler {
                 // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
                 case CdxgenClient.SBOMGenerationResult.Proper p -> {
                     logValidationIssues(event, p.validationIssues());
-                    yield doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), p.sbom());
+                    yield doUploadSbom(event, p.sbom());
                 }
                 case CdxgenClient.SBOMGenerationResult.Fallback f -> {
                     Log.infof("Got fallback result for repo %s, ref %s", event.repoUrl(), event.pushRef());
                     logValidationIssues(event, f.validationIssues());
-                    yield doUploadSbom(buildProjectNameFromEvent(event), buildProjectVersionFromEvent(event), f.sbom());
+                    yield doUploadSbom(event, f.sbom());
                 }
                 case CdxgenClient.SBOMGenerationResult.None n -> {
                     Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), event.pushRef());
@@ -87,8 +88,27 @@ public class PushHandler {
         };
     }
 
-    Uni<Result<Project>> doUploadSbom(String projectName, String projectVersion, Bom sbom) {
-        return dtrackClient.uploadSBOM(projectName, projectVersion, sbom);
+    Uni<Result<Project>> doUploadSbom(PushEvent event, Bom sbom) {
+        return dtrackClient.uploadSBOM(
+            buildProjectNameFromEvent(event),
+            buildProjectVersionFromEvent(event),
+            sbom,
+            getProjectTags(event),
+            getProjectDescription(event)
+        );
+    }
+
+    static List<String> getProjectTags(PushEvent event) {
+        try {
+            return event.pushPayload().getRepository().listTopics();
+        } catch (IOException e) {
+            Log.warnf(e, "Could not fetch topics of repo %s", event.repoUrl());
+            return List.of();
+        }
+    }
+
+    static String getProjectDescription(PushEvent event) {
+        return event.pushPayload().getRepository().getDescription();
     }
 
     static void logValidationIssues(PushEvent event, List<ParseException> validationIssues) {

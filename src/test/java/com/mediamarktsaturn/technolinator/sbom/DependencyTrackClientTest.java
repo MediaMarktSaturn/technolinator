@@ -9,8 +9,7 @@ import static org.mockserver.model.HttpResponse.response;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
-
-import jakarta.inject.Inject;
+import java.util.List;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
@@ -28,6 +27,7 @@ import com.mediamarktsaturn.technolinator.Result;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
+import jakarta.inject.Inject;
 
 @QuarkusTest
 @QuarkusTestResource(value = MockServerResource.class, restrictToAnnotatedClass = true)
@@ -123,7 +123,7 @@ class DependencyTrackClientTest {
                     {
                         "name": "test-project",
                         "version": "1.2.3",
-                        "uuid": "uuid-1"
+                        "uuid": "uuid-3"
                     }
                     """)
         );
@@ -136,19 +136,41 @@ class DependencyTrackClientTest {
         metadata.setComponent(component);
         sbom.setMetadata(metadata);
 
+        var tags = List.of("thisIsGreat", "awesome_project", "42");
+        var description = "this is just a great test project";
+
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom));
+        var result = await(cut.uploadSBOM(name, version, sbom, tags, description));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
-            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, s -> assertThat(s.url()).endsWith("/projects/uuid-1"));
+            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, s -> assertThat(s.url()).endsWith("/projects/uuid-3"));
         });
 
         var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
-        var disabledProjects = dtrackMock.retrieveRecordedRequests(patchProject);
-        assertThat(disabledProjects).hasSize(2);
-        assertThat(disabledProjects[0].getPath()).hasToString("/api/v1/project/uuid-1");
-        assertThat(disabledProjects[1].getPath()).hasToString("/api/v1/project/uuid-2");
+        var patchedProjects = dtrackMock.retrieveRecordedRequests(patchProject);
+        assertThat(patchedProjects).hasSize(3);
+        assertThat(patchedProjects[0]).satisfies(disabled -> {
+            assertThat(disabled.getPath()).hasToString("/api/v1/project/uuid-1");
+            var json = new JsonObject(disabled.getBodyAsString());
+            assertThat(json.getBoolean("active")).isFalse();
+        });
+        assertThat(patchedProjects[1]).satisfies(disabled -> {
+            assertThat(disabled.getPath()).hasToString("/api/v1/project/uuid-2");
+            var json = new JsonObject(disabled.getBodyAsString());
+            assertThat(json.getBoolean("active")).isFalse();
+        });
+        assertThat(patchedProjects[2]).satisfies(described -> {
+            assertThat(described.getPath()).hasToString("/api/v1/project/uuid-3");
+            var json = new JsonObject(described.getBodyAsString());
+            assertThat(json.getBoolean("active")).isNull();
+            assertThat(json.getString("description")).hasToString(description);
+            assertThat(json.getJsonArray("tags")).containsExactlyInAnyOrder(
+                JsonObject.of("name", "thisIsGreat"),
+                JsonObject.of("name", "awesome_project"),
+                JsonObject.of("name", "42")
+            );
+        });
 
         var uploadedJson = new JsonObject(uploadedValue);
         var uploadedName = uploadedJson.getString("projectName");
@@ -182,7 +204,7 @@ class DependencyTrackClientTest {
         var version = "3.2.1";
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom));
+        var result = await(cut.uploadSBOM(name, version, sbom, List.of(), null));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);

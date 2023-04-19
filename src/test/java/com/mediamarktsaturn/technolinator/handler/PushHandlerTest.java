@@ -50,8 +50,8 @@ class PushHandlerTest {
         var projectName = "examiner";
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
 
-        when(dtrackClient.uploadSBOM(eq(projectName), eq(branch), any()))
-            .thenReturn(Uni.createFrom().item(Result.success(Project.available("yehaaa"))));
+        when(dtrackClient.uploadSBOM(eq(projectName), eq(branch), any(), any(), any()))
+            .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
         when(pushPayload.getRepository()).thenReturn(ghRepo);
@@ -70,6 +70,6 @@ class PushHandlerTest {
         // Then
         verify(repoService).createCheckoutCommand(any());
         verify(cdxgenClient).createCommand(any(), eq(projectName), eq(Optional.empty()));
-        verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any());
+        verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any(), any(), any());
     }
 }
