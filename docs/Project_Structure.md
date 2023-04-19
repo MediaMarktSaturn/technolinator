@@ -22,7 +22,8 @@ sequenceDiagram
         PushHandler ->>+ DependencyTrackClient: Upload SBOM
         DependencyTrackClient -->>- PushHandler: Project
 
-        DependencyTrackClient -->> Dependency-Track: Upsert Project
+        DependencyTrackClient -->> Dependency-Track: Upsert SBOM
+        DependencyTrackClient -->> Dependency-Track: Patch Project
 
         PushHandler -->>- OnPushDispatcher: Project
 
