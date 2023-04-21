@@ -78,7 +78,7 @@ commandTests:
       command: '$JAVA17_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk 17.0.6.*'
+          - '.*openjdk 17.0.7.*'
 
     - name: "Java 20 available"
       command: '$JAVA20_HOME/bin/java'
@@ -115,7 +115,7 @@ metadataTest:
         - key: JAVA_HOME
           value: '/app/sdks/java/20-tem'
         - key: JAVA17_HOME
-          value: '/app/sdks/java/17.0.6-tem'
+          value: '/app/sdks/java/17.0.7-tem'
         - key: JAVA20_HOME
           value: '/app/sdks/java/20-tem'
         - key: MAVEN_HOME

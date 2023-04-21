@@ -48,7 +48,7 @@ ENV SDK_DIR="/app/sdks"
 # install sdks
 COPY --chown=root:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
 RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
-    sdk install java 17.0.6-tem && \
+    sdk install java 17.0.7-tem && \
     sdk install java 20-tem && \
     sdk install maven && \
     sdk install gradle 7.6 && \
@@ -59,7 +59,7 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     rm -rf /root/.sdkman
 
 # app & cdxgen env
-ENV JAVA17_HOME="$SDK_DIR/java/17.0.6-tem" \
+ENV JAVA17_HOME="$SDK_DIR/java/17.0.7-tem" \
     JAVA20_HOME="$SDK_DIR/java/20-tem" \
     JAVA_HOME="$SDK_DIR/java/20-tem" \
     MAVEN_HOME="$SDK_DIR/maven/current" \
