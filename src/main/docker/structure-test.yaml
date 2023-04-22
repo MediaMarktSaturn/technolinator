@@ -39,7 +39,7 @@ fileExistenceTests:
     - name: 'Grype template exists with right permissions'
       path: /app/grype.tmpl
       shouldExist: true
-      permissions: '-rw-r--r--'
+      permissions: '-r-xr-xr-x'
       uid: 0
       gid: 0
 

@@ -73,9 +73,9 @@ public class GrypeClient {
         try {
             if (Files.isReadable(reportFile)) {
                 String report = Files.readString(reportFile);
-                return Result.success(new VulnerabilityReport.Report(report));
+                return Result.success(VulnerabilityReport.report(report));
             } else {
-                return Result.success(new VulnerabilityReport.None());
+                return Result.success(VulnerabilityReport.none());
             }
         } catch (IOException e) {
             Log.errorf(e, "Failed to read vulnerability report from %s", reportFile);
@@ -84,11 +84,19 @@ public class GrypeClient {
     }
 
 
-    sealed interface VulnerabilityReport {
+    public sealed interface VulnerabilityReport {
         record Report(String text) implements VulnerabilityReport {
         }
 
         record None() implements VulnerabilityReport {
+        }
+
+        static VulnerabilityReport report(String text) {
+            return new Report(text);
+        }
+
+        static VulnerabilityReport none() {
+            return new None();
         }
     }
 

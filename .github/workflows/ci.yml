@@ -8,7 +8,7 @@ on:
 env:
     CDXGEN_VERSION: '8.2.4'
     CDXGEN_PLUGINS_VERSION: '1.0.9'
-    GRYPE_VERSION: '0.61.1'
+    GRYPE_VERSION: 'v0.61.1'
     semantic_version: '19.0.5'
     java_version: '20'
     mvn_parameter: '-B -ntp'
@@ -43,9 +43,10 @@ jobs:
                   npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
 
                   # grype
-                  curl -Ls https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz -o grype.tar.gz
-                  tar xf grype.tar.gz
-                  echo PATH="$PATH:$(pwd)/grype" >> $GITHUB_ENV
+                  curl -Ls https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz -o grype.tar.gz
+                  mkdir _bin
+                  tar xf grype.tar.gz -C _bin
+                  echo $(pwd)/_bin >> $GITHUB_PATH
 
             - name: Application Build and Test
               env:
@@ -90,6 +91,7 @@ jobs:
                   build-args: |
                     CDXGEN_VERSION=${{ env.CDXGEN_VERSION }}
                     CDXGEN_PLUGINS_VERSION=${{ env.CDXGEN_PLUGINS_VERSION }}
+                    GRYPE_VERSION=${{ env.GRYPE_VERSION }}
 
             - name: Container structure test
               run: |

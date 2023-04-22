@@ -48,6 +48,17 @@
             ],
             "depNameTemplate": "@cyclonedx/cdxgen-plugins-bin",
             "datasourceTemplate": "npm"
+        },
+        {
+            "description": "Update grype version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$"
+            ],
+            "matchStrings": [
+                "GRYPE_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "anchore/grype",
+            "datasourceTemplate": "github-releases"
         }
     ]
 }

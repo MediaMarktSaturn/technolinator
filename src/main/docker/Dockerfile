@@ -43,7 +43,7 @@ RUN \
 
 # install grype
 RUN \
-    curl -Ls https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz -o grype.tar.gz && \
+    curl -Ls https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz -o grype.tar.gz && \
     tar xf grype.tar.gz && \
     mv grype /usr/bin/grype && \
     rm -f grype.tar.gz
