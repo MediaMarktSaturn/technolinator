@@ -1,0 +1,199 @@
+{
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.4",
+    "serialNumber": "urn:uuid:96d15277-fd9f-43a3-80a8-bd070721d6ef",
+    "version": 1,
+    "metadata": {
+        "timestamp": "2023-04-22T13:43:07.054Z",
+        "tools": [
+            {
+                "vendor": "cyclonedx",
+                "name": "cdxgen",
+                "version": "8.2.3"
+            }
+        ],
+        "authors": [
+            {
+                "name": "Prabhu Subramanian",
+                "email": "prabhu@appthreat.com"
+            }
+        ]
+    },
+    "components": [
+        {
+            "publisher": "",
+            "group": "github.com/go-sql-driver",
+            "name": "mysql",
+            "version": "v1.7.0",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "3976d5cb7b0475c4360e87aabba679056e9f5cd4139b1fbd4b530224de7224c2"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Fgo-sql-driver/mysql@v1.7.0",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Fgo-sql-driver/mysql@v1.7.0"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/influxdata/influxdb-client-go",
+            "name": "v2",
+            "version": "v2.12.2",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "62d795f7516243145d71cc89d9c1ef8f67ffe6cab8cb8363aaed5f433b1008e5"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Finfluxdata%2Finfluxdb-client-go/v2@v2.12.2",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Finfluxdata%2Finfluxdb-client-go/v2@v2.12.2"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/influxdata",
+            "name": "line-protocol",
+            "version": "v0.0.0-20200327222509-2487e7298839",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "c5a2c5326a6f531a97b5591425f83d4264fcf1c0da089dd92a0759efca0ef10a"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Finfluxdata/line-protocol@v0.0.0-20200327222509-2487e7298839",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Finfluxdata/line-protocol@v0.0.0-20200327222509-2487e7298839"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/apapsch/go-jsonmerge",
+            "name": "v2",
+            "version": "v2.0.0",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "96f0e711daa242ba743b8d9540682694aa712f500fdbed3c8c5330f3ccb89259"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Fapapsch%2Fgo-jsonmerge/v2@v2.0.0",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Fapapsch%2Fgo-jsonmerge/v2@v2.0.0"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/google",
+            "name": "uuid",
+            "version": "v1.3.0",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "4c8c8f65ee0c82abdf7980c115e74ca061a9130fcba8e79a393fa787153ec87a"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Fgoogle/uuid@v1.3.0",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Fgoogle/uuid@v1.3.0"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/deepmap",
+            "name": "oapi-codegen",
+            "version": "v1.12.4",
+            "description": "",
+            "scope": "optional",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "de580718cbba9b2436bea6db4d71f61f5a387971531a71620da39a28a979c9ab"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Fdeepmap/oapi-codegen@v1.12.4",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Fdeepmap/oapi-codegen@v1.12.4"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/pkg",
+            "name": "errors",
+            "version": "v0.9.1",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "6f06b0c5f1c114d57e2f6854a75ac7003b9f57720cb670d175fd6be4d20d125d"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Fpkg/errors@v0.9.1",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Fpkg/errors@v0.9.1"
+        },
+        {
+            "publisher": "",
+            "group": "golang.org/x",
+            "name": "net",
+            "version": "v0.5.0",
+            "description": "",
+            "scope": "optional",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "0e2bc61805c480f4a5101cf11b3648f992e8862fb1523d39e237de2ae8b4d30b"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/golang.org%2Fx/net@v0.5.0",
+            "type": "library",
+            "bom-ref": "pkg:golang/golang.org%2Fx/net@v0.5.0"
+        },
+        {
+            "publisher": "",
+            "group": "github.com/nsqio",
+            "name": "go-diskqueue",
+            "version": "v1.1.1-0.20211017194114-cc41549f81d5",
+            "description": "",
+            "scope": "required",
+            "hashes": [
+                {
+                    "alg": "SHA-256",
+                    "content": "20db892319786b252cca836d1cbe7ef4c14f0df499d3363dde1358eaf84146c2"
+                }
+            ],
+            "licenses": [],
+            "purl": "pkg:golang/github.com%2Fnsqio/go-diskqueue@v1.1.1-0.20211017194114-cc41549f81d5",
+            "type": "library",
+            "bom-ref": "pkg:golang/github.com%2Fnsqio/go-diskqueue@v1.1.1-0.20211017194114-cc41549f81d5"
+        }
+    ],
+    "dependencies": [],
+    "externalReferences": [
+        {
+            "type": "other",
+            "url": ".",
+            "comment": "Base path"
+        },
+        {
+            "type": "other",
+            "url": "/home/heubeck/w/heubeck/samler/go.mod",
+            "comment": "Package file"
+        }
+    ]
+}

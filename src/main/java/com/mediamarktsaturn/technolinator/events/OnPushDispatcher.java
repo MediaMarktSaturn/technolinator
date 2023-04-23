@@ -1,14 +1,9 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import java.net.URL;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.function.DoubleSupplier;
-import java.util.function.Predicate;
 
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
@@ -20,14 +15,12 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.PushHandler;
 import com.mediamarktsaturn.technolinator.sbom.Project;
-import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Push;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -35,29 +28,20 @@ import jakarta.inject.Inject;
  * Handles GitHub push notifications
  */
 @ApplicationScoped
-public class OnPushDispatcher {
+public class OnPushDispatcher extends DispatcherBase {
 
     // constructor injection not possible here, because GH app extension requires a no-arg constructor
     @Inject
     PushHandler pushHandler;
-
-    @Inject
-    MeterRegistry meterRegistry;
-
-    @ConfigProperty(name = "app.analysis_timeout")
-    Duration analysisTimeout;
-
-    @ConfigProperty(name = "app.enabled_repos")
-    List<String> enabledRepos;
 
     /**
      * Called by the quarkus-github-ap extension on any push event of repositories having the app installed.
      * Repo-specific configuration is shipped optionally if available at `.github/technolinator.yml`
      */
     @SuppressWarnings("unused")
-        // called by the quarkus-github-app extension
-    void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile("technolinator.yml") Optional<TechnolinatorConfig> config) {
-        var traceId = UUID.randomUUID().toString().substring(0, 8);
+    // called by the quarkus-github-app extension
+    void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
+        var traceId = createTraceId();
         var pushRef = pushPayload.getRef();
         var repo = pushPayload.getRepository();
         var repoUrl = repo.getUrl();
@@ -174,33 +158,6 @@ public class OnPushDispatcher {
         }).orElseGet(() -> Uni.createFrom().item(null));
     }
 
-    Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description, Command.Metadata metadata) {
-        return Uni.createFrom().item(Unchecked.supplier(() -> {
-                metadata.writeToMDC();
-                Log.infof("Setting repo %s commit %s status to %s", repo.getUrl(), commitSha, state);
-                return repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security");
-            }))
-            .onFailure().invoke(failure -> {
-                metadata.writeToMDC();
-                Log.warnf(failure, "Could not set commit %s status of %s", commitSha, repo.getName());
-            });
-    }
-
-    private List<String> normalizedEnabledRepos;
-
-    boolean isEnabledByConfig(String repoName) {
-        if (normalizedEnabledRepos == null) {
-            normalizedEnabledRepos = enabledRepos.stream().map(String::trim).filter(Predicate.not(String::isEmpty)).toList();
-        }
-
-        return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(repoName);
-    }
-
-    String getRepoName(URL repoUrl) {
-        var path = repoUrl.getPath();
-        return path.substring(path.lastIndexOf('/') + 1);
-    }
-
     static Optional<String> getEventCommit(GHEventPayload.Push pushPayload) {
         final String commitSha;
         if (pushPayload.getHead() != null) {
@@ -219,19 +176,6 @@ public class OnPushDispatcher {
 
     static boolean isBranchEligibleForAnalysis(GHEventPayload.Push pushPayload) {
         return pushPayload.getRef().equals("refs/heads/" + pushPayload.getRepository().getDefaultBranch());
-    }
-
-    enum MetricStatusRepo {
-        DISABLED_BY_CONFIG,
-        DISABLED_BY_REPO,
-        NON_DEFAULT_BRANCH,
-        ELIGIBLE_FOR_ANALYSIS
-    }
-
-    enum MetricStatusAnalysis {
-        NONE,
-        ERROR,
-        OK
     }
 
     record PushResult(

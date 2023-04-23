@@ -36,6 +36,13 @@ fileExistenceTests:
       uid: 0
       gid: 0
 
+    - name: 'Grype template exists with right permissions'
+      path: /app/grype.tmpl
+      shouldExist: true
+      permissions: '-r-xr-xr-x'
+      uid: 0
+      gid: 0
+
 commandTests:
     - name: 'Timezone is UTC'
       command: 'date'
@@ -47,6 +54,11 @@ commandTests:
       args: ['-h']
       expectedOutput:
           - '.*SBoM.*'
+    - name: "Grype installed"
+      command: 'grype'
+      args: ['-h']
+      expectedOutput:
+          - '.*A vulnerability scanner for container images, filesystems, and SBOMs.*'
     - name: "Java installed"
       command: 'java'
       args: ["-version"]
@@ -128,6 +140,8 @@ metadataTest:
           value: 'gradle'
         - key: APP_DATA
           value: '/data'
+        - key: GRYPE_TEMPLATE
+          value: '/app/grype.tmpl'
     cmd: ['/app/run-java.sh']
     entrypoint: []
     workdir: '/data'

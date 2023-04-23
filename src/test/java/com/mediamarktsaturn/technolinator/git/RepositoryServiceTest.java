@@ -12,13 +12,11 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
-import com.mediamarktsaturn.technolinator.events.PushEvent;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 
@@ -31,18 +29,11 @@ class RepositoryServiceTest {
     @Test
     void testCommandCreation() {
         // Given
-        var pushEvent = mock(GHEventPayload.Push.class);
         var ghRepo = mock(GHRepository.class);
         when(ghRepo.getName()).thenReturn("examiner");
-        when(pushEvent.getRepository()).thenReturn(ghRepo);
-        when(pushEvent.getRef()).thenReturn("refs/heads/main");
-        var event = new PushEvent(
-            pushEvent,
-            Optional.empty()
-        );
 
         // When
-        var cmd = cut.createCheckoutCommand(event);
+        var cmd = cut.createCheckoutCommand(ghRepo, "refs/heads/main");
 
         // Then
         assertThat(cmd.repositoryName()).hasToString("examiner");

@@ -1,0 +1,11 @@
+{{- if .Matches -}}
+⚠ **Vulnerability Report**
+
+| Name | Vulnerability | Severity | Installed | Fixed in |
+|------|---------------|----------|-----------|----------|
+{{- range .Matches }}
+| {{.Artifact.Name}} | {{.Vulnerability.ID}} | {{.Vulnerability.Severity}} | {{.Artifact.Version}} | {{.Vulnerability.Fix.Versions}} |
+{{- end }}
+{{- else -}}
+🏆 _No vulnerabilities found_
+{{- end -}}

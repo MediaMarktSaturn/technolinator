@@ -20,6 +20,7 @@ Technolinator is configured via the following parameter which can either be prov
 | APP_PROCESS_LOGLEVEL              | INFO                                         | Log config for OS commands like 'cdxgen', set to 'DEBUG' to see its output  |
 | SENSITIVE_ENV_VARS                | see [Dockerfile](src/main/docker/Dockerfile) | Comma separated list of env var names, that must not be logged              |
 | ALLOWED_ENV_SUBSTITUTIONS         | see [Dockerfile](src/main/docker/Dockerfile) | Comma separated list of env var names, that can be used in repo config      |
+| GRYPE_TEMPLATE                    | see [Dockerfile](src/main/docker/Dockerfile) | Template to be used by grype for vulnerability reports in pull-requests     |
 
 ## Observability
 

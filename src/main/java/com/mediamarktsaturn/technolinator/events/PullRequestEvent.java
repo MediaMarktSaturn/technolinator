@@ -9,29 +9,27 @@ import org.kohsuke.github.GHRepository;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 
 /**
- * Data type used to transport push event notifications along the process
+ * Data type used to transport pull-request event notifications along the process
  */
-public record PushEvent(
-    GHEventPayload.Push payload,
+public record PullRequestEvent(
+    GHEventPayload.PullRequest payload,
     Optional<TechnolinatorConfig> config
-) implements Event<GHEventPayload.Push> {
+) implements Event<GHEventPayload.PullRequest> {
 
     @Override
     public String branch() {
-        return ref().replaceFirst("refs/heads/", "");
-    }
-
-    @Override
-    public URL repoUrl() {
-        return payload.getRepository().getUrl();
+        return payload.getPullRequest().getHead().getRef();
     }
 
     @Override
     public String ref() {
-        return payload.getRef();
+        return "refs/heads/" + branch();
     }
 
-    @Override
+    public URL repoUrl() {
+        return payload.getRepository().getHtmlUrl();
+    }
+
     public String defaultBranch() {
         return payload.getRepository().getDefaultBranch();
     }

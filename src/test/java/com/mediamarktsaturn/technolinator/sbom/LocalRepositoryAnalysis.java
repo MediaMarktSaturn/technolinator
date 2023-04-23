@@ -1,15 +1,11 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Optional;
-
-import com.mediamarktsaturn.technolinator.Result;
-import jakarta.inject.Inject;
 
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Disabled;
@@ -18,9 +14,11 @@ import org.junit.jupiter.api.Test;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import io.quarkus.logging.Log;
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 
 // to be used for manual, local testing only
 @Disabled
@@ -36,14 +34,14 @@ class LocalRepositoryAnalysis {
 
     @Language("yml")
     String configString = """
----
-gradle:
-  args:
-    - -PmavenUser=${ARTIFACTORY_USER}
-    - -PmavenPassword=${ARTIFACTORY_PASSWORD}
-jdk:
-  version: 17
-        """;
+        ---
+        gradle:
+          args:
+            - -PmavenUser=${ARTIFACTORY_USER}
+            - -PmavenPassword=${ARTIFACTORY_PASSWORD}
+        jdk:
+          version: 17
+                """;
 
     @Test
     void runLocalAnalysis() throws Exception {

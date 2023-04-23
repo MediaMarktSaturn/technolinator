@@ -5,7 +5,7 @@
 
 The MediaMarktSaturn GitHub app for SBOM creation and upload to Dependency-Track.
 
-It wraps around [cdxgen](https://github.com/CycloneDX/cdxgen) which covers many programming languages and build systems.
+It wraps around [cdxgen](https://github.com/CycloneDX/cdxgen) which covers many programming languages and build systems for SBOM creation and [grype](https://github.com/anchore/grype) for creation of vulnerability reports in pull-requests.
 It's build using [Quarkus](https://quarkus.io/) and handles GitHub webhooks by the [Quarkus GitHub App](https://quarkiverse.github.io/quarkiverse-docs/quarkus-github-app/dev/index.html).
 
 ## Overview
