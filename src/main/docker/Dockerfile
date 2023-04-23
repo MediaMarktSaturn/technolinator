@@ -3,6 +3,7 @@ LABEL maintainer="MediaMarktSaturn Technology"
 
 ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
+ARG GRYPE_VERSION
 
 ARG APPLICATION_USER='app'
 ARG APPLICATION_GROUP='apps'
@@ -16,6 +17,7 @@ RUN mkdir -p $APP_DATA/.m2 && \
 
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/git_askpass.sh /app/git_askpass.sh
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/run-java.sh /app/run-java.sh
+COPY --chown=root:root --chmod=a-w src/main/docker/assets/grype.tmpl /app/grype.tmpl
 
 WORKDIR $APP_DATA
 RUN chown $APPLICATION_USER:$APPLICATION_GROUP -R $APP_DATA \
@@ -38,6 +40,13 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 RUN \
     npm install -g @cyclonedx/cdxgen@"$CDXGEN_VERSION" && \
     npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
+
+# install grype
+RUN \
+    curl -Ls https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz -o grype.tar.gz && \
+    tar xf grype.tar.gz && \
+    mv grype /usr/bin/grype && \
+    rm -f grype.tar.gz
 
 # install sdkman
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/curlrc /root/.curlrc
@@ -67,6 +76,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/17.0.7-tem" \
     MVN_CMD=mvn \
     GRADLE_CMD=gradle \
     GITHUB_USER="nobody" \
+    GRYPE_TEMPLATE="/app/grype.tmpl" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \
     ALLOWED_ENV_SUBSTITUTIONS=""
 

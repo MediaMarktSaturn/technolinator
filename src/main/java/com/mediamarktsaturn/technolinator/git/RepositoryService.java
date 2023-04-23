@@ -13,7 +13,6 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.Result.Failure;
 import com.mediamarktsaturn.technolinator.Result.Success;
-import com.mediamarktsaturn.technolinator.events.PushEvent;
 import com.mediamarktsaturn.technolinator.os.Util;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -42,8 +41,8 @@ public class RepositoryService {
         }
     }
 
-    public CheckoutCommand createCheckoutCommand(PushEvent event) {
-        return new CheckoutCommand(event.pushPayload().getRepository(), event.pushRef());
+    public CheckoutCommand createCheckoutCommand(GHRepository repository, String ref) {
+        return new CheckoutCommand(repository, ref);
     }
 
     /**

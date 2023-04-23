@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.technolinator.events;
 
+import static com.mediamarktsaturn.technolinator.TestUtil.url;
+import static com.mediamarktsaturn.technolinator.events.DispatcherBase.CONFIG_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
@@ -7,7 +9,6 @@ import static org.mockito.ArgumentMatchers.argThat;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.URL;
 import java.util.List;
 import java.util.Optional;
 
@@ -30,11 +31,11 @@ import io.quarkus.test.junit.mockito.InjectMock;
 class OnPushDispatcherTest {
 
     @InjectMock
-    PushHandler pushHandler;
+    PushHandler handler;
 
     @BeforeEach
     void setup() {
-        Mockito.reset(pushHandler);
+        Mockito.reset(handler);
     }
 
     @Test
@@ -45,7 +46,7 @@ class OnPushDispatcherTest {
             .event(GHEvent.PUSH);
 
         // Then
-        await().untilAsserted(() -> Mockito.verify(pushHandler)
+        await().untilAsserted(() -> Mockito.verify(handler)
             .onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", null)), any()));
     }
 
@@ -57,14 +58,14 @@ class OnPushDispatcherTest {
         // When
         GitHubAppTesting.given()
             .github(mocks -> {
-                mocks.configFile("technolinator.yml").fromClasspath("/configs/project_name_override.yml");
+                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/project_name_override.yml");
             })
             .when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
             .event(GHEvent.PUSH);
 
         // Then
-        await().untilAsserted(() -> Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config)), any()));
+        await().untilAsserted(() -> Mockito.verify(handler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config)), any()));
     }
 
     @Test
@@ -72,14 +73,14 @@ class OnPushDispatcherTest {
         // When
         GitHubAppTesting.given()
             .github(mocks -> {
-                mocks.configFile("technolinator.yml").fromClasspath("/configs/disabled.yml");
+                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/disabled.yml");
             })
             .when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
             .event(GHEvent.PUSH);
 
         // Then
-        await().untilAsserted(() -> Mockito.verifyNoInteractions(pushHandler));
+        await().untilAsserted(() -> Mockito.verifyNoInteractions(handler));
     }
 
     @Test
@@ -94,14 +95,14 @@ class OnPushDispatcherTest {
         // When
         GitHubAppTesting.given()
             .github(mocks -> {
-                mocks.configFile("technolinator.yml").fromClasspath("/configs/full_blown.yml");
+                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/full_blown.yml");
             })
             .when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
             .event(GHEvent.PUSH);
 
         // Then
-        await().untilAsserted(() -> Mockito.verify(pushHandler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config)), any()));
+        await().untilAsserted(() -> Mockito.verify(handler).onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", config)), any()));
     }
 
     @Test
@@ -109,7 +110,7 @@ class OnPushDispatcherTest {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of();
-        var repo = cur.getRepoName(new URL("https://github.com/MediaMarktSaturn/technolinator"));
+        var repo = cur.getRepoName(url("https://github.com/MediaMarktSaturn/technolinator"));
 
         // When && Then
         assertThat(cur.isEnabledByConfig(repo)).isTrue();
@@ -120,8 +121,8 @@ class OnPushDispatcherTest {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of(" technolinator ", "", " analyzeMe");
-        var enabledRepo = cur.getRepoName(new URL("https://github.com/MediaMarktSaturn/technolinator"));
-        var disabledRepo = cur.getRepoName(new URL("https://github.com/MediaMarktSaturn/fluggegecheimen"));
+        var enabledRepo = cur.getRepoName(url("https://github.com/MediaMarktSaturn/technolinator"));
+        var disabledRepo = cur.getRepoName(url("https://github.com/MediaMarktSaturn/fluggegecheimen"));
 
         // When && Then
         assertThat(cur.isEnabledByConfig(enabledRepo)).isTrue();
@@ -131,16 +132,8 @@ class OnPushDispatcherTest {
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {
         return got ->
             got.repoUrl().sameFile(url(repoUrl))
-                && got.pushRef().equals(pushRef)
+                && got.ref().equals(pushRef)
                 && got.defaultBranch().equals(defaultBranch)
                 && got.config().equals(Optional.ofNullable(config));
-    }
-
-    static URL url(String url) {
-        try {
-            return new URL(url);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
     }
 }

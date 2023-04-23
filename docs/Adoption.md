@@ -25,3 +25,20 @@ Env vars of pattern `JAVA\d+_HOME` will be detected, and the `\d+` values can be
 
 Any environment variable backed into the runtime can be referred to from the repository config.
 Please mind to add sensitive env names (like GitHub token or artifact repository secrets) to the `SENSITIVE_ENV_VARS` to not having them outputted via logging, see the [Dockerfile](src/main/docker/Dockerfile) for the defaults.
+
+## GitHub App requirements
+
+Technolinator needs to read repository contents by notification onPull and onPullRequest.
+Therefor the following settings are required for the GitHub app installation:
+
+### Permissions
+
+* Commit statuses: Read and Write
+* Contents: Read only
+* Metadata: Read only
+* Pull requests: Read and Write
+
+### Event subscriptions
+
+* Pull Request
+* Push

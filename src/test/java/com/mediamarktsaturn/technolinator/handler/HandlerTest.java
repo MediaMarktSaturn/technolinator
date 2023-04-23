@@ -15,7 +15,7 @@ import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
-class PushHandlerTest_buildAnalysisDirectory {
+class HandlerTest {
 
     @Test
     void testConfigless() {
@@ -23,7 +23,7 @@ class PushHandlerTest_buildAnalysisDirectory {
         var repo = new LocalRepository(Paths.get("test_tmp"));
 
         // When
-        var location = PushHandler.buildAnalysisDirectory(repo, Optional.empty());
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.empty());
 
         // Then
         assertThat(location).isEqualTo(repo.dir());
@@ -37,10 +37,24 @@ class PushHandlerTest_buildAnalysisDirectory {
 
 
         // When
-        var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
         assertThat(location).isEqualTo(Paths.get("test_tmp/sub_dir"));
+    }
+
+    @Test
+    void testConfigDeepRelative() {
+        // Given
+        var repo = new LocalRepository(Paths.get("test_tmp"));
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("sub_dir/subst_dir", null, List.of())).build();
+
+
+        // When
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.of(config));
+
+        // Then
+        assertThat(location).isEqualTo(Paths.get("test_tmp/sub_dir/subst_dir"));
     }
 
     @Test
@@ -50,7 +64,7 @@ class PushHandlerTest_buildAnalysisDirectory {
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("/sub_dir", true, List.of())).build();
 
         // When
-        var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
         assertThat(location).isEqualTo(Paths.get("test_tmp/sub_dir"));
@@ -63,10 +77,10 @@ class PushHandlerTest_buildAnalysisDirectory {
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("/", false, List.of())).build();
 
         // When
-        var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
-        assertThat(location).isEqualTo(Paths.get("test_tmp", "/"));
+        assertThat(location).isEqualTo(Paths.get("test_tmp"));
     }
 
     @Test
@@ -76,7 +90,7 @@ class PushHandlerTest_buildAnalysisDirectory {
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig("", null, List.of())).build();
 
         // When
-        var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
         assertThat(location).isEqualTo(Paths.get("test_tmp"));
@@ -89,7 +103,7 @@ class PushHandlerTest_buildAnalysisDirectory {
         var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, null, List.of())).build();
 
         // When
-        var location = PushHandler.buildAnalysisDirectory(repo, Optional.of(config));
+        var location = HandlerBase.buildAnalysisDirectory(repo, Optional.of(config));
 
         // Then
         assertThat(location).isEqualTo(Paths.get("test_tmp"));

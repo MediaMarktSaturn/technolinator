@@ -193,18 +193,16 @@ public class CdxgenClient {
         if (!Files.exists(sbomFile)) {
             return Result.success(SBOMGenerationResult.none());
         } else if (Files.isReadable(sbomFile)) {
-            try {
-                return parseSbomBytes(Files.readAllBytes(sbomFile));
-            } catch (Exception e) {
-                return Result.failure(e);
-            }
+            return readSbomFile(sbomFile);
         } else {
             throw new IllegalStateException("Cannot read file " + sbomFile.toAbsolutePath());
         }
     }
 
-    private static Result<SBOMGenerationResult> parseSbomBytes(byte[] sbomContent) {
+    private static Result<SBOMGenerationResult> readSbomFile(Path sbomFile) {
         try {
+            final var sbomContent = Files.readAllBytes(sbomFile);
+
             final var validationResult = SBOM_PARSER.validate(sbomContent);
 
             final var sbom = SBOM_PARSER.parse(sbomContent);
@@ -222,9 +220,9 @@ public class CdxgenClient {
                 isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
                 return Result.success(SBOMGenerationResult.none());
             } else if (named) {
-                return Result.success(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult));
+                return Result.success(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult, sbomFile));
             } else {
-                return Result.success(new SBOMGenerationResult.Fallback(sbom, validationResult));
+                return Result.success(new SBOMGenerationResult.Fallback(sbom, validationResult, sbomFile));
             }
         } catch (Exception e) {
             return Result.failure(e);
@@ -321,13 +319,15 @@ public class CdxgenClient {
             String group,
             String name,
             String version,
-            List<ParseException> validationIssues
+            List<ParseException> validationIssues,
+            Path sbomFile
         ) implements SBOMGenerationResult {
         }
 
         record Fallback(
             Bom sbom,
-            List<ParseException> validationIssues
+            List<ParseException> validationIssues,
+            Path sbomFile
         ) implements SBOMGenerationResult {
         }
 
