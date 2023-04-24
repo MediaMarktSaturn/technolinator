@@ -118,8 +118,14 @@ public class OnPullRequestDispatcher extends DispatcherBase {
     private boolean isBot(GHUser user) throws IOException {
         return user != null &&
             ("Bot".equalsIgnoreCase(user.getType()) ||
-                (user.getName() != null && user.getName().toLowerCase(Locale.ROOT).contains("[bot]")) ||
-                (user.getLogin() != null && user.getLogin().toLowerCase(Locale.ROOT).contains("[bot]")));
+                (user.getName() != null &&
+                    (user.getName().toLowerCase(Locale.ROOT).contains("[bot]") ||
+                    user.getName().toLowerCase(Locale.ROOT).endsWith("-bot"))
+                ) ||
+                (user.getLogin() != null &&
+                    (user.getLogin().toLowerCase(Locale.ROOT).contains("[bot]") ||
+                    user.getLogin().toLowerCase(Locale.ROOT).endsWith("-bot"))
+                ));
     }
 
     record PullRequestResult(MetricStatusAnalysis status) {
