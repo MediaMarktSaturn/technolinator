@@ -1,10 +1,12 @@
 {{- if .Matches -}}
 ⚠ **Vulnerability Report**
 
-| Name | Vulnerability | Severity | Installed | Fixed in |
-|------|---------------|----------|-----------|----------|
+_Please consider this as a tentative appraisal, consult [Dependency-Track](DEPENDENCY_TRACK_URL) for reliable results._
+
+| Artifact | Version | Severity | Vulnerability | Fixed in |
+|----------|---------|----------|---------------|----------|
 {{- range .Matches }}
-| {{.Artifact.Name}} | {{.Vulnerability.ID}} | {{.Vulnerability.Severity}} | {{.Artifact.Version}} | {{.Vulnerability.Fix.Versions}} |
+| <details><summary>{{.Artifact.Name}}</summary>{{.Artifact.PURL}}</details> | {{.Artifact.Version}} | {{ (index (dict "Negligible" "⚪" "Low" "🔵" "Medium" "🟡" "High" "🟠" "Critical" "🔴") .Vulnerability.Severity) }}&nbsp;{{.Vulnerability.Severity}} | <details><summary>[{{.Vulnerability.ID}}]({{.Vulnerability.DataSource}})</summary>{{.Vulnerability.Description}}</details> | {{.Vulnerability.Fix.Versions}} |
 {{- end }}
 {{- else -}}
 🏆 _No vulnerabilities found_

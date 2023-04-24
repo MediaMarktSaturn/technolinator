@@ -22,6 +22,7 @@ Technolinator is configured via the following parameter which can either be prov
 | ALLOWED_ENV_SUBSTITUTIONS         | see [Dockerfile](src/main/docker/Dockerfile) | Comma separated list of env var names, that can be used in repo config      |
 | GRYPE_TEMPLATE                    | see [Dockerfile](src/main/docker/Dockerfile) | Template to be used by grype for vulnerability reports in pull-requests     |
 | APP_PULL_REQUESTS_IGNORE_BOTS     | true                                         | Whether pull-requests created by bots should be ignored                     |
+| APP_PULL_REQUESTS_ENABLED         | true                                         | Whether pull-request commenting should be enabled                           |
 
 ## Observability
 

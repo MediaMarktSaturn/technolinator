@@ -3,6 +3,8 @@ package com.mediamarktsaturn.technolinator.handler;
 import java.io.IOException;
 import java.util.stream.StreamSupport;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PullRequestEvent;
@@ -20,12 +22,21 @@ import jakarta.enterprise.context.ApplicationScoped;
 public class PullRequestHandler extends HandlerBase {
 
     private static final String COMMENT_MARKER = "[//]: # (Technolinator)";
+    private static final String DTRACK_PLACEHOLDER = "DEPENDENCY_TRACK_URL";
 
     private final GrypeClient grypeClient;
+    private final String dtrackUrl;
 
-    public PullRequestHandler(RepositoryService repoService, CdxgenClient cdxgenClient, GrypeClient grypeClient) {
+    public PullRequestHandler(
+        RepositoryService repoService,
+        CdxgenClient cdxgenClient,
+        GrypeClient grypeClient,
+        @ConfigProperty(name = "dtrack.url")
+        String dtrackUrl
+    ) {
         super(repoService, cdxgenClient);
         this.grypeClient = grypeClient;
+        this.dtrackUrl = dtrackUrl;
     }
 
     public Uni<Void> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
@@ -73,10 +84,10 @@ public class PullRequestHandler extends HandlerBase {
     private void upsertPullRequestComment(PullRequestEvent event, String reportText) {
         var pullRequest = event.payload().getPullRequest();
         var existingComment = StreamSupport.stream(pullRequest.queryComments().list().spliterator(), false)
-            .filter(comment -> comment.getBody().startsWith(COMMENT_MARKER))
+            .filter(comment -> comment.getBody().endsWith(COMMENT_MARKER))
             .findFirst();
 
-        var commentText = "%s\n%s".formatted(COMMENT_MARKER, reportText);
+        var commentText = "%s\n%s".formatted(reportText.replace(DTRACK_PLACEHOLDER, dtrackUrl), COMMENT_MARKER);
 
         existingComment.ifPresentOrElse(existing -> {
             // update existing comment
