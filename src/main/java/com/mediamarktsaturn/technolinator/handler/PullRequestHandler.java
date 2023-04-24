@@ -87,7 +87,7 @@ public class PullRequestHandler extends HandlerBase {
             .filter(comment -> comment.getBody().endsWith(COMMENT_MARKER))
             .findFirst();
 
-        var commentText = "%s\n%s".formatted(reportText.replace(DTRACK_PLACEHOLDER, dtrackUrl), COMMENT_MARKER);
+        var commentText = "%s\n\n%s".formatted(reportText.replace(DTRACK_PLACEHOLDER, dtrackUrl), COMMENT_MARKER);
 
         existingComment.ifPresentOrElse(existing -> {
             // update existing comment
