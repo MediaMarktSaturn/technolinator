@@ -33,8 +33,17 @@ public class OnPullRequestDispatcher extends DispatcherBase {
     @ConfigProperty(name = "app.pull_requests.ignore_bots")
     boolean ignoreBotPullRequests;
 
+    @ConfigProperty(name = "app.pull_requests.enabled")
+    boolean enabled;
+
     @SuppressWarnings("unused")
     void onPullRequest(@PullRequest GHEventPayload.PullRequest prPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
+        if (!enabled) {
+            if (Log.isDebugEnabled()) {
+                Log.debug("PR analysis is disabled");
+            }
+            return;
+        }
         if (!RELEVANT_ACTIONS.contains(prPayload.getAction())) {
             if (Log.isDebugEnabled()) {
                 Log.debugf("Ignoring PR action %s", prPayload.getAction());
@@ -120,11 +129,11 @@ public class OnPullRequestDispatcher extends DispatcherBase {
             ("Bot".equalsIgnoreCase(user.getType()) ||
                 (user.getName() != null &&
                     (user.getName().toLowerCase(Locale.ROOT).contains("[bot]") ||
-                    user.getName().toLowerCase(Locale.ROOT).endsWith("-bot"))
+                        user.getName().toLowerCase(Locale.ROOT).endsWith("-bot"))
                 ) ||
                 (user.getLogin() != null &&
                     (user.getLogin().toLowerCase(Locale.ROOT).contains("[bot]") ||
-                    user.getLogin().toLowerCase(Locale.ROOT).endsWith("-bot"))
+                        user.getLogin().toLowerCase(Locale.ROOT).endsWith("-bot"))
                 ));
     }
 

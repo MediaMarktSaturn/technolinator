@@ -22,6 +22,11 @@ public class GrypeClient {
 
     private static final String OUTPUT_FILE = "report.txt";
 
+    private static final Map<String, String> DEFAULT_ENV = Map.of(
+        "GRYPE_CHECK_FOR_APP_UPDATE", "false",
+        "GRYPE_DB_AUTO_UPDATE", "true"
+    );
+
     private final Path templateFile;
 
     public GrypeClient(
@@ -37,13 +42,14 @@ public class GrypeClient {
     /**
      * 'grype' command with the following options:
      * * -q # silent
+     * * --add-cpes-if-none # automatically generate CPEs when packages have none
      * * --by-cve # output cve of vulnerability instead of original identifier, if available
      * * -o template # output should be templated
      * * -t %s # template file to use
      * * --file %s # output file to use
      * * sbom:%s # sbom file location as input
      */
-    private static final String GRYPE_COMMAND = "grype -q --by-cve -o template -t %s --file %s sbom:%s";
+    private static final String GRYPE_COMMAND = "grype -q --add-cpes-if-none --by-cve -o template -t %s --file %s sbom:%s";
 
     /**
      * Creates a vulnerability report using grype for the given [sbomFile]
@@ -56,7 +62,7 @@ public class GrypeClient {
         );
 
         var reportDir = sbomFile.getParent();
-        return ProcessHandler.run(command, reportDir, Map.of())
+        return ProcessHandler.run(command, reportDir, DEFAULT_ENV)
             .map(result -> createReport(result, reportDir))
             .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
     }
@@ -82,7 +88,6 @@ public class GrypeClient {
             return Result.failure(e);
         }
     }
-
 
     public sealed interface VulnerabilityReport {
         record Report(String text) implements VulnerabilityReport {
