@@ -1,10 +1,14 @@
 package com.mediamarktsaturn.technolinator.events;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHUser;
 
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
@@ -25,6 +29,9 @@ public class OnPullRequestDispatcher extends DispatcherBase {
     // constructor injection not possible here, because GH app extension requires a no-arg constructor
     @Inject
     PullRequestHandler pullRequestHandler;
+
+    @ConfigProperty(name = "app.pull_requests.ignore_bots")
+    boolean ignoreBotPullRequests;
 
     @SuppressWarnings("unused")
     void onPullRequest(@PullRequest GHEventPayload.PullRequest prPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
@@ -53,8 +60,11 @@ public class OnPullRequestDispatcher extends DispatcherBase {
             Log.infof("Repo %s excluded by global config", repoUrl);
             status = MetricStatusRepo.DISABLED_BY_CONFIG;
         } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
-            Log.infof("Disabled for repo %s by repo config", repoUrl);
+            Log.infof("Disabled for repo %s by repository config", repoUrl);
             status = MetricStatusRepo.DISABLED_BY_REPO;
+        } else if (ignoreBotPullRequest(prPayload)) {
+            Log.infof("Ignored bot pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
+            status = MetricStatusRepo.BOT_PR_IGNORED;
         } else {
             status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
             Log.infof("Analyzing pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
@@ -94,6 +104,22 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                 Tag.of("repo", repoName)
             )
         ).increment();
+    }
+
+    private boolean ignoreBotPullRequest(GHEventPayload.PullRequest prPayload) {
+        try {
+            return ignoreBotPullRequests && (isBot(prPayload.getSender()) || isBot(prPayload.getPullRequest().getUser()));
+        } catch (IOException e) {
+            Log.errorf(e, "Failed to determine sender/user of pr %s", prPayload.getPullRequest().getHtmlUrl());
+            return false;
+        }
+    }
+
+    private boolean isBot(GHUser user) throws IOException {
+        return user != null &&
+            ("Bot".equalsIgnoreCase(user.getType()) ||
+                (user.getName() != null && user.getName().toLowerCase(Locale.ROOT).contains("[bot]")) ||
+                (user.getLogin() != null && user.getLogin().toLowerCase(Locale.ROOT).contains("[bot]")));
     }
 
     record PullRequestResult(MetricStatusAnalysis status) {

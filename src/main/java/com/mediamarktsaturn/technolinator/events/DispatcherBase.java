@@ -66,6 +66,7 @@ public abstract class DispatcherBase {
         DISABLED_BY_CONFIG,
         DISABLED_BY_REPO,
         NON_DEFAULT_BRANCH,
+        BOT_PR_IGNORED,
         ELIGIBLE_FOR_ANALYSIS
     }
 

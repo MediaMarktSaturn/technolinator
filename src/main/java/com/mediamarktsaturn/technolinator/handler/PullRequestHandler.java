@@ -90,7 +90,7 @@ public class PullRequestHandler extends HandlerBase {
             // create new comment
             try {
                 var newComment = pullRequest.comment(commentText);
-                Log.infof("Created comment %s", newComment.getUrl());
+                Log.infof("Created comment %s", newComment.getHtmlUrl());
             } catch (IOException e) {
                 Log.errorf(e, "Failed to comment pull-request %s, repo %s", pullRequest.getNumber(), event.repoUrl());
             }
