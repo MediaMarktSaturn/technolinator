@@ -42,14 +42,13 @@ public class GrypeClient {
     /**
      * 'grype' command with the following options:
      * * -q # silent
-     * * --add-cpes-if-none # automatically generate CPEs when packages have none
      * * --by-cve # output cve of vulnerability instead of original identifier, if available
      * * -o template # output should be templated
      * * -t %s # template file to use
      * * --file %s # output file to use
      * * sbom:%s # sbom file location as input
      */
-    private static final String GRYPE_COMMAND = "grype -q --add-cpes-if-none --by-cve -o template -t %s --file %s sbom:%s";
+    private static final String GRYPE_COMMAND = "grype -q --by-cve -o template -t %s --file %s sbom:%s";
 
     /**
      * Creates a vulnerability report using grype for the given [sbomFile]
