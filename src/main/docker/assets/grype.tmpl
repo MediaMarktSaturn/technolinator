@@ -6,7 +6,7 @@ _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPEN
 | Artifact | Version | Severity | Vulnerability | Fixed in |
 |----------|---------|----------|---------------|----------|
 {{- range .Matches }}
-| <details><summary>{{.Artifact.Name}}</summary>{{.Artifact.PURL}}</details> | {{.Artifact.Version}} | {{ (index (dict "Negligible" "⚪" "Low" "🔵" "Medium" "🟡" "High" "🟠" "Critical" "🔴") .Vulnerability.Severity) }} {{.Vulnerability.Severity}} | [{{.Vulnerability.ID}}]({{.Vulnerability.DataSource}}) | {{.Vulnerability.Fix.Versions}} |
+| <details><summary>{{.Artifact.Name | replace "|" "&vert;"}}</summary>{{.Artifact.PURL | replace "|" "&vert;"}}</details> | {{.Artifact.Version}} | {{ (index (dict "Negligible" "⚪" "Low" "🔵" "Medium" "🟡" "High" "🟠" "Critical" "🔴") .Vulnerability.Severity) }}&nbsp;{{.Vulnerability.Severity}} | [{{.Vulnerability.ID}}]({{.Vulnerability.DataSource}} {{.Vulnerability.Description | replace "|" "&vert;" | quote}}) | {{.Vulnerability.Fix.Versions}} |
 {{- end }}
 {{- else -}}
 🏆 _No vulnerabilities found_
