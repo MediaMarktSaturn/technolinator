@@ -1,6 +1,5 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import java.net.URL;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -43,11 +42,6 @@ public abstract class DispatcherBase {
         }
 
         return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(repoName);
-    }
-
-    String getRepoName(URL repoUrl) {
-        var path = repoUrl.getPath();
-        return path.substring(path.lastIndexOf('/') + 1);
     }
 
     Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description, Command.Metadata metadata) {

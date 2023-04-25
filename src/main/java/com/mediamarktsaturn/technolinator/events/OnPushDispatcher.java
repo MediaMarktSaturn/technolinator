@@ -52,7 +52,7 @@ public class OnPushDispatcher extends DispatcherBase {
 
         // metric tags
         final MetricStatusRepo status;
-        final var repoName = getRepoName(repoUrl);
+        final var repoName = repo.getName();
 
         if (!isEnabledByConfig(repoName)) {
             Log.infof("Repo %s excluded by global config", repoUrl);

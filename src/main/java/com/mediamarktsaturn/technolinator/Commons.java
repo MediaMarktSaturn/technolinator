@@ -13,6 +13,9 @@ public final class Commons {
         // utility stuff only
     }
 
+    /**
+     * Subscriber that does nothing but triggering the pipeline.
+     */
     public static final UniSubscriber<? super Object> NOOP_SUBSCRIBER = new UniSubscriber<>() {
 
         @Override

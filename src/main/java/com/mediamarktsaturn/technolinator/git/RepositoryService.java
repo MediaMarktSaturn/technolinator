@@ -1,12 +1,16 @@
 package com.mediamarktsaturn.technolinator.git;
 
+import static com.mediamarktsaturn.technolinator.Commons.NOOP_SUBSCRIBER;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.Objects;
 import java.util.zip.ZipInputStream;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHRepository;
 
 import com.mediamarktsaturn.technolinator.Command;
@@ -14,9 +18,12 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.Result.Failure;
 import com.mediamarktsaturn.technolinator.Result.Success;
 import com.mediamarktsaturn.technolinator.os.Util;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
 
 /**
@@ -39,6 +46,18 @@ public class RepositoryService {
             return downloadReference(this, metadata)
                 .runSubscriptionOn(Infrastructure.getDefaultWorkerPool());
         }
+    }
+
+    private final MeterRegistry meterRegistry;
+    private final boolean publishRepoMetrics;
+
+    public RepositoryService(
+        MeterRegistry meterRegistry,
+        @ConfigProperty(name = "app.publish_repo_metrics")
+        boolean publishRepoMetrics
+    ) {
+        this.meterRegistry = meterRegistry;
+        this.publishRepoMetrics = publishRepoMetrics;
     }
 
     public CheckoutCommand createCheckoutCommand(GHRepository repository, String ref) {
@@ -97,6 +116,22 @@ public class RepositoryService {
     private static void removeTempDir(Path dir) {
         if (dir != null) {
             Util.removeAsync(dir);
+        }
+    }
+
+    public void publishRepositoryMetrics(GHRepository repo) {
+        if (publishRepoMetrics) {
+            Uni.createFrom().item(Unchecked.supplier(() -> {
+                    repo.listLanguages().forEach((lang, bytes) ->
+                        meterRegistry.gauge("repo_language_bytes",
+                            List.of(Tag.of("repo", repo.getName()), Tag.of("lang", lang)),
+                            bytes)
+                    );
+                    return null;
+                })).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+                .onFailure().invoke(failure -> Log.warnf(failure, "Could not publish repo metrics of %s", repo.getHtmlUrl()))
+                .onFailure().recoverWithNull()
+                .subscribe().withSubscriber(NOOP_SUBSCRIBER);
         }
     }
 }

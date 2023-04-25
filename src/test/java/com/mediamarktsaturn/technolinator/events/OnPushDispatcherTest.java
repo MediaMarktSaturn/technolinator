@@ -110,10 +110,9 @@ class OnPushDispatcherTest {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of();
-        var repo = cur.getRepoName(url("https://github.com/MediaMarktSaturn/technolinator"));
 
         // When && Then
-        assertThat(cur.isEnabledByConfig(repo)).isTrue();
+        assertThat(cur.isEnabledByConfig("technolinator")).isTrue();
     }
 
     @Test
@@ -121,12 +120,10 @@ class OnPushDispatcherTest {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of(" technolinator ", "", " analyzeMe");
-        var enabledRepo = cur.getRepoName(url("https://github.com/MediaMarktSaturn/technolinator"));
-        var disabledRepo = cur.getRepoName(url("https://github.com/MediaMarktSaturn/fluggegecheimen"));
 
         // When && Then
-        assertThat(cur.isEnabledByConfig(enabledRepo)).isTrue();
-        assertThat(cur.isEnabledByConfig(disabledRepo)).isFalse();
+        assertThat(cur.isEnabledByConfig("technolinator")).isTrue();
+        assertThat(cur.isEnabledByConfig("fluggegecheimen")).isFalse();
     }
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {
