@@ -45,7 +45,7 @@ public class MetricsPublisher {
             Uni.createFrom().item(Unchecked.supplier(() -> {
                     repo.listLanguages().forEach((lang, bytes) -> {
                         var key = "%s/%s".formatted(repo.getName(), lang);
-                        var langBytes = bytesByRepoLang.computeIfAbsent(key, v -> {
+                        var langBytes = bytesByRepoLang.computeIfAbsent(key, k -> {
                             var holder = new AtomicLong(bytes);
                             meterRegistry.gauge("repo_language_bytes",
                                 List.of(Tag.of("repo", repo.getName()), Tag.of("lang", lang)), holder);
@@ -87,7 +87,7 @@ public class MetricsPublisher {
      */
     private void reportAnalysis(String repo, String kind, boolean start) {
         var key = "%s/%s".formatted(repo, kind);
-        var analysisCount = analysisStatus.computeIfAbsent(key, v -> {
+        var analysisCount = analysisStatus.computeIfAbsent(key, k -> {
             var holder = new AtomicInteger(0);
             meterRegistry.gauge("repo_analysis_current_count",
                 List.of(Tag.of("repo", repo), Tag.of("kind", kind)), holder);

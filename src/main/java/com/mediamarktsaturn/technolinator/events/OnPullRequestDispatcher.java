@@ -3,7 +3,10 @@ package com.mediamarktsaturn.technolinator.events;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleSupplier;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -36,6 +39,11 @@ public class OnPullRequestDispatcher extends DispatcherBase {
     @ConfigProperty(name = "app.pull_requests.enabled")
     boolean enabled;
 
+    @ConfigProperty(name = "app.pull_requests.concurrency_limit")
+    int concurrentLimit;
+
+    private final Map<String, AtomicInteger> concurrencyByRepo = new ConcurrentHashMap<>();
+
     @SuppressWarnings("unused")
     void onPullRequest(@PullRequest GHEventPayload.PullRequest prPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
         if (!enabled) {
@@ -65,6 +73,8 @@ public class OnPullRequestDispatcher extends DispatcherBase {
         final MetricStatusRepo status;
         final var repoName = repo.getName();
 
+        final var currentConcurrency = concurrencyByRepo.computeIfAbsent(repo.getName(), k -> new AtomicInteger(0));
+
         if (!isEnabledByConfig(repoName)) {
             Log.infof("Repo %s excluded by global config", repoUrl);
             status = MetricStatusRepo.DISABLED_BY_CONFIG;
@@ -74,11 +84,14 @@ public class OnPullRequestDispatcher extends DispatcherBase {
         } else if (ignoreBotPullRequest(prPayload)) {
             Log.infof("Ignored bot pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
             status = MetricStatusRepo.BOT_PR_IGNORED;
+        } else if(concurrentLimit > 0 && currentConcurrency.get() >= concurrentLimit) {
+            status = MetricStatusRepo.CONCURRENT_PR_LIMIT_EXCEEDED;
+            Log.warnf("Skipping pull-request %s of repository %s because concurrency limit is exceeded", prPayload.getNumber(), repoUrl);
         } else {
+            currentConcurrency.incrementAndGet();
             status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
             Log.infof("Analyzing pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
             metricsPublisher.reportAnalysisStart(repoName, "pull-request");
-
 
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
@@ -86,7 +99,10 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                 .ifNoItem().after(analysisTimeout).fail()
                 .map(i -> new PullRequestResult(MetricStatusAnalysis.OK))
                 .onFailure().recoverWithItem(f -> new PullRequestResult(MetricStatusAnalysis.ERROR))
-                .onTermination().invoke(() -> metricsPublisher.reportAnalysisCompletion(repoName, "pull-request"))
+                .onTermination().invoke(() -> {
+                    metricsPublisher.reportAnalysisCompletion(repoName, "pull-request");
+                    currentConcurrency.decrementAndGet();
+                })
                 .subscribe().with(
                     prResult -> {
                         metadata.writeToMDC();
