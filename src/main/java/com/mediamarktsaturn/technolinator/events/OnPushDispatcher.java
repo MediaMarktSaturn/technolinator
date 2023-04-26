@@ -99,7 +99,7 @@ public class OnPushDispatcher extends DispatcherBase {
                     failure -> {
                         metadata.writeToMDC();
                         Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
-                        meterRegistry.counter("last_analysis_duration_ms", List.of(
+                        meterRegistry.counter("analysis_duration_ms", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("failure", failure.getClass().getSimpleName())
                         )).increment(duration.getAsDouble());

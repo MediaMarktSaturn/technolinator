@@ -100,7 +100,7 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                     failure -> {
                         metadata.writeToMDC();
                         Log.errorf(failure, "Handling failed for pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
-                        meterRegistry.counter("last_vulnerability_report_duration_ms", List.of(
+                        meterRegistry.counter("vulnerability_report_duration_ms", List.of(
                             Tag.of("repo", repoName),
                             Tag.of("failure", failure.getClass().getSimpleName())
                         )).increment(duration.getAsDouble());

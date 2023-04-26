@@ -7,7 +7,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.ZipInputStream;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -119,14 +122,25 @@ public class RepositoryService {
         }
     }
 
+    /**
+     * There needs to be a backing state for micrometer gauges.
+     * Key is defined as "$repoName/$language", value the last language bytes number
+     */
+    private static final Map<String, AtomicLong> bytesByRepoLang = new ConcurrentHashMap<>();
+
     public void publishRepositoryMetrics(GHRepository repo) {
         if (publishRepoMetrics) {
             Uni.createFrom().item(Unchecked.supplier(() -> {
-                    repo.listLanguages().forEach((lang, bytes) ->
-                        meterRegistry.gauge("repo_language_bytes",
-                            List.of(Tag.of("repo", repo.getName()), Tag.of("lang", lang)),
-                            bytes)
-                    );
+                    repo.listLanguages().forEach((lang, bytes) -> {
+                        var key = "%s/%s".formatted(repo.getName(), lang);
+                        var langBytes = bytesByRepoLang.computeIfAbsent(key, v -> {
+                            var holder = new AtomicLong(bytes);
+                            meterRegistry.gauge("repo_language_bytes",
+                                List.of(Tag.of("repo", repo.getName()), Tag.of("lang", lang)), holder);
+                            return holder;
+                        });
+                        langBytes.set(bytes);
+                    });
                     return null;
                 })).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
                 .onFailure().invoke(failure -> Log.warnf(failure, "Could not publish repo metrics of %s", repo.getHtmlUrl()))

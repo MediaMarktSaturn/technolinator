@@ -5,16 +5,19 @@ import static org.assertj.core.api.Assertions.fail;
 
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Optional;
 
 import org.intellij.lang.annotations.Language;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import org.kohsuke.github.GitHub;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.git.RepositoryService;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import io.quarkus.logging.Log;
 import io.quarkus.test.junit.QuarkusTest;
@@ -28,9 +31,12 @@ class LocalRepositoryAnalysis {
     @Inject
     CdxgenClient cdxgenClient;
 
+    @Inject
+    RepositoryService repoService;
+
     final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
 
-    String dir = "/home/heubeck/w/sbom-test/ccr-customers";
+    String dir = "/home/heubeck/w/sbom-test/campaign-orchestration";
 
     @Language("yml")
     String configString = """
@@ -63,5 +69,19 @@ class LocalRepositoryAnalysis {
             case Result.Success<CdxgenClient.SBOMGenerationResult> s -> System.out.println("Success");
             case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> fail("Failed", f.cause());
         }
+    }
+
+    @Test
+    void readRepoDetails() throws Exception {
+        var ghRepo = GitHub
+            .connectUsingOAuth(System.getenv("GITHUB_TOKEN"))
+            .getRepository("MediaMarktSaturn/campaign-orchestration");
+
+        ghRepo.listLanguages().forEach((lang, bytes) -> {
+            Log.infof("Language %s: %s bytes", lang, bytes);
+        });
+
+        repoService.publishRepositoryMetrics(ghRepo);
+        Thread.sleep(Duration.ofMinutes(1));
     }
 }
