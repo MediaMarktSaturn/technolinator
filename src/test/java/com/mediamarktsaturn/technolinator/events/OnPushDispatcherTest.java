@@ -12,6 +12,7 @@ import java.net.MalformedURLException;
 import java.util.List;
 import java.util.Optional;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEvent;
@@ -25,6 +26,7 @@ import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectMock;
+import io.restassured.RestAssured;
 
 @QuarkusTest
 @GitHubAppTest
@@ -48,6 +50,13 @@ class OnPushDispatcherTest {
         // Then
         await().untilAsserted(() -> Mockito.verify(handler)
             .onPush(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/main", "main", null)), any()));
+
+        RestAssured.get("/q/metrics")
+            .then()
+            .statusCode(200)
+            .body(CoreMatchers.containsString("""
+                repo_analysis_current_count{kind="push",repo="app-test"} 0.0
+                """));
     }
 
     @Test

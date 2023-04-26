@@ -66,6 +66,8 @@ public class OnPushDispatcher extends DispatcherBase {
         } else {
             Log.infof("Ref %s of repository %s eligible for analysis", pushRef, repoUrl);
             status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
+            metricsPublisher.reportLanguages(repo);
+            metricsPublisher.reportAnalysisStart(repoName, "push");
 
             commitSha.ifPresent(commit ->
                 createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
@@ -82,7 +84,7 @@ public class OnPushDispatcher extends DispatcherBase {
                     metadata.writeToMDC();
                     Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
                     return reportFailure(repo, commitSha, failure, metadata);
-                })
+                }).onTermination().invoke(() -> metricsPublisher.reportAnalysisCompletion(repoName, "push"))
                 .subscribe().with(
                     pushResult -> {
                         metadata.writeToMDC();

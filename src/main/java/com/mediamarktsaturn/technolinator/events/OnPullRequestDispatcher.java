@@ -77,6 +77,8 @@ public class OnPullRequestDispatcher extends DispatcherBase {
         } else {
             status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
             Log.infof("Analyzing pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
+            metricsPublisher.reportAnalysisStart(repoName, "pull-request");
+
 
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
@@ -84,6 +86,7 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                 .ifNoItem().after(analysisTimeout).fail()
                 .map(i -> new PullRequestResult(MetricStatusAnalysis.OK))
                 .onFailure().recoverWithItem(f -> new PullRequestResult(MetricStatusAnalysis.ERROR))
+                .onTermination().invoke(() -> metricsPublisher.reportAnalysisCompletion(repoName, "pull-request"))
                 .subscribe().with(
                     prResult -> {
                         metadata.writeToMDC();

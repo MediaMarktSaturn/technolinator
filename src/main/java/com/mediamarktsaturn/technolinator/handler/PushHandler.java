@@ -32,7 +32,6 @@ public class PushHandler extends HandlerBase {
     }
 
     public Uni<Result<Project>> onPush(PushEvent event, Command.Metadata metadata) {
-        repoService.publishRepositoryMetrics(event.repository());
         return checkoutAndGenerateSBOM(event, metadata)
             // wrap into deferred for ensuring onTermination is called even on pipeline setup errors
             .chain(result -> Uni.createFrom().deferred(() -> uploadSbom(event, result.getItem1(), metadata))

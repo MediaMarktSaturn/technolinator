@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 import java.io.IOException;
 import java.util.Optional;
 
+import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -22,6 +23,7 @@ import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectMock;
+import io.restassured.RestAssured;
 
 @QuarkusTest
 @GitHubAppTest
@@ -50,6 +52,13 @@ class OnPullRequestDispatcherTest {
         // Then
         await().untilAsserted(() -> Mockito.verify(handler)
             .onPullRequest(argThat(matches("https://github.com/heubeck/app-test", "refs/heads/test/branch", "main", null)), any()));
+
+        RestAssured.get("/q/metrics")
+            .then()
+            .statusCode(200)
+            .body(CoreMatchers.containsString("""
+                repo_analysis_current_count{kind="pull-request",repo="app-test"} 0.0
+                """));
     }
 
     @Test

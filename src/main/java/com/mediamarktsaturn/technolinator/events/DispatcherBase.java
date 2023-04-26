@@ -24,6 +24,9 @@ public abstract class DispatcherBase {
     @Inject
     MeterRegistry meterRegistry;
 
+    @Inject
+    MetricsPublisher metricsPublisher;
+
     @ConfigProperty(name = "app.analysis_timeout")
     Duration analysisTimeout;
 
