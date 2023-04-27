@@ -13,6 +13,7 @@ Technolinator is configured via the following parameter which can either be prov
 | DTRACK_URL                          |                                              | Baseurl of Dependency-Track                                                                                               |
 | CDXGEN_FETCH_LICENSE                | true                                         | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)                                                   |
 | CDXGEN_USE_GOSUM                    | true                                         | see [cdxgen](https://github.com/CycloneDX/cdxgen#environment-variables)                                                   |
+| CDXGEN_MAVEN_INCLUDE_TEST_SCOPE     | false                                        | Whether test scoped dependencies for maven projects should be respected                                                   |
 | ANALYSIS_RECURSIVE_DEFAULT          | true                                         | default value for the `analysis.recursvie` config                                                                         |
 | APP_CLEAN_WRAPPER_SCRIPTS           | false                                        | Remove wrapper scripts like gradlew or mvnw for not downloading these tools                                               |
 | APP_ANALYSIS_TIMEOUT                | 60M                                          | Maximal duration of an analysis before getting aborted                                                                    |

@@ -50,6 +50,7 @@ public class CdxgenClient {
     private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
     private static final String CDXGEN_GRADLE_MULTI_PROJECT = "GRADLE_MULTI_PROJECT_MODE";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
+    private static final String CDXGEN_MAVEN_INCLUDE_TEST_SCOPE ="CDX_MAVEN_INCLUDE_TEST_SCOPE";
     private static final String JAVA_HOME = System.getenv("JAVA_HOME");
 
     /**
@@ -102,6 +103,7 @@ public class CdxgenClient {
             "FETCH_LICENSE", config.getValue("cdxgen.fetch_license", Boolean.class).toString(),
             "USE_GOSUM", config.getValue("cdxgen.use_gosum", Boolean.class).toString(),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
+            CDXGEN_MAVEN_INCLUDE_TEST_SCOPE, config.getValue("cdxgen.maven_include_test_scope", Boolean.class).toString(),
             "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
         );
 
