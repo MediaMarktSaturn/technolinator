@@ -32,9 +32,11 @@ public class PullRequestHandler extends HandlerBase {
         CdxgenClient cdxgenClient,
         GrypeClient grypeClient,
         @ConfigProperty(name = "dtrack.url")
-        String dtrackUrl
+        String dtrackUrl,
+        @ConfigProperty(name = "app.pull_requests.cdxgen.fetch_licenses")
+        boolean fetchLicenses
     ) {
-        super(repoService, cdxgenClient);
+        super(repoService, cdxgenClient, fetchLicenses);
         this.grypeClient = grypeClient;
         this.dtrackUrl = dtrackUrl;
     }

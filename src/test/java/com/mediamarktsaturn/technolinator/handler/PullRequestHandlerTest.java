@@ -72,7 +72,7 @@ class PullRequestHandlerTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommand(any(), eq(projectName), eq(Optional.empty()));
+        verify(cdxgenClient).createCommand(any(), eq(projectName), eq(false), eq(Optional.empty()));
         verify(grypeClient).createVulnerabilityReport(any());
     }
 }

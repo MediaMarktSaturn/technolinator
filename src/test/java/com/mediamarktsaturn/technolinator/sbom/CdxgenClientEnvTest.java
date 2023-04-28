@@ -68,7 +68,7 @@ class CdxgenClientEnvTest {
         ).build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config));
+        var result = cut.buildEnv(Optional.of(config), false);
 
         // Then
         assertThat(result)
@@ -84,7 +84,7 @@ class CdxgenClientEnvTest {
         ).build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config));
+        var result = cut.buildEnv(Optional.of(config), false);
 
         // Then
         assertThat(result)
@@ -103,7 +103,7 @@ class CdxgenClientEnvTest {
         ).build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config));
+        var result = cut.buildEnv(Optional.of(config), false);
 
         // Then
         assertThat(result)
@@ -122,19 +122,20 @@ class CdxgenClientEnvTest {
             .build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config));
+        var result = cut.buildEnv(Optional.of(config), true);
 
         // Then
         assertThat(result)
             .containsEntry("one", "ten")
             .containsEntry("GRADLE_ARGS", "gradle {oh_yeah-look_at_me}")
+            .containsEntry("FETCH_LICENSE", "true")
             .containsEntry("MVN_ARGS", "-B -ntp maven (this's just a test)");
     }
 
     @Test
     void testWithoutArgs() {
         // When
-        var result = cut.buildEnv(Optional.empty());
+        var result = cut.buildEnv(Optional.empty(), false);
 
         // Then
         assertThat(result)
@@ -155,7 +156,7 @@ class CdxgenClientEnvTest {
             .build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config));
+        var result = cut.buildEnv(Optional.of(config), false);
 
         // Then
         assertThat(result).containsEntry("JAVA_HOME", "/path/to/jdk20");
@@ -169,7 +170,7 @@ class CdxgenClientEnvTest {
             .build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config));
+        var result = cut.buildEnv(Optional.of(config), false);
 
         // Then
         assertThat(result)

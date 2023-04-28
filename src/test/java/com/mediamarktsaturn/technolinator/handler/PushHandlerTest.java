@@ -68,7 +68,7 @@ class PushHandlerTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommand(any(), eq(projectName), eq(Optional.empty()));
+        verify(cdxgenClient).createCommand(any(), eq(projectName), eq(true), eq(Optional.empty()));
         verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any(), any(), any(), eq("https://github.com/heubeck/examiner"));
     }
 }

@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
@@ -26,8 +27,13 @@ public class PushHandler extends HandlerBase {
 
     private final DependencyTrackClient dtrackClient;
 
-    public PushHandler(RepositoryService repoService, CdxgenClient cdxgenClient, DependencyTrackClient dtrackClient) {
-        super(repoService, cdxgenClient);
+    public PushHandler(
+        RepositoryService repoService,
+        CdxgenClient cdxgenClient,
+        DependencyTrackClient dtrackClient,
+        @ConfigProperty(name = "app.analysis.cdxgen.fetch_licenses")
+        boolean fetchLicenses) {
+        super(repoService, cdxgenClient, fetchLicenses);
         this.dtrackClient = dtrackClient;
     }
 

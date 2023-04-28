@@ -54,7 +54,7 @@ class LocalRepositoryAnalysis {
 
         TechnolinatorConfig config = configMapper.readValue(configString, TechnolinatorConfig.class);
 
-        var cmd = cdxgenClient.createCommand(folder, projectName.toString(), Optional.of(config));
+        var cmd = cdxgenClient.createCommand(folder, projectName.toString(), false, Optional.of(config));
         Log.infof("Command: '%s'", cmd.commandLine());
 
         var result = await(cmd.execute(metadata));

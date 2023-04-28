@@ -18,16 +18,19 @@ public abstract class HandlerBase {
 
     protected final RepositoryService repoService;
     protected final CdxgenClient cdxgenClient;
+    private final boolean fetchLicenses;
 
     // dummy constructor required by the ARC
     protected HandlerBase() {
         this.repoService = null;
         this.cdxgenClient = null;
+        this.fetchLicenses = false;
     }
 
-    protected HandlerBase(RepositoryService repoService, CdxgenClient cdxgenClient) {
+    protected HandlerBase(RepositoryService repoService, CdxgenClient cdxgenClient, boolean fetchLicenses) {
         this.repoService = repoService;
         this.cdxgenClient = cdxgenClient;
+        this.fetchLicenses = fetchLicenses;
     }
 
     protected Uni<Tuple2<Result<CdxgenClient.SBOMGenerationResult>, LocalRepository>> checkoutAndGenerateSBOM(Event<?> event, Command.Metadata metadata) {
@@ -41,7 +44,7 @@ public abstract class HandlerBase {
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
-                var cmd = cdxgenClient.createCommand(buildAnalysisDirectory(localRepo, event.config()), buildProjectNameFromEvent(event), event.config());
+                var cmd = cdxgenClient.createCommand(buildAnalysisDirectory(localRepo, event.config()), buildProjectNameFromEvent(event), fetchLicenses, event.config());
                 yield cmd.execute(metadata).map(result -> Tuple2.of(result, localRepo));
             }
             case Result.Failure<LocalRepository> f -> {

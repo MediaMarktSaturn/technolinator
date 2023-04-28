@@ -165,7 +165,7 @@ class CdxgenClientGenerationTest {
     // TODO: split tests in command generation and command execution
     Result<CdxgenClient.SBOMGenerationResult> generateSBOM(Path file, String projectName, Optional<TechnolinatorConfig> config) {
         var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
-        var cmd = cut.createCommand(file, projectName, config);
+        var cmd = cut.createCommand(file, projectName, false, config);
 
         return await(cmd.execute(metadata));
     }

@@ -50,7 +50,7 @@ public class CdxgenClient {
     private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
     private static final String CDXGEN_GRADLE_MULTI_PROJECT = "GRADLE_MULTI_PROJECT_MODE";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
-    private static final String CDXGEN_MAVEN_INCLUDE_TEST_SCOPE ="CDX_MAVEN_INCLUDE_TEST_SCOPE";
+    private static final String CDXGEN_FETCH_LICENSE = "FETCH_LICENSE";
     private static final String JAVA_HOME = System.getenv("JAVA_HOME");
 
     /**
@@ -100,10 +100,9 @@ public class CdxgenClient {
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
             "GITHUB_TOKEN", config.getValue("github.token", String.class).trim(),
-            "FETCH_LICENSE", config.getValue("cdxgen.fetch_license", Boolean.class).toString(),
             "USE_GOSUM", config.getValue("cdxgen.use_gosum", Boolean.class).toString(),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            CDXGEN_MAVEN_INCLUDE_TEST_SCOPE, config.getValue("cdxgen.maven_include_test_scope", Boolean.class).toString(),
+            "CDX_MAVEN_INCLUDE_TEST_SCOPE", config.getValue("cdxgen.maven_include_test_scope", Boolean.class).toString(),
             "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
         );
 
@@ -144,7 +143,7 @@ public class CdxgenClient {
 
     }
 
-    public SbomCreationCommand createCommand(Path repoDir, String projectName, Optional<TechnolinatorConfig> config) {
+    public SbomCreationCommand createCommand(Path repoDir, String projectName, boolean fetchLicenses, Optional<TechnolinatorConfig> config) {
         boolean recursive =
             // recursive flag must not be set together with gradle multi project mode
             !config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false) &&
@@ -157,7 +156,7 @@ public class CdxgenClient {
             projectName
         );
 
-        var environment = buildEnv(config);
+        var environment = buildEnv(config, fetchLicenses);
         var excludeList = buildExcludeList(config);
 
         return new SbomCreationCommand(
@@ -240,7 +239,7 @@ public class CdxgenClient {
     }
 
 
-    Map<String, String> buildEnv(Optional<TechnolinatorConfig> config) {
+    Map<String, String> buildEnv(Optional<TechnolinatorConfig> config, boolean fetchLicenses) {
         var gradleEnv = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::args).orElseGet(List::of);
         var gradleMultiProject = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false);
         var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
@@ -249,6 +248,7 @@ public class CdxgenClient {
 
         var context = new HashMap<>(cdxgenEnv);
         context.put("JAVA_HOME", jdkHome);
+        context.put(CDXGEN_FETCH_LICENSE, Boolean.toString(fetchLicenses));
 
         var gradleEnvValue = gradleEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {
