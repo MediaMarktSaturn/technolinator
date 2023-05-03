@@ -9,11 +9,14 @@ FROM ghcr.io/mediamarktsaturn/technolinator:1.30.2
 
 # app runs as user 201 in group 101
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
+# if you like to have a global config for grype. repository local `.grype.yaml` are respected as well, if not set via GRYPE_CONFIG env
+COPY --chown=root:root --chmod=a-w assets/grype.yml /app/grype.yml
 
 ENV SENSITIVE_ENV_VARS="${SENSITIVE_ENV_VARS},ARTIFACTORY_USER,ARTIFACTORY_PASSWORD" \
     ALLOWED_ENV_SUBSTITUTIONS="ARTIFACTORY_USER,ARTIFACTORY_PASSWORD,ARTIFACTORY_URL" \
     ARTIFACTORY_URL="https://cloud.artifactory.com/artifactory" \
-    DTRACK_URL="https://dependency-track.awesome.org"
+    DTRACK_URL="https://dependency-track.awesome.org" \
+    GRYPE_CONFIG="/app/grype.yml"
 ```
 
 ## Config of jdk.version

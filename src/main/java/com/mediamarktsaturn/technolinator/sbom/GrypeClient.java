@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Optional;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
@@ -28,15 +29,24 @@ public class GrypeClient {
     );
 
     private final Path templateFile;
+    private final Optional<String> configFile;
 
     public GrypeClient(
         @ConfigProperty(name = "grype.template")
-        String templateFile
+        String templateFile,
+        @ConfigProperty(name = "grype.config")
+        Optional<String> configFile
     ) {
         this.templateFile = Paths.get(templateFile);
         if (!Files.isReadable(this.templateFile)) {
             throw new IllegalStateException("Template file not readable: " + templateFile);
         }
+        this.configFile = configFile;
+        this.configFile.map(Paths::get).ifPresent(config -> {
+            if (!Files.isReadable(config)) {
+                throw new IllegalStateException("Config file not readable: " + config);
+            }
+        });
     }
 
     /**
@@ -47,8 +57,9 @@ public class GrypeClient {
      * * -t %s # template file to use
      * * --file %s # output file to use
      * * sbom:%s # sbom file location as input
+     * * %s: # '-c config.file' added at the end
      */
-    private static final String GRYPE_COMMAND = "grype -q --by-cve -o template -t %s --file %s sbom:%s";
+    private static final String GRYPE_COMMAND = "grype -q --by-cve -o template -t %s --file %s sbom:%s %s";
 
     /**
      * Creates a vulnerability report using grype for the given [sbomFile]
@@ -57,7 +68,8 @@ public class GrypeClient {
         var command = GRYPE_COMMAND.formatted(
             templateFile.toAbsolutePath().toString(),
             OUTPUT_FILE,
-            sbomFile.toAbsolutePath().toString()
+            sbomFile.toAbsolutePath().toString(),
+            configFile.map("-c "::concat).orElseGet(String::new)
         );
 
         var reportDir = sbomFile.getParent();

@@ -27,6 +27,7 @@ Technolinator is configured via the following parameter which can either be prov
 | APP_PUBLISH_REPO_METRICS                | true                                         | Publish metrics about the analyzed repositories like contained languages (acc. to GitHub API)                             |
 | APP_PULL_REQUESTS_CDXGEN_FETCH_LICENSES | false                                        | Whether license information should be included in pull-request created sboms                                              |
 | APP_ANALYSIS_CDXGEN_FETCH_LICENSES      | true                                         | Wheter license information should be included in default-branch analysis                                                  |
+| GRYPE_CONFIG                            |                                              | Path to a [grype configuration](https://github.com/anchore/grype#configuration) file used in PR analysis                  |
 
 ## Observability
 
