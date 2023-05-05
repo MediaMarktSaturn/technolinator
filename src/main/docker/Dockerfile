@@ -5,28 +5,34 @@ ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 ARG GRYPE_VERSION
 
-ARG JAVA_17_VERSION=17.0.7-tem
-ARG JAVA_20_VERSION=20.0.1-tem
+# sdkman provided jdks
+ARG JAVA_17_VERSION='17.0.7-tem'
+ARG JAVA_20_VERSION='20.0.1-tem'
+
+# location of application binaries and configuration
+ENV APP_DIR='/app'
+
+# 'home' directory of the app user, target location for (persistent) caches
+ENV APP_DATA='/data'
+
 ARG APPLICATION_USER='app'
 ARG APPLICATION_GROUP='apps'
 
-ENV APP_DATA='/data'
-
 RUN mkdir -p $APP_DATA/.m2 && \
-    mkdir -p /app && \
+    mkdir -p $APP_DIR && \
     echo "${APPLICATION_USER}:x:201:100::${APP_DATA}:/sbin/nologin" >> /etc/passwd && \
     echo "${APPLICATION_GROUP}:x:101:${APPLICATION_USER}" >> /etc/group
 
-COPY --chown=root:root --chmod=a-w src/main/docker/assets/git_askpass.sh /app/git_askpass.sh
-COPY --chown=root:root --chmod=a-w src/main/docker/assets/run-java.sh /app/run-java.sh
-COPY --chown=root:root --chmod=a-w src/main/docker/assets/grype.tmpl /app/grype.tmpl
+COPY --chown=root:root --chmod=a-w src/main/docker/assets/git_askpass.sh $APP_DIR/git_askpass.sh
+COPY --chown=root:root --chmod=a-w src/main/docker/assets/run-java.sh $APP_DIR/run-java.sh
+COPY --chown=root:root --chmod=a-w src/main/docker/assets/grype.tmpl $APP_DIR/grype.tmpl
 
 WORKDIR $APP_DATA
 RUN chown $APPLICATION_USER:$APPLICATION_GROUP -R $APP_DATA \
-    && chown root:root /app \
-    && chmod "a+x-w" -R /app
+    && chown root:root $APP_DIR \
+    && chmod "a+x-w" -R $APP_DIR
 
-ENV GIT_ASKPASS='/app/git_askpass.sh'
+ENV GIT_ASKPASS="$APP_DIR/git_askpass.sh"
 
 # update system and install requirements
 RUN \
@@ -54,7 +60,7 @@ RUN \
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/curlrc /root/.curlrc
 RUN curl -s "https://get.sdkman.io" | bash > /dev/null
 
-ENV SDK_DIR="/app/sdks"
+ENV SDK_DIR="$APP_DIR/sdks"
 
 # install sdks
 COPY --chown=root:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
@@ -78,20 +84,20 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     MVN_CMD=mvn \
     GRADLE_CMD=gradle \
     GITHUB_USER="nobody" \
-    GRYPE_TEMPLATE="/app/grype.tmpl" \
+    GRYPE_TEMPLATE="$APP_DIR/grype.tmpl" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \
     ALLOWED_ENV_SUBSTITUTIONS=""
 
 ENV PATH="$PATH:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
 ENV JAVA_OPTIONS="--enable-preview -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
-ENV JAVA_APP_JAR="/app/quarkus-run.jar"
+ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"
 
-CMD ["/app/run-java.sh"]
+CMD ["$APP_DIR/run-java.sh"]
 
-COPY --chown=root:root --chmod=a-w target/quarkus-app/lib/ /app/lib/
-COPY --chown=root:root --chmod=a-w target/quarkus-app/*.jar /app/
-COPY --chown=root:root --chmod=a-w target/quarkus-app/app/ /app/app/
-COPY --chown=root:root --chmod=a-w target/quarkus-app/quarkus/ /app/quarkus/
+COPY --chown=root:root --chmod=a-w target/quarkus-app/lib/ $APP_DIR/lib/
+COPY --chown=root:root --chmod=a-w target/quarkus-app/*.jar $APP_DIR/
+COPY --chown=root:root --chmod=a-w target/quarkus-app$APP_DIR/ $APP_DIR/app/
+COPY --chown=root:root --chmod=a-w target/quarkus-app/quarkus/ $APP_DIR/quarkus/
 
 USER $APPLICATION_USER

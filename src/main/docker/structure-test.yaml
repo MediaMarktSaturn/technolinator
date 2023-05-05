@@ -79,7 +79,7 @@ commandTests:
       expectedOutput:
           - ''
     - name: "Application starts"
-      command: '/app/run-java.sh'
+      command: '$APP_DIR/run-java.sh'
       exitCode: 1
       expectedOutput:
           - '.*exec java --enable-preview .*'
@@ -144,7 +144,7 @@ metadataTest:
           value: '/app'
         - key: GRYPE_TEMPLATE
           value: '/app/grype.tmpl'
-    cmd: ['/app/run-java.sh']
+    cmd: ['$APP_DIR/run-java.sh']
     entrypoint: []
     workdir: '/data'
     user: 'app'
