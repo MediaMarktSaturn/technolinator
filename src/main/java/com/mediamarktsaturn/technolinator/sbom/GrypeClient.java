@@ -80,7 +80,7 @@ public class GrypeClient {
 
     Result<VulnerabilityReport> createReport(ProcessHandler.ProcessResult result, Path reportDir) {
         return switch (result) {
-            case ProcessHandler.ProcessResult.Success ignored -> parseReport(reportDir);
+            case ProcessHandler.ProcessResult.Success s -> parseReport(reportDir);
             case ProcessHandler.ProcessResult.Failure f -> Result.failure(f.cause());
         };
     }
