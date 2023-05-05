@@ -8,7 +8,7 @@ import org.kohsuke.github.GHRepository;
 
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 
-public interface Event<P extends GHEventPayload> {
+public interface Event<GHEventPayload> {
     String branch();
 
     String ref();
