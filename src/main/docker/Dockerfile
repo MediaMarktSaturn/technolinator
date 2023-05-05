@@ -5,6 +5,8 @@ ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 ARG GRYPE_VERSION
 
+ARG JAVA_17_VERSION=17.0.7-tem
+ARG JAVA_20_VERSION=20.0.1-tem
 ARG APPLICATION_USER='app'
 ARG APPLICATION_GROUP='apps'
 
@@ -57,8 +59,8 @@ ENV SDK_DIR="/app/sdks"
 # install sdks
 COPY --chown=root:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
 RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
-    sdk install java 17.0.7-tem && \
-    sdk install java 20-tem && \
+    sdk install java $JAVA_17_VERSION && \
+    sdk install java $JAVA_20_VERSION && \
     sdk install maven && \
     sdk install gradle 7.6 && \
     sdk install sbt && \
@@ -68,9 +70,9 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     rm -rf /root/.sdkman
 
 # app & cdxgen env
-ENV JAVA17_HOME="$SDK_DIR/java/17.0.7-tem" \
-    JAVA20_HOME="$SDK_DIR/java/20-tem" \
-    JAVA_HOME="$SDK_DIR/java/20-tem" \
+ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
+    JAVA20_HOME="$SDK_DIR/java/$JAVA_20_VERSION" \
+    JAVA_HOME="$SDK_DIR/java/$JAVA_20_VERSION" \
     MAVEN_HOME="$SDK_DIR/maven/current" \
     GRADLE_HOME="$SDK_DIR/gradle/current" \
     MVN_CMD=mvn \

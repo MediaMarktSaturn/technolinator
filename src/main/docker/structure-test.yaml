@@ -125,11 +125,11 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/20-tem'
+          value: '/app/sdks/java/20.0.1-tem'
         - key: JAVA17_HOME
           value: '/app/sdks/java/17.0.7-tem'
         - key: JAVA20_HOME
-          value: '/app/sdks/java/20-tem'
+          value: '/app/sdks/java/20.0.1-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
@@ -140,6 +140,8 @@ metadataTest:
           value: 'gradle'
         - key: APP_DATA
           value: '/data'
+        - key: APP_DIR
+          value: '/app'
         - key: GRYPE_TEMPLATE
           value: '/app/grype.tmpl'
     cmd: ['/app/run-java.sh']
