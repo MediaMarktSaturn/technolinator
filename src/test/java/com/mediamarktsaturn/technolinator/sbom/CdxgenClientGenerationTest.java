@@ -140,7 +140,7 @@ class CdxgenClientGenerationTest {
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
             assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
                 // there are some license issues in this go.sum but license-fetch is disabled
-                assertThat(fallback.validationIssues()).hasSize(0);
+                assertThat(fallback.validationIssues()).isEmpty();
             });
         });
     }
