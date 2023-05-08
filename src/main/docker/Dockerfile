@@ -93,7 +93,7 @@ ENV PATH="$PATH:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 ENV JAVA_OPTIONS="--enable-preview -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"
 
-CMD ["$APP_DIR/run-java.sh"]
+CMD ["/app/run-java.sh"]
 
 COPY --chown=root:root --chmod=a-w target/quarkus-app/lib/ $APP_DIR/lib/
 COPY --chown=root:root --chmod=a-w target/quarkus-app/*.jar $APP_DIR/
