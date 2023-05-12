@@ -59,6 +59,17 @@
             ],
             "depNameTemplate": "anchore/grype",
             "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Update sbomqs version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$"
+            ],
+            "matchStrings": [
+                "SBOMQS_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "interlynk-io/sbomqs",
+            "datasourceTemplate": "github-releases"
         }
     ]
 }

@@ -59,6 +59,11 @@ commandTests:
       args: ['-h']
       expectedOutput:
           - '.*A vulnerability scanner for container images, filesystems, and SBOMs.*'
+    - name: "Sbomqs installed"
+      command: 'sbomqs'
+      args: ['-h']
+      expectedOutput:
+          - '.*SBOM Quality Score.*'
     - name: "Java installed"
       command: 'java'
       args: ["-version"]

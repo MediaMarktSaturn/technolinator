@@ -4,6 +4,7 @@ LABEL maintainer="MediaMarktSaturn Technology"
 ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 ARG GRYPE_VERSION
+ARG SBOMQS_VERSION
 
 # sdkman provided jdks
 ARG JAVA_17_VERSION='17.0.7-tem'
@@ -55,6 +56,12 @@ RUN \
     tar xf grype.tar.gz && \
     mv grype /usr/bin/grype && \
     rm -f grype.tar.gz
+
+# install sbomqs
+RUN \
+    curl -Ls https://github.com/interlynk-io/sbomqs/releases/download/${SBOMQS_VERSION}/sbomqs-linux-amd64 -o sbomqs && \
+    chmod a+x sbomqs && \
+    mv sbomqs /usr/bin/sbomqs
 
 # install sdkman
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/curlrc /root/.curlrc
