@@ -22,6 +22,7 @@ import com.mediamarktsaturn.technolinator.git.RepositoryService;
 import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.Project;
+import com.mediamarktsaturn.technolinator.sbom.SbomqsClient;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectMock;
 import io.quarkus.test.junit.mockito.InjectSpy;
@@ -35,6 +36,8 @@ class PushHandlerTest {
     RepositoryService repoService;
     @InjectSpy
     CdxgenClient cdxgenClient;
+    @InjectSpy
+    SbomqsClient sbomqsClient;
     @InjectMock
     DependencyTrackClient dtrackClient;
     @Inject
@@ -69,6 +72,7 @@ class PushHandlerTest {
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommand(any(), eq(projectName), eq(true), eq(Optional.empty()));
+        verify(sbomqsClient).calculateQualityScore(any());
         verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any(), any(), any(), eq("https://github.com/heubeck/examiner"));
     }
 }
