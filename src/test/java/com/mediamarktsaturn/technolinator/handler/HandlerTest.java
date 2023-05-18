@@ -1,22 +1,21 @@
 package com.mediamarktsaturn.technolinator.handler;
 
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-import com.mediamarktsaturn.technolinator.ConfigBuilder;
-import com.mediamarktsaturn.technolinator.git.LocalRepository;
-import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-
-import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import com.mediamarktsaturn.technolinator.ConfigBuilder;
+import com.mediamarktsaturn.technolinator.git.LocalRepository;
+import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import io.quarkus.test.junit.QuarkusTest;
 
 @QuarkusTest
 class HandlerTest {

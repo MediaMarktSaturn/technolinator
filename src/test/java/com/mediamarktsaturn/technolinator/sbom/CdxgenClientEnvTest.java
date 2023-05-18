@@ -72,7 +72,8 @@ class CdxgenClientEnvTest {
 
         // Then
         assertThat(result)
-            .containsEntry("GRADLE_ARGS", "-PartifactoryUser=\"this's just a test\" -DartifactoryPassword=oh_yeah-look_at_me -BgoAway=withThis");
+            .containsEntry("GRADLE_ARGS", "-PartifactoryUser=\"this's just a test\" -DartifactoryPassword=oh_yeah-look_at_me -BgoAway=withThis")
+            .containsEntry("GRADLE_MULTI_PROJECT_MODE", "false");
     }
 
     @Test

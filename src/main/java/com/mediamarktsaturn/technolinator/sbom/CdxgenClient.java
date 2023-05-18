@@ -249,13 +249,11 @@ public class CdxgenClient {
         var context = new HashMap<>(cdxgenEnv);
         context.put("JAVA_HOME", jdkHome);
         context.put(CDXGEN_FETCH_LICENSE, Boolean.toString(fetchLicenses));
+        context.put(CDXGEN_GRADLE_MULTI_PROJECT, Boolean.toString(gradleMultiProject));
 
         var gradleEnvValue = gradleEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {
             context.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
-        }
-        if (gradleMultiProject) {
-            context.put(CDXGEN_GRADLE_MULTI_PROJECT, "true");
         }
 
         var mavenEnvValue = mavenEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));

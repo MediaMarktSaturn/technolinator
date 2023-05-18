@@ -84,7 +84,7 @@ public class OnPullRequestDispatcher extends DispatcherBase {
         } else if (ignoreBotPullRequest(prPayload)) {
             Log.infof("Ignored bot pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
             status = MetricStatusRepo.BOT_PR_IGNORED;
-        } else if(concurrentLimit > 0 && currentConcurrency.get() >= concurrentLimit) {
+        } else if (concurrentLimit > 0 && currentConcurrency.get() >= concurrentLimit) {
             status = MetricStatusRepo.CONCURRENT_PR_LIMIT_EXCEEDED;
             Log.warnf("Skipping pull-request %s of repository %s because concurrency limit is exceeded", prPayload.getNumber(), repoUrl);
         } else {
