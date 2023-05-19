@@ -20,6 +20,14 @@ public class SbomqsClient {
     private static final String SBOMQS_COMMAND = "sbomqs score -b %s";
 
     /**
+     * Pattern of a valid score output. Examples:
+     * * 8.6     src/test/resources/sbom/vulnerable.json
+     * * 6.4     src/test/resources/sbom/not-vulnerable.json
+     * * 4       awesome-sbom.json
+     */
+    private static final String SCORE_RESULT_PATTERN = "^\\d+(\\.?\\d+){0,1}\\s+%s$";
+
+    /**
      * Calculates a quality score for the given sbomFile using the 'sbomqs' tool.
      */
     public Uni<Result<QualityScore>> calculateQualityScore(Path sbomFile) {
@@ -40,7 +48,7 @@ public class SbomqsClient {
 
     Result<QualityScore> parseScore(ProcessHandler.ProcessResult.Success result, String filename) {
         return result.outputLines().stream()
-            .filter(l -> l.contains(filename))
+            .filter(l -> l.matches(SCORE_RESULT_PATTERN.formatted(escapeFilenameAsRegexPattern(filename))))
             .findFirst()
             .map(scoreLine -> {
                 var score = scoreLine.replace(filename, "").trim();
@@ -49,6 +57,13 @@ public class SbomqsClient {
             }).orElseGet(() -> Result.failure(
                 new IllegalStateException("'sbomqs' did not output a score for " + filename)
             ));
+    }
+
+    private static String escapeFilenameAsRegexPattern(String filename) {
+        return filename
+            .replace("\\", "\\\\")
+            .replace("/", "\\/")
+            .replace(".", "\\.");
     }
 
     public record QualityScore(String score) {
