@@ -5,9 +5,9 @@ For using Technolinator inside your organization with private artifact repositor
 This could look like:
 
 ```dockerfile
-FROM ghcr.io/mediamarktsaturn/technolinator:1.39.0
+FROM ghcr.io/mediamarktsaturn/technolinator:1.39.3
 
-# app runs as user 201 in group 101
+# app runs as user 201 in group 101, files should be read-only to it
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
 # if you like to have a global config for grype. repository local `.grype.yaml` are respected as well, if not set via GRYPE_CONFIG env
 COPY --chown=root:root --chmod=a-w assets/grype.yml $APP_DIR/grype.yml
