@@ -10,7 +10,7 @@ It wraps around
 * [grype](https://github.com/anchore/grype) for creation of vulnerability reports in pull-requests
 * [sbomqs](https://github.com/interlynk-io/sbomqs) for rating the quality of a sbom
 
-It's build using [Quarkus](https://quarkus.io/) and handles GitHub webhooks by the [Quarkus GitHub App](https://quarkiverse.github.io/quarkiverse-docs/quarkus-github-app/dev/index.html).
+It's built using [Quarkus](https://quarkus.io/) with GitHub integration handled by [Quarkus GitHub App](https://quarkiverse.github.io/quarkiverse-docs/quarkus-github-app/dev/index.html).
 
 ## Overview
 
