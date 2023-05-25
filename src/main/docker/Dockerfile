@@ -82,7 +82,7 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     chmod a-w -R $SDK_DIR && \
     rm -rf /root/.sdkman
 
-# app & cdxgen env
+# app & tools env
 ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     JAVA20_HOME="$SDK_DIR/java/$JAVA_20_VERSION" \
     JAVA_HOME="$SDK_DIR/java/$JAVA_20_VERSION" \
@@ -92,6 +92,8 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     GRADLE_CMD=gradle \
     GITHUB_USER="nobody" \
     GRYPE_TEMPLATE="$APP_DIR/grype.tmpl" \
+    INTERLYNK_DISABLE_VERSION_CHECK="true" \
+    GRYPE_CHECK_FOR_APP_UPDATE="false" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \
     ALLOWED_ENV_SUBSTITUTIONS=""
 

@@ -24,7 +24,6 @@ public class GrypeClient {
     private static final String OUTPUT_FILE = "report.txt";
 
     private static final Map<String, String> DEFAULT_ENV = Map.of(
-        "GRYPE_CHECK_FOR_APP_UPDATE", "false",
         "GRYPE_DB_AUTO_UPDATE", "true"
     );
 
