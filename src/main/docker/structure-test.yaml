@@ -127,6 +127,10 @@ metadataTest:
           value: 'QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY'
         - key: ALLOWED_ENV_SUBSTITUTIONS
           value: ''
+        - key: INTERLYNK_DISABLE_VERSION_CHECK
+          value: 'true'
+        - key: GRYPE_CHECK_FOR_APP_UPDATE
+          value: 'false'
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
