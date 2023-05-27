@@ -1,5 +1,7 @@
 FROM redhat/ubi9-minimal:latest
-LABEL maintainer="MediaMarktSaturn Technology"
+LABEL maintainer="MediaMarktSaturn Technology" \
+      home="https://github.com/MediaMarktSaturn/technolinator" \
+      license="Apache-2.0"
 
 ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION

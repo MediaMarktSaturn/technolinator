@@ -321,4 +321,15 @@
             </build>
         </profile>
     </profiles>
+    <organization>
+        <name>MediaMarktSaturn Technology</name>
+        <url>https://mms.tech</url>
+    </organization>
+    <inceptionYear>2023</inceptionYear>
+    <licenses>
+        <license>
+            <name>Apache-2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+        </license>
+    </licenses>
 </project>
