@@ -162,6 +162,23 @@ class CdxgenClientGenerationTest {
         });
     }
 
+    @Test
+    void testMultiModuleGradleProject() {
+        // Given
+        var file = Paths.get("src/test/resources/repo/multi-gradle-module");
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, List.of())).enable(true).build();
+
+        // When
+        var result = generateSBOM(file, "multi-gradle-module", Optional.of(config));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn");
+            });
+        });
+    }
+
     // TODO: split tests in command generation and command execution
     Result<CdxgenClient.SBOMGenerationResult> generateSBOM(Path file, String projectName, Optional<TechnolinatorConfig> config) {
         var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());

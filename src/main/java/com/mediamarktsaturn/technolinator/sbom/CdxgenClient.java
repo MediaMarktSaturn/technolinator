@@ -112,7 +112,6 @@ public class CdxgenClient {
                 e -> e.getKey().replace("JAVA", "").replace("_HOME", ""),
                 Map.Entry::getValue
             ));
-
     }
 
     /**
