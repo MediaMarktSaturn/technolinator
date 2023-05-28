@@ -42,3 +42,4 @@ nb-configuration.xml
 # Test generated files
 src/test/**/sbom.*
 src/test/**/report.txt
+src/test/**/.gradle/**

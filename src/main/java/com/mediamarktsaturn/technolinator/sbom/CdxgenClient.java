@@ -48,7 +48,6 @@ public class CdxgenClient {
 
     // cdxgen ENV variable names
     private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
-    private static final String CDXGEN_GRADLE_MULTI_PROJECT = "GRADLE_MULTI_PROJECT_MODE";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
     private static final String CDXGEN_FETCH_LICENSE = "FETCH_LICENSE";
     private static final String JAVA_HOME = System.getenv("JAVA_HOME");
@@ -143,10 +142,7 @@ public class CdxgenClient {
     }
 
     public SbomCreationCommand createCommand(Path repoDir, String projectName, boolean fetchLicenses, Optional<TechnolinatorConfig> config) {
-        boolean recursive =
-            // recursive flag must not be set together with gradle multi project mode
-            !config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false) &&
-                config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault);
+        boolean recursive = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault);
 
         String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
@@ -240,7 +236,6 @@ public class CdxgenClient {
 
     Map<String, String> buildEnv(Optional<TechnolinatorConfig> config, boolean fetchLicenses) {
         var gradleEnv = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::args).orElseGet(List::of);
-        var gradleMultiProject = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::multiProject).orElse(false);
         var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
         var env = config.map(TechnolinatorConfig::env).orElseGet(Map::of);
         var jdkHome = config.map(TechnolinatorConfig::jdk).map(TechnolinatorConfig.JdkConfig::version).map(jdkHomes::get).orElse(JAVA_HOME);
@@ -248,7 +243,6 @@ public class CdxgenClient {
         var context = new HashMap<>(cdxgenEnv);
         context.put("JAVA_HOME", jdkHome);
         context.put(CDXGEN_FETCH_LICENSE, Boolean.toString(fetchLicenses));
-        context.put(CDXGEN_GRADLE_MULTI_PROJECT, Boolean.toString(gradleMultiProject));
 
         var gradleEnvValue = gradleEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
         if (!gradleEnvValue.isBlank()) {

@@ -47,7 +47,6 @@ class TechnolinatorConfigTest {
                 location: projectLocation
                 recursive: false
             gradle:
-                multiProject: true
                 args:
                     - -Pone
                     - -Dtwo
@@ -65,7 +64,6 @@ class TechnolinatorConfigTest {
         assertThat(config).isNotNull().satisfies(c -> {
             assertThat(c.enable()).isTrue();
             assertThat(c.gradle()).satisfies(g -> {
-                assertThat(g.multiProject()).isTrue();
                 assertThat(g.args()).containsExactly("-Pone", "-Dtwo");
             });
             assertThat(c.maven().args()).containsExactly("one", "two");
