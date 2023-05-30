@@ -104,9 +104,7 @@ public class PushHandler extends HandlerBase {
 
     static List<String> getProjectTags(PushEvent event, Optional<SbomqsClient.QualityScore> score) {
         var tags = new ArrayList<String>();
-        score.ifPresent(value -> {
-            tags.add(SBOM_QUALITY_TAG.formatted(value.score()));
-        });
+        score.ifPresent(value -> tags.add(SBOM_QUALITY_TAG.formatted(value.score())));
         try {
             tags.addAll(event.payload().getRepository().listTopics());
         } catch (IOException e) {

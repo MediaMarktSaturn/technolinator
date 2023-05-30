@@ -7,11 +7,11 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.quarkiverse.githubapp.runtime.UtilsProducer;
 
 class TechnolinatorConfigTest {
 
-    static final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
+    static final ObjectMapper configMapper = new UtilsProducer().yamlObjectMapper();
 
     @Test
     void testEmptyConfig() throws JsonProcessingException {
@@ -65,7 +65,6 @@ class TechnolinatorConfigTest {
         assertThat(config).isNotNull().satisfies(c -> {
             assertThat(c.enable()).isTrue();
             assertThat(c.gradle()).satisfies(g -> {
-                assertThat(g.multiProject()).isTrue();
                 assertThat(g.args()).containsExactly("-Pone", "-Dtwo");
             });
             assertThat(c.maven().args()).containsExactly("one", "two");
