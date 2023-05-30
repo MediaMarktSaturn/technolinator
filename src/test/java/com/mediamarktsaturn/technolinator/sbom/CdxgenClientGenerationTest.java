@@ -110,9 +110,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).containsOnly("husky");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).containsOnly("husky")
+            );
         });
     }
 
@@ -125,9 +125,9 @@ class CdxgenClientGenerationTest {
         var result = generateSBOM(file, "noop", Optional.empty());
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class);
-        });
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s ->
+            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class)
+        );
     }
 
     @Test
@@ -140,10 +140,10 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
                 // there are some license issues in this go.sum but license-fetch is disabled
-                assertThat(fallback.validationIssues()).isEmpty();
-            });
+                assertThat(fallback.validationIssues()).isEmpty()
+            );
         });
     }
 
@@ -158,9 +158,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin")
+            );
         });
     }
 
@@ -175,9 +175,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn")
+            );
         });
     }
 
@@ -198,9 +198,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-                assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("quarkus-core", "maven-model");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper ->
+                assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("quarkus-core", "maven-model")
+            );
         });
     }
 
