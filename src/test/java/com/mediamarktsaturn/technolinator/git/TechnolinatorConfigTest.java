@@ -7,11 +7,11 @@ import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import io.quarkiverse.githubapp.runtime.UtilsProducer;
 
 class TechnolinatorConfigTest {
 
-    static final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
+    static final ObjectMapper configMapper = new UtilsProducer().yamlObjectMapper();
 
     @Test
     void testEmptyConfig() throws JsonProcessingException {
@@ -47,6 +47,7 @@ class TechnolinatorConfigTest {
                 location: projectLocation
                 recursive: false
             gradle:
+                multiProject: true
                 args:
                     - -Pone
                     - -Dtwo

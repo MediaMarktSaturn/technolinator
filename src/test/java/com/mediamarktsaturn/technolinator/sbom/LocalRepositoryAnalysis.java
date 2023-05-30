@@ -12,10 +12,10 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.logging.Log;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -28,17 +28,24 @@ class LocalRepositoryAnalysis {
     @Inject
     CdxgenClient cdxgenClient;
 
-    final ObjectMapper configMapper = new ObjectMapper(new YAMLFactory());
+    final ObjectMapper configMapper = new UtilsProducer().yamlObjectMapper();
 
-    String dir = "/home/heubeck/w/sbom-test/campaign-orchestration";
+    String dir = "/home/heubeck/w/sbom-test/branded-services-support";
 
     @Language("yml")
     String configString = """
         ---
+        analysis:
+          recursive: true
         gradle:
           args:
-            - -PmavenUser=${ARTIFACTORY_USER}
-            - -PmavenPassword=${ARTIFACTORY_PASSWORD}
+             - -PartifactoryUser=${ARTIFACTORY_USER}
+             - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
+             - -PartifactoryUrl=${ARTIFACTORY_URL}
+             - -PgithubToken=${GITHUB_TOKEN}
+             - -PgithubUser=${GITHUB_USER}
+             - -PgcpProjectId=nowhere
+             - -PgithubSHA=none
         jdk:
           version: 17
                 """;
