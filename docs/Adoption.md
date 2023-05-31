@@ -2,10 +2,12 @@
 
 For using Technolinator inside your organization with private artifact repositories we recommend to create a derived container image containing needed configuration like Maven or Gradle setting files and ENV.
 
-This could look like:
+This could look like in the following example:
+
+![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
 
 ```dockerfile
-FROM ghcr.io/mediamarktsaturn/technolinator:1.39.3
+FROM ghcr.io/mediamarktsaturn/technolinator:1.40.1
 
 # app runs as user 201 in group 101, files should be read-only to it
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
