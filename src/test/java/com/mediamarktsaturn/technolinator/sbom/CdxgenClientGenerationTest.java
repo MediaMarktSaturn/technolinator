@@ -10,6 +10,8 @@ import java.util.Optional;
 
 import org.cyclonedx.model.Component;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
@@ -108,9 +110,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).containsOnly("husky");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).containsOnly("husky")
+            );
         });
     }
 
@@ -123,9 +125,9 @@ class CdxgenClientGenerationTest {
         var result = generateSBOM(file, "noop", Optional.empty());
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class);
-        });
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s ->
+            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class)
+        );
     }
 
     @Test
@@ -138,10 +140,10 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
                 // there are some license issues in this go.sum but license-fetch is disabled
-                assertThat(fallback.validationIssues()).isEmpty();
-            });
+                assertThat(fallback.validationIssues()).isEmpty()
+            );
         });
     }
 
@@ -156,9 +158,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin")
+            );
         });
     }
 
@@ -173,9 +175,32 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn");
-            });
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn")
+            );
+        });
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "gradle-single-module, false",
+        "gradle-single-module-kt, false",
+        "gradle-single-module, true",
+        "gradle-single-module-kt, true"
+    })
+    void testSimpleGradleProject(String repoName, boolean recursive) {
+        // Given
+        var file = Paths.get("src/test/resources/repo/" + repoName);
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, recursive, List.of())).enable(true).build();
+
+        // When
+        var result = generateSBOM(file, repoName, Optional.of(config));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper ->
+                assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("quarkus-core", "maven-model")
+            );
         });
     }
 
