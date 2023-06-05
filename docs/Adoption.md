@@ -7,7 +7,7 @@ This could look like in the following example:
 ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
 
 ```dockerfile
-FROM ghcr.io/mediamarktsaturn/technolinator:1.40.1
+FROM ghcr.io/mediamarktsaturn/technolinator:VERSION
 
 # app runs as user 201 in group 101, files should be read-only to it
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml
