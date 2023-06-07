@@ -14,13 +14,13 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.1.0.Final</quarkus.platform.version>
+        <quarkus.platform.version>3.1.1.Final</quarkus.platform.version>
 
         <quarkus-github-app.version>2.0.1</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>7.3.2</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
-        <jruby.joni.version>2.1.48</jruby.joni.version>
+        <jruby.joni.version>2.2.0</jruby.joni.version>
 
         <!-- test -->
         <assertj.version>3.24.2</assertj.version>
@@ -31,11 +31,11 @@
         <mockserver.version>5.13.2</mockserver.version>
 
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.1.0</surefire-plugin.version>
+        <surefire-plugin.version>3.1.2</surefire-plugin.version>
         <compiler-plugin.version>3.11.0</compiler-plugin.version>
         <clean-plugin.version>3.2.0</clean-plugin.version>
         <dependency-plugin.version>3.6.0</dependency-plugin.version>
-        <maven-license-plugin.version>2.0.1</maven-license-plugin.version>
+        <maven-license-plugin.version>2.1.0</maven-license-plugin.version>
     </properties>
     <dependencyManagement>
         <dependencies>
