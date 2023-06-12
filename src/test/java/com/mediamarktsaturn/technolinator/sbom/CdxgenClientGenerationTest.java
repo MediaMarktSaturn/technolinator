@@ -204,6 +204,27 @@ class CdxgenClientGenerationTest {
         });
     }
 
+    @ParameterizedTest
+    @CsvSource({
+        "gradle-jar-module, true",
+        "gradle-jar-module, false"
+    })
+    void testGradleJarQualifierProject(String repoName, boolean recursive) {
+        // Given
+        var file = Paths.get("src/test/resources/repo/" + repoName);
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, recursive, List.of())).enable(true).build();
+
+        // When
+        var result = generateSBOM(file, repoName, Optional.of(config));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("spring-graphql-test", "micrometer-registry-prometheus")
+            );
+        });
+    }
+
     // TODO: split tests in command generation and command execution
     Result<CdxgenClient.SBOMGenerationResult> generateSBOM(Path file, String projectName, Optional<TechnolinatorConfig> config) {
         var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
