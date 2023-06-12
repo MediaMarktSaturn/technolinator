@@ -41,7 +41,7 @@ ENV GIT_ASKPASS="$APP_DIR/git_askpass.sh"
 RUN \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     microdnf update -y && \
-    microdnf install -y which tar tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang && \
+    microdnf install -y which tar tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang python3 pip && \
     microdnf clean all -y
 
 # locale options
