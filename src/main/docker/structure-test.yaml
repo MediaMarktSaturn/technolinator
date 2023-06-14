@@ -91,6 +91,12 @@ commandTests:
           - '.*Missing value for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
+    - name: "Composer installed"
+      command: 'composer'
+      args: ["about"]
+      expectedOutput:
+          - 'Composer - Dependency Manager for PHP.*'
+
     - name: "Java 17 available"
       command: '$JAVA17_HOME/bin/java'
       args: ["--version"]
