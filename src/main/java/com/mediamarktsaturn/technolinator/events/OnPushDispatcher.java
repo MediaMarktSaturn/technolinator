@@ -133,15 +133,16 @@ public class OnPushDispatcher extends DispatcherBase {
             switch (uploadResult) {
                 case Result.Success<Project> s -> {
                     state = GHCommitState.SUCCESS;
-                    metricStatus = MetricStatusAnalysis.OK;
                     switch (s.result()) {
                         case Project.Available a -> {
                             url = a.url();
                             desc = "SBOM available";
+                            metricStatus = MetricStatusAnalysis.OK;
                         }
                         case Project.None n -> {
                             url = null;
                             desc = "SBOM not available";
+                            metricStatus = MetricStatusAnalysis.NONE;
                         }
                         default -> throw new IllegalStateException();
                     }
