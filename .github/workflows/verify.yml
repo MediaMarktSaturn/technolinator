@@ -1,0 +1,61 @@
+name: Verify cdxgen pre-release
+on:
+    workflow_dispatch:
+        inputs:
+            cdxgen_branch:
+                required: true
+                description: Branch of https://github.com/CycloneDX/cdxgen/ project to run tests with
+env:
+    CDXGEN_PLUGINS_VERSION: '1.1.0'
+    GRYPE_VERSION: 'v0.63.0'
+    SBOMQS_VERSION: 'v0.0.17'
+    java_version: '20'
+    mvn_parameter: '-B -ntp'
+    cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
+jobs:
+    verify:
+        name: Verify cdxgen pre-release from branch
+        runs-on: ubuntu-latest
+        steps:
+
+            - name: Checkout Code
+              uses: actions/checkout@v3
+
+            - name: Setup Java
+              uses: actions/setup-java@v3
+              with:
+                  java-version: '${{ env.java_version }}'
+                  distribution: 'temurin'
+
+            - name: Install requirements and cdxgen from branch ${{ env.cdxgen_branch }}
+              run: |
+                  mkdir _bin
+                  echo $(pwd)/_bin >> $GITHUB_PATH
+
+                  # cdxgen
+                  git clone https://github.com/CycloneDX/cdxgen.git
+                  cd cdxgen
+                  git checkout "$cdxgen_branch"
+                  npm install
+                  cd ..
+                  ln -s $(realpath cdxgen/bin/cdxgen.js) _bin/cdxgen
+
+                  # cdxgen-plugins-bin
+                  npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
+
+                  # grype
+                  curl -Ls https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz -o grype.tar.gz
+                  tar xf grype.tar.gz -C _bin
+
+                  # sbomqs
+                  curl -Ls https://github.com/interlynk-io/sbomqs/releases/download/${SBOMQS_VERSION}/sbomqs-linux-amd64 -o _bin/sbomqs
+                  chmod a+x _bin/sbomqs
+
+            - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
+              env:
+                  QUARKUS_GITHUB_APP_APP_ID: 32168
+                  QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
+                  QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+                  DTRACK_APIKEY: theres-nothing-to-see-here
+              run: mvn ${{ env.mvn_parameter }} clean verify

@@ -41,7 +41,8 @@
         {
             "description": "Update cdxgen-plugins-bin version in GH action",
             "fileMatch": [
-                ".*ci\\.yml$"
+                ".*ci\\.yml$",
+                ".*verify\\.yml$"
             ],
             "matchStrings": [
                 "CDXGEN_PLUGINS_VERSION: '(?<currentValue>.*?)'"
@@ -52,7 +53,8 @@
         {
             "description": "Update grype version in GH action",
             "fileMatch": [
-                ".*ci\\.yml$"
+                ".*ci\\.yml$",
+                ".*verify\\.yml$"
             ],
             "matchStrings": [
                 "GRYPE_VERSION: '(?<currentValue>.*?)'"
@@ -63,7 +65,8 @@
         {
             "description": "Update sbomqs version in GH action",
             "fileMatch": [
-                ".*ci\\.yml$"
+                ".*ci\\.yml$",
+                ".*verify\\.yml$"
             ],
             "matchStrings": [
                 "SBOMQS_VERSION: '(?<currentValue>.*?)'"
