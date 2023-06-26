@@ -14,8 +14,10 @@ import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHUser;
 
 import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.PullRequestHandler;
+import com.mediamarktsaturn.technolinator.sbom.GrypeClient;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Actions;
@@ -97,7 +99,7 @@ public class OnPullRequestDispatcher extends DispatcherBase {
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
             pullRequestHandler.onPullRequest(new PullRequestEvent(prPayload, config), metadata)
                 .ifNoItem().after(analysisTimeout).fail()
-                .map(i -> new PullRequestResult(MetricStatusAnalysis.OK))
+                .map(this::mapToResult)
                 .onFailure().recoverWithItem(f -> new PullRequestResult(MetricStatusAnalysis.ERROR))
                 .onTermination().invoke(() -> {
                     metricsPublisher.reportAnalysisCompletion(repoName, "pull-request");
@@ -132,6 +134,17 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                 Tag.of("repo", repoName)
             )
         ).increment();
+    }
+
+    private PullRequestResult mapToResult(Result<GrypeClient.VulnerabilityReport> report) {
+        MetricStatusAnalysis status = switch (report) {
+            case Result.Success<GrypeClient.VulnerabilityReport> s -> switch (s.result()) {
+                case GrypeClient.VulnerabilityReport.Report r -> MetricStatusAnalysis.OK;
+                case GrypeClient.VulnerabilityReport.None n -> MetricStatusAnalysis.NONE;
+            };
+            case Result.Failure<?> f -> MetricStatusAnalysis.ERROR;
+        };
+        return new PullRequestResult(status);
     }
 
     private boolean ignoreBotPullRequest(GHEventPayload.PullRequest prPayload) {

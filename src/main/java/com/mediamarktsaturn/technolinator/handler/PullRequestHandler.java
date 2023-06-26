@@ -41,12 +41,12 @@ public class PullRequestHandler extends HandlerBase {
         this.dtrackUrl = dtrackUrl;
     }
 
-    public Uni<Void> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
+    public Uni<Result<GrypeClient.VulnerabilityReport>> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
         return checkoutAndGenerateSBOM(event, metadata)
             // wrap into deferred for ensuring onTermination is called even on pipeline setup errors
             .chain(result -> Uni.createFrom().deferred(() -> createReport(event, result.getItem1(), metadata))
                 .onTermination().invoke(() -> result.getItem2().close())
-            ).chain(report -> commentPullRequest(event, report, metadata));
+            ).invoke(report -> commentPullRequest(event, report, metadata));
     }
 
     Uni<Result<GrypeClient.VulnerabilityReport>> createReport(PullRequestEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
@@ -55,8 +55,7 @@ public class PullRequestHandler extends HandlerBase {
             case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
                 // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
                 case CdxgenClient.SBOMGenerationResult.Proper p -> grypeClient.createVulnerabilityReport(p.sbomFile());
-                case CdxgenClient.SBOMGenerationResult.Fallback f ->
-                    grypeClient.createVulnerabilityReport(f.sbomFile());
+                case CdxgenClient.SBOMGenerationResult.Fallback f -> grypeClient.createVulnerabilityReport(f.sbomFile());
                 case CdxgenClient.SBOMGenerationResult.None n -> {
                     Log.infof("Nothing to analyse in repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
                     yield Uni.createFrom().item(Result.success(GrypeClient.VulnerabilityReport.none()));
