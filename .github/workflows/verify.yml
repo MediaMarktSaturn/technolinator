@@ -6,7 +6,7 @@ on:
                 required: true
                 description: Branch of https://github.com/CycloneDX/cdxgen/ project to run tests with
 env:
-    CDXGEN_PLUGINS_VERSION: '1.1.0'
+    CDXGEN_PLUGINS_VERSION: '1.2.0'
     GRYPE_VERSION: 'v0.63.0'
     SBOMQS_VERSION: 'v0.0.17'
     java_version: '20'
