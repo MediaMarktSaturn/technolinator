@@ -92,14 +92,21 @@ public class PushHandler extends HandlerBase {
                     buildProjectNameFromEvent(event),
                     buildProjectVersionFromEvent(event),
                     sbom,
-                    getProjectTags(event, score),
-                    getProjectDescription(event),
-                    getRepositoryUrl(event)
+                    new DependencyTrackClient.ProjectDetails(
+                        getProjectDescription(event),
+                        getWebsiteUrl(event),
+                        getVCSUrl(event),
+                        getProjectTags(event, score)
+                    )
                 ));
     }
 
-    static String getRepositoryUrl(PushEvent event) {
+    static String getWebsiteUrl(PushEvent event) {
         return event.payload().getRepository().getHtmlUrl().toString();
+    }
+
+    static String getVCSUrl(PushEvent event) {
+        return event.payload().getRepository().getGitTransportUrl();
     }
 
     static List<String> getProjectTags(PushEvent event, Optional<SbomqsClient.QualityScore> score) {

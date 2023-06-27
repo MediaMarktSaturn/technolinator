@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -51,8 +52,9 @@ class PushHandlerTest {
 
         var projectName = "examiner";
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
+        var projectDetails = new DependencyTrackClient.ProjectDetails("", "", "", List.of());
 
-        when(dtrackClient.uploadSBOM(eq(projectName), eq(branch), any(), any(), any(), eq("https://github.com/heubeck/examiner")))
+        when(dtrackClient.uploadSBOM(eq(projectName), eq(branch), any(), any()))
             .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
@@ -73,6 +75,6 @@ class PushHandlerTest {
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommand(any(), eq(projectName), eq(true), eq(Optional.empty()));
         verify(sbomqsClient).calculateQualityScore(any());
-        verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any(), any(), any(), eq("https://github.com/heubeck/examiner"));
+        verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any(), any());
     }
 }

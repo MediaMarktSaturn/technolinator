@@ -138,10 +138,12 @@ class DependencyTrackClientTest {
 
         var tags = List.of("thisIsGreat", "awesome_project", "42");
         var description = "this is just a great test project";
-        var url = "https://github.com/MediaMarktSaturn/awesome-project";
+        var website = "https://github.com/MediaMarktSaturn/awesome-project";
+        var vcs = "git://github.com/MediaMarktSaturn/awesome-project.git";
+        var projectDetails = new DependencyTrackClient.ProjectDetails(description, website, vcs, tags);
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom, tags, description, url));
+        var result = await(cut.uploadSBOM(name, version, sbom, projectDetails));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -174,7 +176,15 @@ class DependencyTrackClientTest {
             assertThat(json.getJsonArray("externalReferences")).containsExactly(
                 JsonObject.of(
                     "type", "vcs",
-                    "url", url
+                    "url",vcs
+                ),
+                JsonObject.of(
+                    "type", "website",
+                    "url", website
+                ),
+                JsonObject.of(
+                    "type", "release-notes",
+                    "url", "https://github.com/MediaMarktSaturn/awesome-project/releases"
                 )
             );
         });
@@ -211,7 +221,7 @@ class DependencyTrackClientTest {
         var version = "3.2.1";
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom, List.of(), null, ""));
+        var result = await(cut.uploadSBOM(name, version, sbom, new DependencyTrackClient.ProjectDetails("", "", "", List.of())));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);

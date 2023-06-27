@@ -7,6 +7,7 @@ import java.util.Map;
 
 import org.cyclonedx.generators.json.BomJsonGenerator14;
 import org.cyclonedx.model.Bom;
+import org.cyclonedx.model.ExternalReference;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import com.mediamarktsaturn.technolinator.Result;
@@ -46,7 +47,7 @@ public class DependencyTrackClient {
     /**
      * Uploads the given  [sbom] to Dependency-Track, deactivating other versions of the same project if any
      */
-    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom, List<String> projectTags, String projectDescription, String repoUrl) {
+    public Uni<Result<Project>> uploadSBOM(String projectName, String projectVersion, Bom sbom, ProjectDetails projectDetails) {
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator14(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
@@ -72,7 +73,7 @@ public class DependencyTrackClient {
             .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
-                    return tagAndDescribeProject(p.projectId(), projectTags, projectDescription, repoUrl);
+                    return tagAndDescribeProject(p.projectId(), projectDetails);
                 } else {
                     return Uni.createFrom().voidItem();
                 }
@@ -136,16 +137,27 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    Uni<Void> tagAndDescribeProject(String projectUUID, List<String> tags, String description, String repoUrl) {
-        var tagsArray = new JsonArray(tags.stream()
+    Uni<Void> tagAndDescribeProject(String projectUUID, ProjectDetails projectDetails) {
+        var tagsArray = new JsonArray(projectDetails.tags().stream()
             .filter(t -> t != null && !t.isBlank())
             .map(tag -> JsonObject.of("name", tag)
             ).toList());
+        var description = projectDetails.description();
         var descValue = description == null || description.isBlank() ? "" : description;
-        var extRefs = JsonArray.of(JsonObject.of(
-            "type", "vcs",
-            "url", repoUrl
-        ));
+        var extRefs = JsonArray.of(
+            JsonObject.of(
+                "type", ExternalReference.Type.VCS.getTypeName(),
+                "url", projectDetails.vcsUrl()
+            ),
+            JsonObject.of(
+                "type", ExternalReference.Type.WEBSITE.getTypeName(),
+                "url", projectDetails.websiteUrl()
+            ),
+            JsonObject.of(
+                "type", ExternalReference.Type.RELEASE_NOTES.getTypeName(),
+                "url", projectDetails.websiteUrl() + "/releases"
+            )
+        );
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(JsonObject.of(
@@ -162,5 +174,13 @@ public class DependencyTrackClient {
         return
             project.getString("name").equals(projectName)
                 && !project.getString("version").equals(projectVersion);
+    }
+
+    public record ProjectDetails(
+        String description,
+        String websiteUrl,
+        String vcsUrl,
+        List<String> tags
+    ) {
     }
 }
