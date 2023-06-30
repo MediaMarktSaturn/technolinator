@@ -24,6 +24,7 @@ import org.mockserver.model.MediaType;
 import com.mediamarktsaturn.technolinator.DependencyTrackMockServer;
 import com.mediamarktsaturn.technolinator.MockServerResource;
 import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import io.quarkus.test.common.QuarkusTestResource;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
@@ -140,10 +141,10 @@ class DependencyTrackClientTest {
         var description = "this is just a great test project";
         var website = "https://github.com/MediaMarktSaturn/awesome-project";
         var vcs = "git://github.com/MediaMarktSaturn/awesome-project.git";
-        var projectDetails = new DependencyTrackClient.ProjectDetails(description, website, vcs, tags);
+        var projectDetails = new RepositoryDetails(name, version, description, website, vcs, tags);
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom, projectDetails));
+        var result = await(cut.uploadSBOM(projectDetails, sbom));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -176,7 +177,7 @@ class DependencyTrackClientTest {
             assertThat(json.getJsonArray("externalReferences")).containsExactly(
                 JsonObject.of(
                     "type", "vcs",
-                    "url",vcs
+                    "url", vcs
                 ),
                 JsonObject.of(
                     "type", "website",
@@ -217,11 +218,9 @@ class DependencyTrackClientTest {
             error().withDropConnection(true)
         );
         var sbom = new Bom();
-        var name = "test-project";
-        var version = "3.2.1";
 
         // When
-        var result = await(cut.uploadSBOM(name, version, sbom, new DependencyTrackClient.ProjectDetails("", "", "", List.of())));
+        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);

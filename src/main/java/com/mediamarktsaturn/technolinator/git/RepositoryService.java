@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 import java.util.Objects;
 import java.util.zip.ZipInputStream;
 
@@ -13,6 +14,8 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.Result.Failure;
 import com.mediamarktsaturn.technolinator.Result.Success;
+import com.mediamarktsaturn.technolinator.events.Event;
+import com.mediamarktsaturn.technolinator.events.PushEvent;
 import com.mediamarktsaturn.technolinator.os.Util;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -98,5 +101,51 @@ public class RepositoryService {
         if (dir != null) {
             Util.removeAsync(dir);
         }
+    }
+
+    public RepositoryDetails getRepositoryDetails(PushEvent event) {
+        return new RepositoryDetails(
+            buildProjectNameFromEvent(event),
+            buildProjectVersionFromEvent(event),
+            getProjectDescription(event),
+            getWebsiteUrl(event),
+            getVCSUrl(event),
+            getProjectTopics(event)
+        );
+    }
+
+    public static String buildProjectNameFromEvent(Event<?> event) {
+        return event.config()
+            .map(TechnolinatorConfig::project)
+            .map(TechnolinatorConfig.ProjectConfig::name)
+            .orElseGet(() -> {
+                var path = event.repoUrl().getPath();
+                return path.substring(path.lastIndexOf('/') + 1);
+            });
+    }
+
+    static String buildProjectVersionFromEvent(Event<?> event) {
+        return event.branch();
+    }
+
+    static String getWebsiteUrl(PushEvent event) {
+        return event.payload().getRepository().getHtmlUrl().toString();
+    }
+
+    static String getVCSUrl(PushEvent event) {
+        return event.payload().getRepository().getGitTransportUrl();
+    }
+
+    static List<String> getProjectTopics(PushEvent event) {
+        try {
+            return event.payload().getRepository().listTopics();
+        } catch (IOException e) {
+            Log.warnf(e, "Could not fetch topics of repo %s", event.repoUrl());
+            return List.of();
+        }
+    }
+
+    static String getProjectDescription(PushEvent event) {
+        return event.payload().getRepository().getDescription();
     }
 }

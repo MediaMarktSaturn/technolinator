@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.handler;
 
 
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -9,16 +10,17 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GitHub;
+import org.mockito.ArgumentCaptor;
 
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PushEvent;
+import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import com.mediamarktsaturn.technolinator.git.RepositoryService;
 import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
@@ -52,9 +54,9 @@ class PushHandlerTest {
 
         var projectName = "examiner";
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
-        var projectDetails = new DependencyTrackClient.ProjectDetails("", "", "", List.of());
+        var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
 
-        when(dtrackClient.uploadSBOM(eq(projectName), eq(branch), any(), any()))
+        when(dtrackClient.uploadSBOM(captor.capture(), any()))
             .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
@@ -75,6 +77,17 @@ class PushHandlerTest {
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommand(any(), eq(projectName), eq(true), eq(Optional.empty()));
         verify(sbomqsClient).calculateQualityScore(any());
-        verify(dtrackClient).uploadSBOM(eq(projectName), eq(branch), any(), any());
+        verify(dtrackClient).uploadSBOM(any(), any());
+
+        assertThat(captor.getValue()).isNotNull().satisfies(repoDetails -> {
+            assertThat(repoDetails.name()).hasToString(projectName);
+            assertThat(repoDetails.version()).hasToString(branch);
+            assertThat(repoDetails.websiteUrl()).hasToString("https://github.com/heubeck/examiner");
+            assertThat(repoDetails.vcsUrl()).hasToString("git://github.com/heubeck/examiner.git");
+            assertThat(repoDetails.description()).isNotBlank();
+            assertThat(repoDetails.topics())
+                .hasSizeGreaterThan(1)
+                .anyMatch(t -> t.startsWith("sbom-quality-score="));
+        });
     }
 }

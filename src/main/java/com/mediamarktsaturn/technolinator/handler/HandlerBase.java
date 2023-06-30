@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.technolinator.handler;
 
+import static com.mediamarktsaturn.technolinator.git.RepositoryService.buildProjectNameFromEvent;
+
 import java.nio.file.Path;
 import java.util.Optional;
 
@@ -52,20 +54,6 @@ public abstract class HandlerBase {
                 yield Uni.createFrom().item(Tuple2.of(Result.failure(f.cause()), null));
             }
         };
-    }
-
-    static String buildProjectNameFromEvent(Event<?> event) {
-        return event.config()
-            .map(TechnolinatorConfig::project)
-            .map(TechnolinatorConfig.ProjectConfig::name)
-            .orElseGet(() -> {
-                var path = event.repoUrl().getPath();
-                return path.substring(path.lastIndexOf('/') + 1);
-            });
-    }
-
-    static String buildProjectVersionFromEvent(Event<?> event) {
-        return event.branch();
     }
 
     static Path buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
