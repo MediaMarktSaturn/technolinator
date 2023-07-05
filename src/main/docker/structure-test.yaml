@@ -43,6 +43,12 @@ fileExistenceTests:
       uid: 0
       gid: 0
 
+    - name: 'Tzdata for UTC exists'
+      path: '/usr/share/zoneinfo/UTC'
+      shouldExist: true
+      uid: 0
+      gid: 0
+
 commandTests:
     - name: 'Timezone is UTC'
       command: 'date'

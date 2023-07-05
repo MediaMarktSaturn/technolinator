@@ -42,7 +42,7 @@ RUN \
     microdnf update -y && \
     microdnf reinstall -y tzdata && \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    microdnf install -y which tar tzdata openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang python3 pip php php-cli php-zip php-json && \
+    microdnf install -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang python3 pip php php-cli php-zip php-json && \
     curl -s https://raw.githubusercontent.com/composer/getcomposer.org/main/web/installer | php -- --filename=composer --install-dir=/usr/bin --quiet && \
     microdnf clean all -y
 
