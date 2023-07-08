@@ -6,7 +6,7 @@ on:
             - '.github/dependabot.yml'
             - '.github/technolinator.yml'
 env:
-    CDXGEN_VERSION: '8.6.0'
+    CDXGEN_VERSION: '9.1.0'
     CDXGEN_PLUGINS_VERSION: '1.2.0'
     GRYPE_VERSION: 'v0.63.1'
     SBOMQS_VERSION: 'v0.0.18'
