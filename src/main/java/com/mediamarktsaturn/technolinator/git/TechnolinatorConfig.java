@@ -14,7 +14,8 @@ public record TechnolinatorConfig(
     GradleConfig gradle,
     MavenConfig maven,
     JdkConfig jdk,
-    Map<String, String> env
+    Map<String, String> env,
+    List<TechnolinatorConfig> projects
 ) {
 
     public record ProjectConfig(

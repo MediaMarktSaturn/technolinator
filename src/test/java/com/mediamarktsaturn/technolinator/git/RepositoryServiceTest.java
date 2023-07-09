@@ -1,24 +1,23 @@
 package com.mediamarktsaturn.technolinator.git;
 
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.Optional;
-
+import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.Result;
+import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GitHub;
 
-import com.mediamarktsaturn.technolinator.Command;
-import com.mediamarktsaturn.technolinator.Result;
-import io.quarkus.test.junit.QuarkusTest;
-import jakarta.inject.Inject;
+import java.io.IOException;
+import java.util.Optional;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 @QuarkusTest
 class RepositoryServiceTest {

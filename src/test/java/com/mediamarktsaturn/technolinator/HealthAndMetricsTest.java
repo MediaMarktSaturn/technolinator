@@ -1,10 +1,9 @@
 package com.mediamarktsaturn.technolinator;
 
-import static io.restassured.RestAssured.given;
-
+import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 
-import io.quarkus.test.junit.QuarkusTest;
+import static io.restassured.RestAssured.given;
 
 @QuarkusTest
 class HealthAndMetricsTest {

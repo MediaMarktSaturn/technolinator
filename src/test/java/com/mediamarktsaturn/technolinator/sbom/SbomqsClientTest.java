@@ -1,16 +1,15 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.nio.file.Paths;
-
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-
 import com.mediamarktsaturn.technolinator.Result;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+import java.nio.file.Paths;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class SbomqsClientTest {

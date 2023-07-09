@@ -1,15 +1,14 @@
 package com.mediamarktsaturn.technolinator.os;
 
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.Map;
-
+import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import io.quarkus.test.junit.QuarkusTest;
+import java.util.Map;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class ProcessHandlerTest {

@@ -1,15 +1,14 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.nio.file.Paths;
-
+import com.mediamarktsaturn.technolinator.Result;
+import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.mediamarktsaturn.technolinator.Result;
-import io.quarkus.test.junit.QuarkusTest;
+import java.nio.file.Paths;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class CdxgenClientParsingTest {
@@ -24,7 +23,7 @@ class CdxgenClientParsingTest {
         var file = Paths.get(filename);
 
         // when
-        var result = CdxgenClient.parseSbomFile(file);
+        var result = CdxgenClient.parseSbomFile(file, "myProject");
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s ->
@@ -37,7 +36,7 @@ class CdxgenClientParsingTest {
         var file = Paths.get("src/test/resources/sbom/invalid.json");
 
         // when
-        var result = CdxgenClient.parseSbomFile(file);
+        var result = CdxgenClient.parseSbomFile(file, "myProject");
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);
@@ -53,7 +52,7 @@ class CdxgenClientParsingTest {
         var file = Paths.get(filename);
 
         // when
-        var result = CdxgenClient.parseSbomFile(file);
+        var result = CdxgenClient.parseSbomFile(file, "myProject");
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s ->
@@ -66,11 +65,12 @@ class CdxgenClientParsingTest {
         var file = Paths.get("src/test/resources/sbom/maven/fallback.json");
 
         // When
-        var result = CdxgenClient.parseSbomFile(file);
+        var result = CdxgenClient.parseSbomFile(file, "myProject");
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
             assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
+                assertThat(fallback.projectName()).hasToString("myProject");
                 var sbom = fallback.sbom();
                 assertThat(sbom.getBomFormat()).isEqualTo("CycloneDX");
                 assertThat(sbom.getMetadata().getComponent()).isNull();
@@ -84,11 +84,12 @@ class CdxgenClientParsingTest {
         var file = Paths.get("src/test/resources/sbom/maven/default.json");
 
         // When
-        var result = CdxgenClient.parseSbomFile(file);
+        var result = CdxgenClient.parseSbomFile(file, "myProject");
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
             assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
+                assertThat(proper.projectName()).hasToString("myProject");
                 var sbom = proper.sbom();
                 assertThat(sbom.getBomFormat()).isEqualTo("CycloneDX");
                 var metadataComponent = sbom.getMetadata().getComponent();

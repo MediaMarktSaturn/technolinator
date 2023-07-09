@@ -1,5 +1,11 @@
 package com.mediamarktsaturn.technolinator;
 
+import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.helpers.test.UniAssertSubscriber;
+import org.testcontainers.images.ParsedDockerfile;
+import org.testcontainers.utility.DockerImageName;
+import org.testcontainers.utility.MountableFile;
+
 import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
@@ -7,13 +13,6 @@ import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import org.testcontainers.images.ParsedDockerfile;
-import org.testcontainers.utility.DockerImageName;
-import org.testcontainers.utility.MountableFile;
-
-import io.smallrye.mutiny.Uni;
-import io.smallrye.mutiny.helpers.test.UniAssertSubscriber;
 
 public interface TestUtil {
 

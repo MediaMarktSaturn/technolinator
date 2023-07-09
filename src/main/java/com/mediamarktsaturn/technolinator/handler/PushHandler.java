@@ -19,6 +19,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -46,41 +47,54 @@ public class PushHandler extends HandlerBase {
 
     public Uni<Result<Project>> onPush(PushEvent event, Command.Metadata metadata) {
         var repoDetails = repoService.getRepositoryDetails(event);
-        return checkoutAndGenerateSBOM(event, metadata)
+        return checkoutAndGenerateSBOMs(event, metadata)
             // wrap into deferred for ensuring onTermination is called even on pipeline setup errors
             .chain(result -> Uni.createFrom().deferred(() -> scoreAndUploadSbom(repoDetails, result.getItem1(), metadata))
                 .onTermination().invoke(() -> result.getItem2().close())
             );
     }
 
-    Uni<Result<Project>> scoreAndUploadSbom(RepositoryDetails repoDetails, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
+    @SuppressWarnings("unchecked")
+    Uni<Result<Project>> scoreAndUploadSbom(RepositoryDetails repoDetails, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
         metadata.writeToMDC();
-        return switch (sbomResult) {
-            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
-                // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
-                case CdxgenClient.SBOMGenerationResult.Proper p -> {
-                    logValidationIssues(repoDetails, p.validationIssues());
-                    yield doScoreAndUploadSbom(repoDetails, p.sbom(), p.sbomFile());
-                }
-                case CdxgenClient.SBOMGenerationResult.Fallback f -> {
-                    Log.infof("Got fallback result for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                    logValidationIssues(repoDetails, f.validationIssues());
-                    yield doScoreAndUploadSbom(repoDetails, f.sbom(), f.sbomFile());
-                }
-                case CdxgenClient.SBOMGenerationResult.None n -> {
-                    Log.infof("Nothing to analyse in repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                    yield Uni.createFrom().item(Result.success(Project.none()));
-                }
-            };
+        return Uni.combine().all().unis(
+                sbomResults.stream().map(sbomResult ->
+                    switch (sbomResult) {
+                        case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
+                            // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
+                            case CdxgenClient.SBOMGenerationResult.Proper p -> {
+                                logValidationIssues(repoDetails, p.validationIssues());
+                                yield doScoreAndUploadSbom(repoDetails, p.sbom(), p.sbomFile(), p.projectName());
+                            }
+                            case CdxgenClient.SBOMGenerationResult.Fallback f -> {
+                                Log.infof("Got fallback result for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                                logValidationIssues(repoDetails, f.validationIssues());
+                                yield doScoreAndUploadSbom(repoDetails, f.sbom(), f.sbomFile(), f.projectName());
+                            }
+                            case CdxgenClient.SBOMGenerationResult.None n -> {
+                                Log.infof("Nothing to analyse in repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                                yield Uni.createFrom().item(Result.success(Project.none()));
+                            }
+                        };
 
-            case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
-                Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                yield Uni.createFrom().item(Result.failure(f.cause()));
-            }
-        };
+                        case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
+                            Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                            yield Uni.createFrom().item(Result.failure(f.cause()));
+                        }
+                    }).toList()).combinedWith(Function.identity())
+            .map(results -> {
+                var failure = results.stream().filter(r -> r instanceof Result.Failure).findAny();
+                if (failure.isPresent()) {
+                    return (Result.Failure<Project>) failure.get();
+                }
+                var project = results.stream().map(r -> ((Result.Success<Project>) r).result())
+                    .filter(p -> p instanceof Project.Available)
+                    .findAny();
+                return project.map(Result::success).orElseGet(() -> Result.success(Project.none()));
+            });
     }
 
-    Uni<Result<Project>> doScoreAndUploadSbom(RepositoryDetails repoDetails, Bom sbom, Path sbomFile) {
+    Uni<Result<Project>> doScoreAndUploadSbom(RepositoryDetails repoDetails, Bom sbom, Path sbomFile, String projectName) {
         return sbomqsClient.calculateQualityScore(sbomFile)
             .map(result -> switch (result) {
                 case Result.Success<SbomqsClient.QualityScore> s -> Optional.of(s.result());
@@ -89,7 +103,7 @@ public class PushHandler extends HandlerBase {
             .chain(score ->
                 dtrackClient.uploadSBOM(
                     addQualityScore(repoDetails, score),
-                    sbom
+                    sbom, projectName
                 ));
     }
 

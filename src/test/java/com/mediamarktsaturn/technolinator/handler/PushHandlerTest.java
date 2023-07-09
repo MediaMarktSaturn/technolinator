@@ -1,22 +1,6 @@
 package com.mediamarktsaturn.technolinator.handler;
 
 
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.io.IOException;
-import java.util.Optional;
-
-import org.junit.jupiter.api.Test;
-import org.kohsuke.github.GHEventPayload;
-import org.kohsuke.github.GitHub;
-import org.mockito.ArgumentCaptor;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PushEvent;
@@ -26,11 +10,26 @@ import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import com.mediamarktsaturn.technolinator.sbom.SbomqsClient;
+import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.mockito.InjectMock;
 import io.quarkus.test.junit.mockito.InjectSpy;
 import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.Test;
+import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GitHub;
+import org.mockito.ArgumentCaptor;
+
+import java.io.IOException;
+import java.util.Optional;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @QuarkusTest
 class PushHandlerTest {
@@ -56,7 +55,7 @@ class PushHandlerTest {
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
 
-        when(dtrackClient.uploadSBOM(captor.capture(), any()))
+        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName)))
             .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
@@ -75,9 +74,9 @@ class PushHandlerTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommand(any(), eq(projectName), eq(true), eq(Optional.empty()));
+        verify(cdxgenClient).createCommands(any(), eq(projectName), eq(true), eq(Optional.empty()));
         verify(sbomqsClient).calculateQualityScore(any());
-        verify(dtrackClient).uploadSBOM(any(), any());
+        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName));
 
         assertThat(captor.getValue()).isNotNull().satisfies(repoDetails -> {
             assertThat(repoDetails.name()).hasToString(projectName);

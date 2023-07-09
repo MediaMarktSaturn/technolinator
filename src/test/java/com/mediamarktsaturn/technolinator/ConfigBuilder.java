@@ -1,8 +1,10 @@
 package com.mediamarktsaturn.technolinator;
 
-import java.util.Map;
-
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class ConfigBuilder {
     private Boolean enable = null;
@@ -14,8 +16,18 @@ public class ConfigBuilder {
     private Map<String, String> env;
     private TechnolinatorConfig.JdkConfig jdk;
 
+    private List<TechnolinatorConfig> projects;
+
     public static ConfigBuilder create() {
         return new ConfigBuilder();
+    }
+
+    public static ConfigBuilder create(String projectName) {
+        return create().project(new TechnolinatorConfig.ProjectConfig(projectName));
+    }
+
+    public static TechnolinatorConfig build(String projectName) {
+        return create(projectName).build();
     }
 
     public TechnolinatorConfig build() {
@@ -27,7 +39,8 @@ public class ConfigBuilder {
             gradle,
             maven,
             jdk,
-            env
+            env,
+            projects
         );
     }
 
@@ -70,4 +83,13 @@ public class ConfigBuilder {
         this.jdk = jdk;
         return this;
     }
+
+    public ConfigBuilder addSubProject(TechnolinatorConfig subprojectConfig) {
+        if (this.projects == null) {
+            this.projects = new ArrayList<>();
+        }
+        this.projects.add(subprojectConfig);
+        return this;
+    }
 }
+

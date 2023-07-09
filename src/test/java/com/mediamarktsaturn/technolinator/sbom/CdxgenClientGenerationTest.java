@@ -1,24 +1,23 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.List;
-import java.util.Optional;
-
-import org.cyclonedx.model.Component;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import org.cyclonedx.model.Component;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
+import java.util.Optional;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class CdxgenClientGenerationTest {
@@ -225,11 +224,10 @@ class CdxgenClientGenerationTest {
         });
     }
 
-    // TODO: split tests in command generation and command execution
     Result<CdxgenClient.SBOMGenerationResult> generateSBOM(Path file, String projectName, Optional<TechnolinatorConfig> config) {
         var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
-        var cmd = cut.createCommand(file, projectName, false, config);
+        var cmds = cut.createCommands(file, projectName, false, config);
 
-        return await(cmd.execute(metadata));
+        return await(cmds.get(0).execute(metadata));
     }
 }

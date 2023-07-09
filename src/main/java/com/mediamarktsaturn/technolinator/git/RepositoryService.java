@@ -104,7 +104,7 @@ public class RepositoryService {
 
     public RepositoryDetails getRepositoryDetails(PushEvent event) {
         return new RepositoryDetails(
-            buildProjectNameFromEvent(event),
+            getRepoName(event),
             buildProjectVersionFromEvent(event),
             getProjectDescription(event),
             getWebsiteUrl(event),
@@ -113,14 +113,9 @@ public class RepositoryService {
         );
     }
 
-    public static String buildProjectNameFromEvent(Event<?> event) {
-        return event.config()
-            .map(TechnolinatorConfig::project)
-            .map(TechnolinatorConfig.ProjectConfig::name)
-            .orElseGet(() -> {
-                var path = event.repoUrl().getPath();
-                return path.substring(path.lastIndexOf('/') + 1);
-            });
+    public static String getRepoName(Event<?> event) {
+        var path = event.repoUrl().getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
     }
 
     static String buildProjectVersionFromEvent(Event<?> event) {

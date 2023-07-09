@@ -35,6 +35,16 @@ env:
 jdk:
     # select JDK version used by cdxgen on JVM based projects (see below)
     version: 20
+
+# to split up repositories in multiple dependency-track projects, you can recursively configure subprojects.
+# structure is the same like for the single-project config, each distinct project will result in one dependency-track project.
+# subprojects inherit the settings of their parents (and the root project)
+# minimal required structure is shown below
+projects: []
+# - project:
+#     name: first-sub-project
+#   analysis:
+#     location: projects/sub_project_1
 ```
 
 The configuration file is optional and only necessary to override default behavior.

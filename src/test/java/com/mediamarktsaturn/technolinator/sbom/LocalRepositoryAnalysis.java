@@ -1,16 +1,5 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.fail;
-
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.util.Optional;
-
-import org.intellij.lang.annotations.Language;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
@@ -19,6 +8,16 @@ import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.logging.Log;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import org.intellij.lang.annotations.Language;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.util.Optional;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.fail;
 
 // to be used for manual, local testing only
 @Disabled
@@ -61,14 +60,17 @@ class LocalRepositoryAnalysis {
 
         TechnolinatorConfig config = configMapper.readValue(configString, TechnolinatorConfig.class);
 
-        var cmd = cdxgenClient.createCommand(folder, projectName.toString(), false, Optional.of(config));
-        Log.infof("Command: '%s'", cmd.commandLine());
+        var cmds = cdxgenClient.createCommands(folder, projectName.toString(), false, Optional.of(config));
 
-        var result = await(cmd.execute(metadata));
+        cmds.forEach(cmd -> {
 
-        switch (result) {
-            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> System.out.println("Success");
-            case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> fail("Failed", f.cause());
-        }
+            Log.infof("Commands: '%s'", cmd.commandLine());
+            var result = await(cmd.execute(metadata));
+
+            switch (result) {
+                case Result.Success<CdxgenClient.SBOMGenerationResult> s -> System.out.println("Success");
+                case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> fail("Failed", f.cause());
+            }
+        });
     }
 }
