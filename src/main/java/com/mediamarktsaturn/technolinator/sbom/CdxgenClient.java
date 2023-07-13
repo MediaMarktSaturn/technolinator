@@ -120,7 +120,7 @@ public class CdxgenClient {
      * * %s # optional fail-on-error flag [FAIL_ON_ERROR_FLAG]
      * * --project-name %s # name of main component of the SBOM, defaulting to the repository name
      */
-    private static final String CDXGEN_CMD_FMT = "cdxgen -o %s%s%s --project-name %s";
+    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.4 -o %s%s%s --project-name %s";
 
     public record SbomCreationCommand(
         Path repoDir,
