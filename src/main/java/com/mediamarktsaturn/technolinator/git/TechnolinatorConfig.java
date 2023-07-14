@@ -8,6 +8,7 @@ import java.util.Map;
  */
 public record TechnolinatorConfig(
     Boolean enable,
+    Boolean enablePullRequestReport,
     ProjectConfig project,
     AnalysisConfig analysis,
     GradleConfig gradle,

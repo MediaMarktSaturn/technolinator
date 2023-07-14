@@ -1,14 +1,5 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.function.DoubleSupplier;
-
-import org.kohsuke.github.GHCommitState;
-import org.kohsuke.github.GHCommitStatus;
-import org.kohsuke.github.GHEventPayload;
-import org.kohsuke.github.GHRepository;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
@@ -23,6 +14,14 @@ import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.kohsuke.github.GHCommitState;
+import org.kohsuke.github.GHCommitStatus;
+import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHRepository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.DoubleSupplier;
 
 /**
  * Handles GitHub push notifications

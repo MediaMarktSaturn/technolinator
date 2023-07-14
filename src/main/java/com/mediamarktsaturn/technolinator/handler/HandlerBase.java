@@ -1,10 +1,5 @@
 package com.mediamarktsaturn.technolinator.handler;
 
-import static com.mediamarktsaturn.technolinator.git.RepositoryService.buildProjectNameFromEvent;
-
-import java.nio.file.Path;
-import java.util.Optional;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.Event;
@@ -15,6 +10,11 @@ import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
+
+import java.nio.file.Path;
+import java.util.Optional;
+
+import static com.mediamarktsaturn.technolinator.git.RepositoryService.buildProjectNameFromEvent;
 
 public abstract class HandlerBase {
 

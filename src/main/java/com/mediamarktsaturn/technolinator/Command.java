@@ -1,10 +1,9 @@
 package com.mediamarktsaturn.technolinator;
 
-import java.util.Optional;
-
+import io.smallrye.mutiny.Uni;
 import org.jboss.logging.MDC;
 
-import io.smallrye.mutiny.Uni;
+import java.util.Optional;
 
 /**
  * The Command interfaces describes a deferred execution of a certain action,

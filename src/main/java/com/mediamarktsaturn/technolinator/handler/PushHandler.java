@@ -1,14 +1,5 @@
 package com.mediamarktsaturn.technolinator.handler;
 
-import java.nio.file.Path;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
-
-import org.cyclonedx.exception.ParseException;
-import org.cyclonedx.model.Bom;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PushEvent;
@@ -21,6 +12,14 @@ import com.mediamarktsaturn.technolinator.sbom.SbomqsClient;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.cyclonedx.exception.ParseException;
+import org.cyclonedx.model.Bom;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
  * Orchestrator of the checkout from GitHub, SBOM-creation and upload to Dependency-Track process

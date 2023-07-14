@@ -1,19 +1,18 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
+import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.os.ProcessHandler;
+import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Uni;
+import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Optional;
-
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
-import com.mediamarktsaturn.technolinator.Result;
-import com.mediamarktsaturn.technolinator.os.ProcessHandler;
-import io.quarkus.logging.Log;
-import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
 
 /**
  * Wraps around grype for creating vulnerability reports

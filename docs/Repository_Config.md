@@ -7,6 +7,8 @@ with the following options:
 ```yaml
 # whether Technolinator does analysis at all; default: true
 enable: true
+# whether Technolinator shall comment vulnerability reports to pull-requests
+enablePullRequestReport: true
 project:
     # desired name of the project in dependency-track; default is the GitHub repository name
     name: awesomeProject

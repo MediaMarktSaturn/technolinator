@@ -1,16 +1,5 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import static com.mediamarktsaturn.technolinator.Commons.NOOP_SUBSCRIBER;
-
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.kohsuke.github.GHRepository;
-
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.quarkus.logging.Log;
@@ -18,6 +7,16 @@ import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.kohsuke.github.GHRepository;
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static com.mediamarktsaturn.technolinator.Commons.NOOP_SUBSCRIBER;
 
 @ApplicationScoped
 public class MetricsPublisher {

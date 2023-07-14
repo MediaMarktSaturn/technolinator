@@ -6,6 +6,7 @@ import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 
 public class ConfigBuilder {
     private Boolean enable = null;
+    private Boolean enablePullRequestReport = null;
     private TechnolinatorConfig.ProjectConfig project;
     private TechnolinatorConfig.AnalysisConfig analysis;
     private TechnolinatorConfig.GradleConfig gradle;
@@ -20,6 +21,7 @@ public class ConfigBuilder {
     public TechnolinatorConfig build() {
         return new TechnolinatorConfig(
             enable,
+            enablePullRequestReport,
             project,
             analysis,
             gradle,
@@ -31,6 +33,11 @@ public class ConfigBuilder {
 
     public ConfigBuilder enable(boolean enable) {
         this.enable = enable;
+        return this;
+    }
+
+    public ConfigBuilder enablePullRequestReport(boolean enablePullRequestReport) {
+        this.enablePullRequestReport = enablePullRequestReport;
         return this;
     }
 
