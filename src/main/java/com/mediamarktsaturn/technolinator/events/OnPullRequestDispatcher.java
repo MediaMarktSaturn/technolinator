@@ -1,18 +1,5 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.DoubleSupplier;
-
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.kohsuke.github.GHEventPayload;
-import org.kohsuke.github.GHUser;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
@@ -25,6 +12,18 @@ import io.quarkiverse.githubapp.event.PullRequest;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHUser;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.DoubleSupplier;
 
 @ApplicationScoped
 public class OnPullRequestDispatcher extends DispatcherBase {
@@ -83,6 +82,9 @@ public class OnPullRequestDispatcher extends DispatcherBase {
         } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
             Log.infof("Disabled for repo %s by repository config", repoUrl);
             status = MetricStatusRepo.DISABLED_BY_REPO;
+        } else if (!config.map(TechnolinatorConfig::enablePullRequestReport).orElse(true)) {
+            Log.infof("Pull-request reports disabled by repo %s", repoUrl);
+            status = MetricStatusRepo.DISABLED_PR_REPORTS;
         } else if (ignoreBotPullRequest(prPayload)) {
             Log.infof("Ignored bot pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
             status = MetricStatusRepo.BOT_PR_IGNORED;

@@ -1,13 +1,13 @@
 package com.mediamarktsaturn.technolinator.os;
 
+import com.mediamarktsaturn.technolinator.Command;
+import io.quarkus.logging.Log;
+
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import com.mediamarktsaturn.technolinator.Command;
-import io.quarkus.logging.Log;
 
 /**
  * Receiver on async-provided information for a [ProcessHandler] execution

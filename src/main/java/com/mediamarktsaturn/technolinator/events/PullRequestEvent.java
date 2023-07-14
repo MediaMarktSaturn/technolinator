@@ -1,12 +1,11 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import java.net.URL;
-import java.util.Optional;
-
+import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 
-import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import java.net.URL;
+import java.util.Optional;
 
 /**
  * Data type used to transport pull-request event notifications along the process

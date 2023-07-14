@@ -1,10 +1,5 @@
 package com.mediamarktsaturn.technolinator.handler;
 
-import java.io.IOException;
-import java.util.stream.StreamSupport;
-
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PullRequestEvent;
@@ -14,6 +9,10 @@ import com.mediamarktsaturn.technolinator.sbom.GrypeClient;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import java.io.IOException;
+import java.util.stream.StreamSupport;
 
 /**
  * Orchestrator of the checkout from GitHub, SBOM-creation and upload to Dependency-Track process
@@ -54,7 +53,8 @@ public class PullRequestHandler extends HandlerBase {
         return switch (sbomResult) {
             case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
                 case CdxgenClient.SBOMGenerationResult.Proper p -> grypeClient.createVulnerabilityReport(p.sbomFile());
-                case CdxgenClient.SBOMGenerationResult.Fallback f -> grypeClient.createVulnerabilityReport(f.sbomFile());
+                case CdxgenClient.SBOMGenerationResult.Fallback f ->
+                    grypeClient.createVulnerabilityReport(f.sbomFile());
                 case CdxgenClient.SBOMGenerationResult.None n -> {
                     Log.infof("Nothing to analyse in repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
                     yield Uni.createFrom().item(Result.success(GrypeClient.VulnerabilityReport.none()));

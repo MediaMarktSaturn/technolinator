@@ -1,15 +1,5 @@
 package com.mediamarktsaturn.technolinator.git;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
-import java.util.List;
-import java.util.Objects;
-import java.util.zip.ZipInputStream;
-
-import org.kohsuke.github.GHRepository;
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.Result.Failure;
@@ -21,6 +11,15 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.kohsuke.github.GHRepository;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.List;
+import java.util.Objects;
+import java.util.zip.ZipInputStream;
 
 /**
  * Handles the local provisioning of GitHub repositories

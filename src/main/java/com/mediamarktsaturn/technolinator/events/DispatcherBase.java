@@ -1,21 +1,20 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import java.time.Duration;
-import java.util.List;
-import java.util.UUID;
-import java.util.function.Predicate;
-
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.kohsuke.github.GHCommitState;
-import org.kohsuke.github.GHCommitStatus;
-import org.kohsuke.github.GHRepository;
-
 import com.mediamarktsaturn.technolinator.Command;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.kohsuke.github.GHCommitState;
+import org.kohsuke.github.GHCommitStatus;
+import org.kohsuke.github.GHRepository;
+
+import java.time.Duration;
+import java.util.List;
+import java.util.UUID;
+import java.util.function.Predicate;
 
 public abstract class DispatcherBase {
 
@@ -62,6 +61,7 @@ public abstract class DispatcherBase {
     enum MetricStatusRepo {
         DISABLED_BY_CONFIG,
         DISABLED_BY_REPO,
+        DISABLED_PR_REPORTS,
         NON_DEFAULT_BRANCH,
         BOT_PR_IGNORED,
         ELIGIBLE_FOR_ANALYSIS,

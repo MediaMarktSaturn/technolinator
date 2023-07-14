@@ -28,6 +28,7 @@ class TechnolinatorConfigTest {
         var config = configMapper.readValue(value, TechnolinatorConfig.class);
         assertThat(config).isNotNull().satisfies(c -> {
             assertThat(c.enable()).isFalse();
+            assertThat(c.enablePullRequestReport()).isNull();
             assertThat(c.maven()).isNull();
             assertThat(c.gradle()).isNull();
             assertThat(c.project()).isNull();
@@ -41,6 +42,7 @@ class TechnolinatorConfigTest {
         @Language("yml")
         var value = """
             enable: true
+            enablePullRequestReport: true
             project:
                 name: awesomeProject
             analysis:
@@ -64,6 +66,7 @@ class TechnolinatorConfigTest {
         var config = configMapper.readValue(value, TechnolinatorConfig.class);
         assertThat(config).isNotNull().satisfies(c -> {
             assertThat(c.enable()).isTrue();
+            assertThat(c.enablePullRequestReport()).isTrue();
             assertThat(c.gradle()).satisfies(g -> {
                 assertThat(g.args()).containsExactly("-Pone", "-Dtwo");
             });

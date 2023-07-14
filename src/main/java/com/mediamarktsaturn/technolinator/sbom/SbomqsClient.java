@@ -1,12 +1,12 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import java.nio.file.Path;
-
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+
+import java.nio.file.Path;
 
 @ApplicationScoped
 public class SbomqsClient {

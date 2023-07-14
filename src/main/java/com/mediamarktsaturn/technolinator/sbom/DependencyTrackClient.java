@@ -1,15 +1,5 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
-
-import org.cyclonedx.generators.json.BomJsonGenerator14;
-import org.cyclonedx.model.Bom;
-import org.cyclonedx.model.ExternalReference;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import io.quarkus.logging.Log;
@@ -20,6 +10,14 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.cyclonedx.generators.json.BomJsonGenerator14;
+import org.cyclonedx.model.Bom;
+import org.cyclonedx.model.ExternalReference;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.Map;
 
 /**
  * API client for Dependency-Track

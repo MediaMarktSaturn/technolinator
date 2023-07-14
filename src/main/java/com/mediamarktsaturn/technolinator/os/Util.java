@@ -1,8 +1,8 @@
 package com.mediamarktsaturn.technolinator.os;
 
-import java.nio.file.Path;
-
 import com.mediamarktsaturn.technolinator.Commons;
+
+import java.nio.file.Path;
 
 /**
  * Common functionalities regarding the operating system
