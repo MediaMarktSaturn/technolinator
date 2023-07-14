@@ -9,7 +9,7 @@ env:
     CDXGEN_VERSION: '9.2.0'
     CDXGEN_PLUGINS_VERSION: '1.2.0'
     GRYPE_VERSION: 'v0.63.1'
-    SBOMQS_VERSION: 'v0.0.18'
+    SBOMQS_VERSION: 'v0.0.19'
     semantic_version: '19.0.5'
     java_version: '20'
     mvn_parameter: '-B -ntp'
