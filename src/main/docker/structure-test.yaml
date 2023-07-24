@@ -94,7 +94,7 @@ commandTests:
       exitCode: 1
       expectedOutput:
           - '.*exec java --enable-preview .*'
-          - '.*Missing value for configuration properties.*'
+          - '.*Missing values for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
     - name: "Composer installed"
