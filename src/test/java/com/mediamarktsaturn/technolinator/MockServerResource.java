@@ -1,12 +1,11 @@
 package com.mediamarktsaturn.technolinator;
 
-import java.util.Map;
-import java.util.UUID;
-
+import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
 import org.mockserver.client.MockServerClient;
 import org.testcontainers.containers.MockServerContainer;
 
-import io.quarkus.test.common.QuarkusTestResourceLifecycleManager;
+import java.util.Map;
+import java.util.UUID;
 
 public class MockServerResource implements QuarkusTestResourceLifecycleManager {
 

@@ -1,17 +1,16 @@
 package com.mediamarktsaturn.technolinator.events;
 
-import static com.mediamarktsaturn.technolinator.TestUtil.url;
-import static com.mediamarktsaturn.technolinator.events.DispatcherBase.CONFIG_FILE;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.argThat;
-
-import java.io.IOException;
-import java.net.MalformedURLException;
-import java.util.List;
-import java.util.Optional;
-
+import com.mediamarktsaturn.technolinator.ConfigBuilder;
+import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.handler.PushHandler;
+import com.mediamarktsaturn.technolinator.sbom.Project;
+import io.quarkiverse.githubapp.testing.GitHubAppTest;
+import io.quarkiverse.githubapp.testing.GitHubAppTesting;
+import io.quarkus.test.InjectMock;
+import io.quarkus.test.junit.QuarkusTest;
+import io.restassured.RestAssured;
+import io.smallrye.mutiny.Uni;
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,14 +18,17 @@ import org.kohsuke.github.GHEvent;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
-import com.mediamarktsaturn.technolinator.ConfigBuilder;
-import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.PushHandler;
-import io.quarkiverse.githubapp.testing.GitHubAppTest;
-import io.quarkiverse.githubapp.testing.GitHubAppTesting;
-import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.mockito.InjectMock;
-import io.restassured.RestAssured;
+import java.io.IOException;
+import java.net.MalformedURLException;
+import java.util.List;
+import java.util.Optional;
+
+import static com.mediamarktsaturn.technolinator.TestUtil.url;
+import static com.mediamarktsaturn.technolinator.events.DispatcherBase.CONFIG_FILE;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 
 @QuarkusTest
 @GitHubAppTest
@@ -63,6 +65,7 @@ class OnPushDispatcherTest {
     void testConfigProjectName() throws IOException {
         // Given
         var config = ConfigBuilder.create().project(new TechnolinatorConfig.ProjectConfig("overriddenName")).build();
+        Mockito.when(handler.onPush(any(), any())).thenReturn(Uni.createFrom().item(Result.success(Project.none())));
 
         // When
         GitHubAppTesting.given()

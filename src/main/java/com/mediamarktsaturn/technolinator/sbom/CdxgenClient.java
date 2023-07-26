@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.*;
+import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -134,26 +135,63 @@ public class CdxgenClient {
 
     }
 
-    public SbomCreationCommand createCommand(Path repoDir, String projectName, boolean fetchLicenses, Optional<TechnolinatorConfig> config) {
-        boolean recursive = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::recursive).orElse(recursiveDefault);
+    /**
+     * Creates a list of commands with each one representing a separate module resulting in an own dependency-track project.
+     */
+    public List<SbomCreationCommand> createCommands(Path repoDir, String repoName, boolean fetchLicenses, Optional<TechnolinatorConfig> config) {
+        var configPaths = buildConfigPaths(config);
+        if (configPaths.isEmpty()) {
+            return List.of(
+                new SbomCreationCommand(
+                    repoDir,
+                    repoName,
+                    buildCdxgenCommand(recursiveDefault, failOnError, repoName),
+                    buildEnv(List.of(), fetchLicenses),
+                    buildExcludeList(List.of())
+                )
+            );
+        } else {
+            return configPaths.stream().map(configPath -> {
+                    var projectName = determineProjectName(repoName, configPath);
+                    return new SbomCreationCommand(
+                        determineAnalysisFolder(repoDir, configPath),
+                        projectName,
+                        buildCdxgenCommand(analyseRecursive(configPath), failOnError, projectName),
+                        buildEnv(configPath, fetchLicenses),
+                        buildExcludeList(configPath)
+                    );
+                }
+            ).toList();
+        }
+    }
 
-        String cdxgenCmd = CDXGEN_CMD_FMT.formatted(
+    private String buildCdxgenCommand(boolean recursive, boolean failOnError, String projectName) {
+        return CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
             recursive ? RECURSIVE_FLAG : "",
             failOnError ? FAIL_ON_ERROR_FLAG : "",
             projectName
         );
+    }
 
-        var environment = buildEnv(config, fetchLicenses);
-        var excludeList = buildExcludeList(config);
+    /**
+     * Creates a list of all config paths available.
+     * Last element of each inner list represents the leaf as actual project config, the preceding elements are ancestors of it.
+     */
+    List<List<TechnolinatorConfig>> buildConfigPaths(Optional<TechnolinatorConfig> root) {
+        var paths = new ArrayList<List<TechnolinatorConfig>>();
+        root.ifPresent(config -> buildConfigPaths(config, new ArrayList<>(), paths));
+        return paths;
+    }
 
-        return new SbomCreationCommand(
-            repoDir,
-            projectName,
-            cdxgenCmd,
-            environment,
-            excludeList
-        );
+    private void buildConfigPaths(TechnolinatorConfig config, List<TechnolinatorConfig> path, List<List<TechnolinatorConfig>> paths) {
+        path.add(config);
+        if (config.projects() == null || config.projects().isEmpty()) {
+            paths.add(new ArrayList<>(path));
+        } else {
+            config.projects().forEach(child -> buildConfigPaths(child, path, paths));
+        }
+        path.remove(path.size() - 1);
     }
 
     static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
@@ -165,11 +203,11 @@ public class CdxgenClient {
         var sbomFile = cmd.repoDir().resolve(SBOM_JSON);
         metadata.writeToMDC();
         return switch (generationResult) {
-            case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile);
+            case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile, cmd.projectName());
             case ProcessHandler.ProcessResult.Failure f -> {
                 if (Files.exists(sbomFile)) {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
-                    yield parseSbomFile(sbomFile);
+                    yield parseSbomFile(sbomFile, cmd.projectName());
                 } else {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
                     yield Result.failure(f.cause());
@@ -178,17 +216,17 @@ public class CdxgenClient {
         };
     }
 
-    static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile) {
+    static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile, String projectName) {
         if (!Files.exists(sbomFile)) {
             return Result.success(SBOMGenerationResult.none());
         } else if (Files.isReadable(sbomFile)) {
-            return readSbomFile(sbomFile);
+            return readSbomFile(sbomFile, projectName);
         } else {
             throw new IllegalStateException("Cannot read file " + sbomFile.toAbsolutePath());
         }
     }
 
-    private static Result<SBOMGenerationResult> readSbomFile(Path sbomFile) {
+    private static Result<SBOMGenerationResult> readSbomFile(Path sbomFile, String projectName) {
         try {
             final var sbomContent = Files.readAllBytes(sbomFile);
 
@@ -209,9 +247,9 @@ public class CdxgenClient {
                 isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
                 return Result.success(SBOMGenerationResult.none());
             } else if (named) {
-                return Result.success(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult, sbomFile));
+                return Result.success(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult, sbomFile, projectName));
             } else {
-                return Result.success(new SBOMGenerationResult.Fallback(sbom, validationResult, sbomFile));
+                return Result.success(new SBOMGenerationResult.Fallback(sbom, validationResult, sbomFile, projectName));
             }
         } catch (Exception e) {
             return Result.failure(e);
@@ -226,39 +264,58 @@ public class CdxgenClient {
         return value != null && !value.isBlank();
     }
 
-
-    Map<String, String> buildEnv(Optional<TechnolinatorConfig> config, boolean fetchLicenses) {
-        var gradleEnv = config.map(TechnolinatorConfig::gradle).map(TechnolinatorConfig.GradleConfig::args).orElseGet(List::of);
-        var mavenEnv = config.map(TechnolinatorConfig::maven).map(TechnolinatorConfig.MavenConfig::args).orElseGet(List::of);
-        var env = config.map(TechnolinatorConfig::env).orElseGet(Map::of);
-        var jdkHome = config.map(TechnolinatorConfig::jdk).map(TechnolinatorConfig.JdkConfig::version).map(jdkHomes::get).orElse(JAVA_HOME);
-
+    Map<String, String> buildEnv(List<TechnolinatorConfig> configPath, boolean fetchLicenses) {
         var context = new HashMap<>(cdxgenEnv);
-        context.put("JAVA_HOME", jdkHome);
         context.put(CDXGEN_FETCH_LICENSE, Boolean.toString(fetchLicenses));
 
-        var gradleEnvValue = gradleEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
-        if (!gradleEnvValue.isBlank()) {
-            context.put(CDXGEN_GRADLE_ARGS, gradleEnvValue);
+        String gradleEnv = sliceConfig(configPath, TechnolinatorConfig::gradle, TechnolinatorConfig.GradleConfig::args)
+            .stream().reduce(new ArrayList<>(), CdxgenClient::reduceList).stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
+        if (!gradleEnv.isBlank()) {
+            context.put(CDXGEN_GRADLE_ARGS, gradleEnv);
         }
 
-        var mavenEnvValue = mavenEnv.stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
-        if (!mavenEnvValue.isBlank()) {
-            context.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnvValue);
+        String mavenEnv = sliceConfig(configPath, TechnolinatorConfig::maven, TechnolinatorConfig.MavenConfig::args)
+            .stream().reduce(new ArrayList<>(), CdxgenClient::reduceList).stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
+        if (!mavenEnv.isBlank()) {
+            context.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnv);
         }
-        context.putAll(
-            env.entrySet().stream().collect(Collectors.toMap(
+
+        Map<String, String> env = sliceConfig(configPath, TechnolinatorConfig::env)
+            .stream().reduce(new HashMap<>(), CdxgenClient::reduceMap).entrySet().stream().collect(Collectors.toMap(
                     Map.Entry::getKey,
                     e -> resolveEnvVars(e.getValue())
                 )
-            )
-        );
+            );
+        context.putAll(env);
+
+        String jdkHome = sliceConfig(configPath, TechnolinatorConfig::jdk, TechnolinatorConfig.JdkConfig::version)
+            .stream().map(jdkHomes::get).reduce(JAVA_HOME, (a, e) -> e);
+        context.put("JAVA_HOME", jdkHome);
 
         return context;
     }
 
-    List<String> buildExcludeList(Optional<TechnolinatorConfig> config) {
-        var repoConfigExcludes = config.map(TechnolinatorConfig::analysis).map(TechnolinatorConfig.AnalysisConfig::excludes).orElseGet(List::of);
+    static <T> List<T> reduceList(List<T> aggregate, List<T> sample) {
+        aggregate.addAll(sample);
+        return aggregate;
+    }
+
+    static Map<String, String> reduceMap(Map<String, String> aggregate, Map<String, String> sample) {
+        aggregate.putAll(sample);
+        return aggregate;
+    }
+
+    static <R> List<R> sliceConfig(List<TechnolinatorConfig> path, Function<TechnolinatorConfig, R> extractor) {
+        return path.stream().map(extractor).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    static <I, R> List<R> sliceConfig(List<TechnolinatorConfig> path, Function<TechnolinatorConfig, I> extractor1, Function<I, R> extractor2) {
+        return path.stream().map(extractor1).filter(Objects::nonNull).map(extractor2).filter(Objects::nonNull).collect(Collectors.toList());
+    }
+
+    List<String> buildExcludeList(List<TechnolinatorConfig> path) {
+        var repoConfigExcludes = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::excludes)
+            .stream().flatMap(List::stream).toList();
         if (repoConfigExcludes.stream().anyMatch(item -> item.contains("..") || item.trim().startsWith("/") || item.trim().startsWith("~") || item.trim().startsWith("$"))) {
             throw new IllegalArgumentException("Not allowed to step up directories");
         }
@@ -273,6 +330,34 @@ public class CdxgenClient {
         }
 
         return excludeList;
+    }
+
+    static Path determineAnalysisFolder(Path repoDir, List<TechnolinatorConfig> path) {
+        var includePaths = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::location)
+            .stream().map(String::trim)
+            .map(p -> p.startsWith("/") ? p.substring(1) : p)
+            .map(p -> p.endsWith("/") ? p.substring(0, p.length() - 1) : p)
+            .collect(Collectors.joining("/"));
+
+        return repoDir.resolve(includePaths);
+    }
+
+    String determineProjectName(String repoName, List<TechnolinatorConfig> path) {
+        var names = sliceConfig(path, TechnolinatorConfig::project, TechnolinatorConfig.ProjectConfig::name);
+        if (names.isEmpty()) {
+            return repoName;
+        } else {
+            return repoName + names.stream().map(String::trim).collect(Collectors.joining("-", "-", ""));
+        }
+    }
+
+    boolean analyseRecursive(List<TechnolinatorConfig> path) {
+        var recursiveConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::recursive);
+        if (recursiveConfig.isEmpty()) {
+            return recursiveDefault;
+        } else {
+            return recursiveConfig.get(recursiveConfig.size() - 1);
+        }
     }
 
     /**
@@ -300,24 +385,32 @@ public class CdxgenClient {
     }
 
     public sealed interface SBOMGenerationResult {
+
+        String projectName();
+
         record Proper(
             Bom sbom,
             String group,
             String name,
             String version,
             List<ParseException> validationIssues,
-            Path sbomFile
+            Path sbomFile,
+            String projectName
         ) implements SBOMGenerationResult {
         }
 
         record Fallback(
             Bom sbom,
             List<ParseException> validationIssues,
-            Path sbomFile
+            Path sbomFile,
+            String projectName
         ) implements SBOMGenerationResult {
         }
 
         record None() implements SBOMGenerationResult {
+            public String projectName() {
+                throw new IllegalStateException();
+            }
         }
 
         static SBOMGenerationResult none() {

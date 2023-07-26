@@ -12,6 +12,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
@@ -41,38 +44,59 @@ public class PullRequestHandler extends HandlerBase {
     }
 
     public Uni<Result<GrypeClient.VulnerabilityReport>> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
-        return checkoutAndGenerateSBOM(event, metadata)
+        return checkoutAndGenerateSBOMs(event, metadata)
             // wrap into deferred for ensuring onTermination is called even on pipeline setup errors
             .chain(result -> Uni.createFrom().deferred(() -> createReport(event, result.getItem1(), metadata))
                 .onTermination().invoke(() -> result.getItem2().close())
             ).call(report -> commentPullRequest(event, report, metadata));
     }
 
-    Uni<Result<GrypeClient.VulnerabilityReport>> createReport(PullRequestEvent event, Result<CdxgenClient.SBOMGenerationResult> sbomResult, Command.Metadata metadata) {
+    @SuppressWarnings("unchecked")
+    Uni<Result<GrypeClient.VulnerabilityReport>> createReport(PullRequestEvent event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
         metadata.writeToMDC();
-        return switch (sbomResult) {
-            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
-                case CdxgenClient.SBOMGenerationResult.Proper p -> grypeClient.createVulnerabilityReport(p.sbomFile());
-                case CdxgenClient.SBOMGenerationResult.Fallback f ->
-                    grypeClient.createVulnerabilityReport(f.sbomFile());
-                case CdxgenClient.SBOMGenerationResult.None n -> {
-                    Log.infof("Nothing to analyse in repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
-                    yield Uni.createFrom().item(Result.success(GrypeClient.VulnerabilityReport.none()));
-                }
-            };
+        return Uni.combine().all().unis(sbomResults.stream().map(sbomResult ->
+                switch (sbomResult) {
+                    case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
+                        case CdxgenClient.SBOMGenerationResult.Proper p ->
+                            grypeClient.createVulnerabilityReport(p.sbomFile(), p.projectName());
+                        case CdxgenClient.SBOMGenerationResult.Fallback f ->
+                            grypeClient.createVulnerabilityReport(f.sbomFile(), f.projectName());
+                        case CdxgenClient.SBOMGenerationResult.None n -> {
+                            Log.infof("Nothing to analyse in repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
+                            yield Uni.createFrom().item(Result.success(GrypeClient.VulnerabilityReport.none()));
+                        }
+                    };
 
-            case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
-                Log.errorf(f.cause(), "Analysis failed for repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
-                yield Uni.createFrom().item(Result.failure(f.cause()));
-            }
-        };
+                    case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
+                        Log.errorf(f.cause(), "Analysis failed for repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
+                        yield Uni.createFrom().item(Result.failure(f.cause()));
+                    }
+                }).toList()).combinedWith(Function.identity())
+            .map(results ->
+                results.stream().filter(r -> r instanceof Result.Success)
+                    .map(r -> ((Result.Success<GrypeClient.VulnerabilityReport>) r).result())
+                    .filter(r -> r instanceof GrypeClient.VulnerabilityReport.Report)
+                    .map(r -> (GrypeClient.VulnerabilityReport.Report) r)
+                    .toList()
+            ).map(reports -> {
+                if (reports.isEmpty()) {
+                    return Result.success(GrypeClient.VulnerabilityReport.none());
+                } else if (reports.size() == 1) {
+                    return Result.success(reports.get(0));
+                } else {
+                    return Result.success(GrypeClient.VulnerabilityReport.report(
+                        reports.stream().map(r -> "# %s %n%n %s %n".formatted(r.projectName(), r.text())).collect(Collectors.joining()),
+                        event.repoUrl().toString()
+                    ));
+                }
+            });
     }
 
     Uni<Void> commentPullRequest(PullRequestEvent event, Result<GrypeClient.VulnerabilityReport> reportResult, Command.Metadata metadata) {
         return Uni.createFrom().item(() ->
             reportResult.mapSuccess(report -> {
                 metadata.writeToMDC();
-                if (report instanceof GrypeClient.VulnerabilityReport.Report(String reportText)) {
+                if (report instanceof GrypeClient.VulnerabilityReport.Report(String reportText, String projectName)) {
                     upsertPullRequestComment(event, reportText);
                 } else {
                     Log.warnf("No vulnerability report created for repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());

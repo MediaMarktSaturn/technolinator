@@ -1,17 +1,15 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
-import org.junit.jupiter.api.Test;
-
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class CdxgenClientEnvTest {
@@ -56,7 +54,7 @@ class CdxgenClientEnvTest {
     }
 
     @Test
-    void testGradleEnv() {
+    void testSingleGradleEnv() {
         // Given
         var config = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
             List.of(
@@ -67,7 +65,7 @@ class CdxgenClientEnvTest {
         ).build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config), false);
+        var result = cut.buildEnv(List.of(config), false);
 
         // Then
         assertThat(result)
@@ -75,7 +73,31 @@ class CdxgenClientEnvTest {
     }
 
     @Test
-    void testMavenEnv() {
+    void testHierarchicalGradleEnv() {
+        // Given
+        var config1 = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
+            List.of(
+                "-DartifactoryPassword=${test_Env2}",
+                "-BgoAway=${withThis}"
+            ))
+        ).build();
+        var config2 = ConfigBuilder.create().gradle(new TechnolinatorConfig.GradleConfig(
+            List.of(
+                "-PartifactoryUser=\"${test_Env1}\"",
+                "-BgoAway=I'm last"
+            ))
+        ).build();
+
+        // When
+        var result = cut.buildEnv(List.of(config1, config2), false);
+
+        // Then
+        assertThat(result)
+            .containsEntry("GRADLE_ARGS", "-DartifactoryPassword=oh_yeah-look_at_me -BgoAway=withThis -PartifactoryUser=\"this's just a test\" -BgoAway=I'm last");
+    }
+
+    @Test
+    void testSingleMavenEnv() {
         // Given
         var config = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
             List.of(
@@ -86,7 +108,31 @@ class CdxgenClientEnvTest {
         ).build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config), false);
+        var result = cut.buildEnv(List.of(config), false);
+
+        // Then
+        assertThat(result)
+            .containsEntry("MVN_ARGS", "-B -ntp -P\"this's just a test\" -DRUN=oh_yeah-look_at_me -BgoAway=withThis");
+    }
+
+    @Test
+    void testHierarchicalMavenEnv() {
+        // Given
+        var config1 = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
+            List.of(
+                "-P\"${test_Env1}\"",
+                "-DRUN=${test_Env2}"
+            ))
+        ).build();
+
+        var config2 = ConfigBuilder.create().maven(new TechnolinatorConfig.MavenConfig(
+            List.of(
+                "-BgoAway=${withThis}"
+            ))
+        ).build();
+
+        // When
+        var result = cut.buildEnv(List.of(config1, config2), false);
 
         // Then
         assertThat(result)
@@ -104,7 +150,7 @@ class CdxgenClientEnvTest {
             .build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config), true);
+        var result = cut.buildEnv(List.of(config), true);
 
         // Then
         assertThat(result)
@@ -117,7 +163,7 @@ class CdxgenClientEnvTest {
     @Test
     void testWithoutArgs() {
         // When
-        var result = cut.buildEnv(Optional.empty(), false);
+        var result = cut.buildEnv(List.of(), false);
 
         // Then
         assertThat(result)
@@ -131,32 +177,75 @@ class CdxgenClientEnvTest {
     }
 
     @Test
-    void testJdkVersionSelection() {
+    void testSingleJdkVersionSelection() {
         // Given
         var config = ConfigBuilder.create()
             .jdk(new TechnolinatorConfig.JdkConfig("20"))
             .build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config), false);
+        var result = cut.buildEnv(List.of(config), false);
 
         // Then
         assertThat(result).containsEntry("JAVA_HOME", "/path/to/jdk20");
     }
 
     @Test
-    void testEnv() {
+    void testOverlayJdkVersionSelection() {
+        // Given
+        var config1 = ConfigBuilder.create()
+            .jdk(new TechnolinatorConfig.JdkConfig("20"))
+            .build();
+
+        var config2 = ConfigBuilder.create()
+            .jdk(new TechnolinatorConfig.JdkConfig("17"))
+            .build();
+
+        // When
+        var result = cut.buildEnv(List.of(config1, config2), false);
+
+        // Then
+        assertThat(result).containsEntry("JAVA_HOME", "/path/to/jdk17");
+    }
+
+    @Test
+    void testSingleEnv() {
         // Given
         var config = ConfigBuilder.create()
             .env(Map.of("YEHAA", "oh ${test_Env2} ha", "dings", "bums"))
             .build();
 
         // When
-        var result = cut.buildEnv(Optional.of(config), false);
+        var result = cut.buildEnv(List.of(config), false);
 
         // Then
         assertThat(result)
             .containsEntry("YEHAA", "oh oh_yeah-look_at_me ha")
             .containsEntry("dings", "bums");
+    }
+
+    @Test
+    void testHierarchicalEnv() {
+        // Given
+        var config1 = ConfigBuilder.create()
+            .env(Map.of("YEHAA", "oh ${test_Env2} ha", "dings", "bums"))
+            .build();
+
+        var config2 = ConfigBuilder.create()
+            .env(Map.of("YEHAA", "oh ${test_Env1} ha", "onemore", "thing"))
+            .build();
+
+        var config3 = ConfigBuilder.create()
+            .env(Map.of("dings", "zapzarapp"))
+            .build();
+
+        // When
+        var result = cut.buildEnv(List.of(config1, config2, config3), false);
+
+        // Then
+        assertThat(result)
+            .containsEntry("YEHAA", "oh this's just a test ha")
+            .containsEntry("dings", "zapzarapp")
+            .containsEntry("onemore", "thing");
     }
 }

@@ -1,16 +1,13 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import static com.mediamarktsaturn.technolinator.MockServerResource.API_KEY;
-import static com.mediamarktsaturn.technolinator.TestUtil.await;
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockserver.model.HttpError.error;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.List;
-
+import com.mediamarktsaturn.technolinator.DependencyTrackMockServer;
+import com.mediamarktsaturn.technolinator.MockServerResource;
+import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
+import io.quarkus.test.common.QuarkusTestResource;
+import io.quarkus.test.junit.QuarkusTest;
+import io.vertx.core.json.JsonObject;
+import jakarta.inject.Inject;
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.Component;
@@ -21,14 +18,16 @@ import org.junit.jupiter.api.Test;
 import org.mockserver.client.MockServerClient;
 import org.mockserver.model.MediaType;
 
-import com.mediamarktsaturn.technolinator.DependencyTrackMockServer;
-import com.mediamarktsaturn.technolinator.MockServerResource;
-import com.mediamarktsaturn.technolinator.Result;
-import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
-import io.quarkus.test.common.QuarkusTestResource;
-import io.quarkus.test.junit.QuarkusTest;
-import io.vertx.core.json.JsonObject;
-import jakarta.inject.Inject;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
+
+import static com.mediamarktsaturn.technolinator.MockServerResource.API_KEY;
+import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockserver.model.HttpError.error;
+import static org.mockserver.model.HttpRequest.request;
+import static org.mockserver.model.HttpResponse.response;
 
 @QuarkusTest
 @QuarkusTestResource(value = MockServerResource.class, restrictToAnnotatedClass = true)
@@ -144,7 +143,7 @@ class DependencyTrackClientTest {
         var projectDetails = new RepositoryDetails(name, version, description, website, vcs, tags);
 
         // When
-        var result = await(cut.uploadSBOM(projectDetails, sbom));
+        var result = await(cut.uploadSBOM(projectDetails, sbom, name));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -220,7 +219,7 @@ class DependencyTrackClientTest {
         var sbom = new Bom();
 
         // When
-        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom));
+        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom, ""));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);

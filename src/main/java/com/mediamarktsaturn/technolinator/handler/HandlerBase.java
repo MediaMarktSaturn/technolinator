@@ -5,16 +5,14 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.Event;
 import com.mediamarktsaturn.technolinator.git.LocalRepository;
 import com.mediamarktsaturn.technolinator.git.RepositoryService;
-import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
 
-import java.nio.file.Path;
-import java.util.Optional;
-
-import static com.mediamarktsaturn.technolinator.git.RepositoryService.buildProjectNameFromEvent;
+import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 public abstract class HandlerBase {
 
@@ -22,7 +20,7 @@ public abstract class HandlerBase {
     protected final CdxgenClient cdxgenClient;
     private final boolean fetchLicenses;
 
-    // dummy constructor required by the ARC
+    // dummy constructor required by ARC
     protected HandlerBase() {
         this.repoService = null;
         this.cdxgenClient = null;
@@ -35,34 +33,44 @@ public abstract class HandlerBase {
         this.fetchLicenses = fetchLicenses;
     }
 
-    protected Uni<Tuple2<Result<CdxgenClient.SBOMGenerationResult>, LocalRepository>> checkoutAndGenerateSBOM(Event<?> event, Command.Metadata metadata) {
-        var checkout = repoService.createCheckoutCommand(event.repository(), event.ref());
+    protected Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> checkoutAndGenerateSBOMs(Event<?> event, Command.Metadata metadata) {
+        var checkout = Objects.requireNonNull(repoService).createCheckoutCommand(event.repository(), event.ref());
         return checkout.execute(metadata)
-            .chain(checkoutResult -> generateSbom(event, checkoutResult, metadata));
+            .chain(checkoutResult -> generateSboms(event, checkoutResult, metadata));
     }
 
-    Uni<Tuple2<Result<CdxgenClient.SBOMGenerationResult>, LocalRepository>> generateSbom(Event<?> event, Result<LocalRepository> checkoutResult, Command.Metadata metadata) {
+    Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> generateSboms(Event<?> event, Result<LocalRepository> checkoutResult, Command.Metadata metadata) {
         metadata.writeToMDC();
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
-                var cmd = cdxgenClient.createCommand(buildAnalysisDirectory(localRepo, event.config()), buildProjectNameFromEvent(event), fetchLicenses, event.config());
-                yield cmd.execute(metadata).map(result -> Tuple2.of(result, localRepo));
+                var cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), RepositoryService.getRepoName(event), fetchLicenses, event.config());
+                yield executeCommands(cmds, metadata).map(result -> Tuple2.of(result, localRepo));
             }
             case Result.Failure<LocalRepository> f -> {
                 Log.errorf(f.cause(), "Aborting analysis of repo %s, branch %s because of checkout failure", event.repoUrl(), event.branch());
-                yield Uni.createFrom().item(Tuple2.of(Result.failure(f.cause()), null));
+                yield Uni.createFrom().item(Tuple2.of(List.of(Result.failure(f.cause())), null));
             }
         };
     }
 
-    static Path buildAnalysisDirectory(LocalRepository repo, Optional<TechnolinatorConfig> config) {
-        return config
-            .map(TechnolinatorConfig::analysis)
-            .map(TechnolinatorConfig.AnalysisConfig::location)
-            .map(String::trim)
-            .map(s -> s.startsWith("/") ? s.substring(1) : s)
-            .map(repo.dir()::resolve)
-            .orElse(repo.dir());
+    @SuppressWarnings("unchecked")
+    public static Uni<List<Result<CdxgenClient.SBOMGenerationResult>>> executeCommands(List<CdxgenClient.SbomCreationCommand> commands, Command.Metadata metadata) {
+        return Uni.combine().all().unis(
+            commands.stream().map(cmd -> cmd.execute(metadata)).toList()
+        ).combinedWith(results -> {
+            metadata.writeToMDC();
+            var resultClasses = results.stream().collect(Collectors.groupingBy(Object::getClass))
+                .entrySet().stream().map(e -> "%s x %s".formatted(e.getValue().size(), e.getKey().getSimpleName()))
+                .collect(Collectors.joining(", "));
+            var sbomClasses = results.stream()
+                .filter(r -> r instanceof Result.Success).map(r -> ((Result.Success<CdxgenClient.SBOMGenerationResult>) r).result())
+                .collect(Collectors.groupingBy(Object::getClass))
+                .entrySet().stream().map(e -> "%s x %s".formatted(e.getValue().size(), e.getKey().getSimpleName()))
+                .collect(Collectors.joining(", "));
+            Log.infof("Analysis of repo %s, branch %s for %s projects resulted in %s with SBOMs %s",
+                metadata.repoFullName(), metadata.gitRef(), commands.size(), resultClasses, sbomClasses);
+            return (List<Result<CdxgenClient.SBOMGenerationResult>>) results;
+        });
     }
 }

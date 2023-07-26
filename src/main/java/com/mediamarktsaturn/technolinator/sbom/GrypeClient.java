@@ -62,7 +62,7 @@ public class GrypeClient {
     /**
      * Creates a vulnerability report using grype for the given [sbomFile]
      */
-    public Uni<Result<VulnerabilityReport>> createVulnerabilityReport(Path sbomFile) {
+    public Uni<Result<VulnerabilityReport>> createVulnerabilityReport(Path sbomFile, String projectName) {
         var command = GRYPE_COMMAND.formatted(
             templateFile.toAbsolutePath().toString(),
             OUTPUT_FILE,
@@ -72,23 +72,23 @@ public class GrypeClient {
 
         var reportDir = sbomFile.getParent();
         return ProcessHandler.run(command, reportDir, DEFAULT_ENV)
-            .map(result -> createReport(result, reportDir))
+            .map(result -> createReport(result, reportDir, projectName))
             .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
     }
 
-    Result<VulnerabilityReport> createReport(ProcessHandler.ProcessResult result, Path reportDir) {
+    Result<VulnerabilityReport> createReport(ProcessHandler.ProcessResult result, Path reportDir, String projectName) {
         return switch (result) {
-            case ProcessHandler.ProcessResult.Success s -> parseReport(reportDir);
+            case ProcessHandler.ProcessResult.Success s -> parseReport(reportDir, projectName);
             case ProcessHandler.ProcessResult.Failure f -> Result.failure(f.cause());
         };
     }
 
-    Result<VulnerabilityReport> parseReport(Path reportDir) {
+    Result<VulnerabilityReport> parseReport(Path reportDir, String projectName) {
         var reportFile = reportDir.resolve(OUTPUT_FILE);
         try {
             if (Files.isReadable(reportFile)) {
                 String report = Files.readString(reportFile);
-                return Result.success(VulnerabilityReport.report(report));
+                return Result.success(VulnerabilityReport.report(report, projectName));
             } else {
                 return Result.success(VulnerabilityReport.none());
             }
@@ -99,14 +99,14 @@ public class GrypeClient {
     }
 
     public sealed interface VulnerabilityReport {
-        record Report(String text) implements VulnerabilityReport {
+        record Report(String text, String projectName) implements VulnerabilityReport {
         }
 
         record None() implements VulnerabilityReport {
         }
 
-        static VulnerabilityReport report(String text) {
-            return new Report(text);
+        static VulnerabilityReport report(String text, String projectName) {
+            return new Report(text, projectName);
         }
 
         static VulnerabilityReport none() {

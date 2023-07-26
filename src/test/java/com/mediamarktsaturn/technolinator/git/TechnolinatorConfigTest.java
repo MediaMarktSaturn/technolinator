@@ -1,13 +1,12 @@
 package com.mediamarktsaturn.technolinator.git;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import org.intellij.lang.annotations.Language;
-import org.junit.jupiter.api.Test;
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.quarkiverse.githubapp.runtime.UtilsProducer;
+import org.intellij.lang.annotations.Language;
+import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class TechnolinatorConfigTest {
 
