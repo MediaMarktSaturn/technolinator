@@ -34,6 +34,7 @@ public class CdxgenClient {
      * Used for projects containing multiple dependency files like pom.xml & yarn.lock
      */
     private static final String RECURSIVE_FLAG = " -r";
+    private static final String NO_RECURSIVE_FLAG = " --no-recurse";
 
     /**
      * cdxgen option --fail-on-error: Command exists with != 0 in case of any issues during analysis
@@ -168,7 +169,7 @@ public class CdxgenClient {
     private String buildCdxgenCommand(boolean recursive, boolean failOnError, String projectName) {
         return CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
-            recursive ? RECURSIVE_FLAG : "",
+            recursive ? RECURSIVE_FLAG : NO_RECURSIVE_FLAG,
             failOnError ? FAIL_ON_ERROR_FLAG : "",
             projectName
         );
