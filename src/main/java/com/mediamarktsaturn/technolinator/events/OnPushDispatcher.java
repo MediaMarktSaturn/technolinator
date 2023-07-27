@@ -14,6 +14,7 @@ import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
@@ -32,6 +33,9 @@ public class OnPushDispatcher extends DispatcherBase {
     // constructor injection not possible here, because GH app extension requires a no-arg constructor
     @Inject
     PushHandler pushHandler;
+
+    @ConfigProperty(name = "app.use_pending_commit_status")
+    boolean usePendingCommitStatus;
 
     /**
      * Called by the quarkus-github-ap extension on any push event of repositories having the app installed.
@@ -68,11 +72,13 @@ public class OnPushDispatcher extends DispatcherBase {
             metricsPublisher.reportLanguages(repo);
             metricsPublisher.reportAnalysisStart(repoName, "push");
 
-            commitSha.ifPresent(commit ->
-                createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
-                    // Uni events handled upstream, just need to run pipeline
-                    .subscribe().withSubscriber(Commons.NOOP_SUBSCRIBER)
-            );
+            if (usePendingCommitStatus) {
+                commitSha.ifPresent(commit ->
+                    createGHCommitStatus(commit, repo, GHCommitState.PENDING, null, "SBOM creation running", metadata)
+                        // Uni events handled upstream, just need to run pipeline
+                        .subscribe().withSubscriber(Commons.NOOP_SUBSCRIBER)
+                );
+            }
 
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;

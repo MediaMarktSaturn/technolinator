@@ -28,6 +28,7 @@ Technolinator is configured via the following parameter which can either be prov
 | APP_PULL_REQUESTS_CDXGEN_FETCH_LICENSES | false                                        | Whether license information should be included in pull-request created sboms                                              |
 | APP_ANALYSIS_CDXGEN_FETCH_LICENSES      | true                                         | Wheter license information should be included in default-branch analysis                                                  |
 | GRYPE_CONFIG                            |                                              | Path to a [grype configuration](https://github.com/anchore/grype#configuration) file used in PR analysis                  |
+| APP_USE_PENDING_COMMIT_STATUS           | false                                        | Wether a PENDING commit status should be announced when analysing the default branch                                      |
 
 ## Observability
 
