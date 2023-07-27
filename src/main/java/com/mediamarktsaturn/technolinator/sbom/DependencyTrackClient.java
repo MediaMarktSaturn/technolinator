@@ -73,8 +73,10 @@ public class DependencyTrackClient {
             .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
+                    Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
                     return tagAndDescribeProject(p.projectId(), repoDetails);
                 } else {
+                    Log.infof("Cannot describe and tag project %s: %s", projectName, r);
                     return Uni.createFrom().voidItem();
                 }
             })
@@ -95,7 +97,7 @@ public class DependencyTrackClient {
                     var projectUUID = response.bodyAsJsonObject().getString("uuid");
                     return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID), projectUUID)));
                 } else {
-                    Log.errorf("Failed to deactivate previous versions of project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());
+                    Log.errorf("Could not get uuid for project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());
                     return Uni.createFrom().failure(new Exception("Status " + response.statusCode()));
                 }
             }).onFailure().recoverWithItem(Result.Failure::new);
