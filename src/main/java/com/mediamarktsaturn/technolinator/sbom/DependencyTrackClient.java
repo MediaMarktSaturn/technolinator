@@ -74,7 +74,7 @@ public class DependencyTrackClient {
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
                     Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
-                    return tagAndDescribeProject(p.projectId(), repoDetails);
+                    return tagAndDescribeAndActivateProject(p.projectId(), repoDetails);
                 } else {
                     Log.infof("Cannot describe and tag project %s: %s", projectName, r);
                     return Uni.createFrom().voidItem();
@@ -139,7 +139,7 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    Uni<Void> tagAndDescribeProject(String projectUUID, RepositoryDetails repoDetails) {
+    Uni<Void> tagAndDescribeAndActivateProject(String projectUUID, RepositoryDetails repoDetails) {
         var tagsArray = new JsonArray(repoDetails.topics().stream()
             .filter(t -> t != null && !t.isBlank())
             .map(tag -> JsonObject.of("name", tag)
@@ -165,7 +165,8 @@ public class DependencyTrackClient {
             .sendJsonObject(JsonObject.of(
                 "tags", tagsArray,
                 "description", descValue,
-                "externalReferences", extRefs
+                "externalReferences", extRefs,
+                "active", true
             )).onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.warnf(e, "Failed to tag and describe project %s", projectUUID))
             .onFailure().recoverWithNull()
