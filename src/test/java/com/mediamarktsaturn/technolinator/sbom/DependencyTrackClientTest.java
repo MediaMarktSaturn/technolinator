@@ -166,7 +166,7 @@ class DependencyTrackClientTest {
         assertThat(patchedProjects[2]).satisfies(described -> {
             assertThat(described.getPath()).hasToString("/api/v1/project/uuid-3");
             var json = new JsonObject(described.getBodyAsString());
-            assertThat(json.getBoolean("active")).isNull();
+            assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("description")).hasToString(description);
             assertThat(json.getJsonArray("tags")).containsExactlyInAnyOrder(
                 JsonObject.of("name", "thisIsGreat"),
