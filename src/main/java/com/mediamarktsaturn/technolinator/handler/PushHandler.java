@@ -39,8 +39,10 @@ public class PushHandler extends HandlerBase {
         DependencyTrackClient dtrackClient,
         SbomqsClient sbomqsClient,
         @ConfigProperty(name = "app.analysis.cdxgen.fetch_licenses")
-        boolean fetchLicenses) {
-        super(repoService, cdxgenClient, fetchLicenses);
+        boolean fetchLicenses,
+        @ConfigProperty(name = "dtrack.url")
+        String dtrackUrl) {
+        super(repoService, cdxgenClient, fetchLicenses, dtrackUrl);
         this.dtrackClient = dtrackClient;
         this.sbomqsClient = sbomqsClient;
     }
@@ -87,10 +89,15 @@ public class PushHandler extends HandlerBase {
                 if (failure.isPresent()) {
                     return (Result.Failure<Project>) failure.get();
                 }
-                var project = results.stream().map(r -> ((Result.Success<Project>) r).result())
-                    .filter(p -> p instanceof Project.Available)
-                    .findAny();
-                return project.map(Result::success).orElseGet(() -> Result.success(Project.none()));
+                var projects = results.stream().map(r -> ((Result.Success<Project>) r).result())
+                    .filter(p -> p instanceof Project.Available).toList();
+                if (projects.isEmpty()) {
+                    return Result.success(Project.none());
+                } else if (projects.size() == 1) {
+                    return Result.success(projects.get(0));
+                } else {
+                    return Result.success(Project.list(buildDTrackProjectSearchUrl(repoDetails.name())));
+                }
             });
     }
 

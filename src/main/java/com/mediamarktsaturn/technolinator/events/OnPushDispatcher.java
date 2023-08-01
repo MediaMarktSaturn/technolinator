@@ -144,9 +144,14 @@ public class OnPushDispatcher extends DispatcherBase {
                             desc = "SBOM available";
                             metricStatus = MetricStatusAnalysis.OK;
                         }
+                        case Project.List l -> {
+                            url = l.searchUrl();
+                            desc = "SBOMs available";
+                            metricStatus = MetricStatusAnalysis.OK;
+                        }
                         case Project.None n -> {
                             url = null;
-                            desc = "SBOM not available";
+                            desc = "no SBOM available";
                             metricStatus = MetricStatusAnalysis.NONE;
                         }
                         default -> throw new IllegalStateException();

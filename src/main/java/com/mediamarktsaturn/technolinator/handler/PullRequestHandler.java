@@ -25,22 +25,18 @@ public class PullRequestHandler extends HandlerBase {
 
     private static final String COMMENT_MARKER = "[//]: # (Technolinator)";
     private static final String DTRACK_PLACEHOLDER = "DEPENDENCY_TRACK_URL";
-
     private final GrypeClient grypeClient;
-    private final String dtrackUrl;
 
     public PullRequestHandler(
         RepositoryService repoService,
         CdxgenClient cdxgenClient,
         GrypeClient grypeClient,
-        @ConfigProperty(name = "dtrack.url")
-        String dtrackUrl,
         @ConfigProperty(name = "app.pull_requests.cdxgen.fetch_licenses")
-        boolean fetchLicenses
-    ) {
-        super(repoService, cdxgenClient, fetchLicenses);
+        boolean fetchLicenses,
+        @ConfigProperty(name = "dtrack.url")
+        String dtrackUrl) {
+        super(repoService, cdxgenClient, fetchLicenses, dtrackUrl);
         this.grypeClient = grypeClient;
-        this.dtrackUrl = dtrackUrl;
     }
 
     public Uni<Result<GrypeClient.VulnerabilityReport>> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
@@ -86,7 +82,7 @@ public class PullRequestHandler extends HandlerBase {
                 } else {
                     return Result.success(GrypeClient.VulnerabilityReport.report(
                         reports.stream().map(r -> "# %s %n%n %s %n".formatted(r.projectName(), r.text())).collect(Collectors.joining()),
-                        event.repoUrl().toString()
+                        event.getRepoName()
                     ));
                 }
             });
@@ -97,7 +93,7 @@ public class PullRequestHandler extends HandlerBase {
             reportResult.mapSuccess(report -> {
                 metadata.writeToMDC();
                 if (report instanceof GrypeClient.VulnerabilityReport.Report(String reportText, String projectName)) {
-                    upsertPullRequestComment(event, reportText);
+                    upsertPullRequestComment(event, reportText, projectName);
                 } else {
                     Log.warnf("No vulnerability report created for repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
                 }
@@ -105,13 +101,13 @@ public class PullRequestHandler extends HandlerBase {
             })).onItem().ignore().andContinueWithNull();
     }
 
-    private void upsertPullRequestComment(PullRequestEvent event, String reportText) {
+    private void upsertPullRequestComment(PullRequestEvent event, String reportText, String projectName) {
         var pullRequest = event.payload().getPullRequest();
         var existingComment = StreamSupport.stream(pullRequest.queryComments().list().spliterator(), false)
             .filter(comment -> comment.getBody().endsWith(COMMENT_MARKER))
             .findFirst();
 
-        var commentText = "%s\n\n%s".formatted(reportText.replace(DTRACK_PLACEHOLDER, dtrackUrl), COMMENT_MARKER);
+        var commentText = "%s\n\n%s".formatted(reportText.replace(DTRACK_PLACEHOLDER, buildDTrackProjectSearchUrl(projectName)), COMMENT_MARKER);
 
         existingComment.ifPresentOrElse(existing -> {
             // update existing comment

@@ -104,18 +104,13 @@ public class RepositoryService {
 
     public RepositoryDetails getRepositoryDetails(PushEvent event) {
         return new RepositoryDetails(
-            getRepoName(event),
+            event.getRepoName(),
             buildProjectVersionFromEvent(event),
             getProjectDescription(event),
             getWebsiteUrl(event),
             getVCSUrl(event),
             getProjectTopics(event)
         );
-    }
-
-    public static String getRepoName(Event<?> event) {
-        var path = event.repoUrl().getPath();
-        return path.substring(path.lastIndexOf('/') + 1);
     }
 
     static String buildProjectVersionFromEvent(Event<?> event) {

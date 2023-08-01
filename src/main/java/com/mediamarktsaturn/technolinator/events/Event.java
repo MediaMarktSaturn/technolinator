@@ -22,4 +22,9 @@ public interface Event<P extends GHEventPayload> {
     GHRepository repository();
 
     Optional<TechnolinatorConfig> config();
+
+    default String getRepoName() {
+        var path = repoUrl().getPath();
+        return path.substring(path.lastIndexOf('/') + 1);
+    }
 }

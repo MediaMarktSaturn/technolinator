@@ -16,8 +16,11 @@ import java.util.stream.Collectors;
 
 public abstract class HandlerBase {
 
+    protected static final String DTRACK_PROJECT_SEARCH_TMPL = "%s/projects?searchText=%s";
+
     protected final RepositoryService repoService;
     protected final CdxgenClient cdxgenClient;
+    protected final String dtrackUrl;
     private final boolean fetchLicenses;
 
     // dummy constructor required by ARC
@@ -25,12 +28,14 @@ public abstract class HandlerBase {
         this.repoService = null;
         this.cdxgenClient = null;
         this.fetchLicenses = false;
+        this.dtrackUrl = null;
     }
 
-    protected HandlerBase(RepositoryService repoService, CdxgenClient cdxgenClient, boolean fetchLicenses) {
+    protected HandlerBase(RepositoryService repoService, CdxgenClient cdxgenClient, boolean fetchLicenses, String dtrackUrl) {
         this.repoService = repoService;
         this.cdxgenClient = cdxgenClient;
         this.fetchLicenses = fetchLicenses;
+        this.dtrackUrl = dtrackUrl;
     }
 
     protected Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> checkoutAndGenerateSBOMs(Event<?> event, Command.Metadata metadata) {
@@ -44,7 +49,7 @@ public abstract class HandlerBase {
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
-                var cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), RepositoryService.getRepoName(event), fetchLicenses, event.config());
+                var cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config());
                 yield executeCommands(cmds, metadata).map(result -> Tuple2.of(result, localRepo));
             }
             case Result.Failure<LocalRepository> f -> {
@@ -72,5 +77,9 @@ public abstract class HandlerBase {
                 metadata.repoFullName(), metadata.gitRef(), commands.size(), resultClasses, sbomClasses);
             return (List<Result<CdxgenClient.SBOMGenerationResult>>) results;
         });
+    }
+
+    protected String buildDTrackProjectSearchUrl(String projectName) {
+        return DTRACK_PROJECT_SEARCH_TMPL.formatted(dtrackUrl, projectName);
     }
 }
