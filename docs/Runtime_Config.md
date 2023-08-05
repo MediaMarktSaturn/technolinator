@@ -1,5 +1,9 @@
 # Runtime Configuration
 
+Technolinator is available as container image: `ghcr.io/mediamarktsaturn/technolinator:VERSION` ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
+
+You can run it by providing the minimal conf values as listed below. Please have a look to the adoption doc as well to fine tune the image to your needs.
+
 Technolinator is configured via the following parameter which can either be provided via ENV, or be put in a `.env` file in the apps working directory.
 
 | Parameter                               | Default                                      | Description                                                                                                               |
