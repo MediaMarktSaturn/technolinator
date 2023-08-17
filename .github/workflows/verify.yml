@@ -2,9 +2,13 @@ name: Verify cdxgen pre-release
 on:
     workflow_dispatch:
         inputs:
+            cdxgen_repo:
+                required: false
+                description: Repository (cdxgen or fork of https://github.com/CycloneDX/cdxgen/) to run tests with
+                default: CycloneDX/cdxgen
             cdxgen_branch:
                 required: true
-                description: Branch of https://github.com/CycloneDX/cdxgen/ project to run tests with
+                description: Branch of cdxgen_repo to run tests with
 env:
     CDXGEN_PLUGINS_VERSION: '1.2.0'
     GRYPE_VERSION: 'v0.65.1'
@@ -12,6 +16,7 @@ env:
     java_version: '20'
     mvn_parameter: '-B -ntp'
     cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
+    cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}
 jobs:
     verify:
         name: Verify cdxgen pre-release from branch
@@ -27,15 +32,14 @@ jobs:
                   java-version: '${{ env.java_version }}'
                   distribution: 'temurin'
 
-            - name: Install requirements and cdxgen from branch ${{ env.cdxgen_branch }}
+            - name: Install requirements and cdxgen from repo ${{env.cdxgen_repo}} branch ${{ env.cdxgen_branch }}
               run: |
                   mkdir _bin
                   echo $(pwd)/_bin >> $GITHUB_PATH
 
                   # cdxgen
-                  git clone https://github.com/CycloneDX/cdxgen.git
+                  git clone -b "$cdxgen_branch" "https://github.com/${cdxgen_repo}.git" cdxgen
                   cd cdxgen
-                  git checkout "$cdxgen_branch"
                   npm install
                   cd ..
                   ln -s $(realpath cdxgen/bin/cdxgen.js) _bin/cdxgen
