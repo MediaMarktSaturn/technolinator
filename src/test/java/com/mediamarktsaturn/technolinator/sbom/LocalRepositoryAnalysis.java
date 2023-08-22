@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.fail;
@@ -27,26 +28,29 @@ class LocalRepositoryAnalysis {
     @Inject
     CdxgenClient cdxgenClient;
 
+    @Inject
+    SbomqsClient sbomqsClient;
+
     final ObjectMapper configMapper = new UtilsProducer().yamlObjectMapper();
 
-    String dir = "/home/heubeck/w/sbom-test/branded-services-support";
+    String dir = "/home/heubeck/w/sbom-test/store-stock-service";
 
     @Language("yml")
     String configString = """
         ---
         analysis:
           recursive: true
-        gradle:
-          args:
-             - -PartifactoryUser=${ARTIFACTORY_USER}
-             - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
-             - -PartifactoryUrl=${ARTIFACTORY_URL}
-             - -PgithubToken=${GITHUB_TOKEN}
-             - -PgithubUser=${GITHUB_USER}
-             - -PgcpProjectId=nowhere
-             - -PgithubSHA=none
-        jdk:
-          version: 17
+        #gradle:
+        #  args:
+        #     - -PartifactoryUser=${ARTIFACTORY_USER}
+        #     - -PartifactoryPassword=${ARTIFACTORY_PASSWORD}
+        #     - -PartifactoryUrl=${ARTIFACTORY_URL}
+        #     - -PgithubToken=${GITHUB_TOKEN}
+        #     - -PgithubUser=${GITHUB_USER}
+        #     - -PgcpProjectId=nowhere
+        #     - -PgithubSHA=none
+        #jdk:
+        #  version: 17
                 """;
 
     @Test
@@ -63,12 +67,22 @@ class LocalRepositoryAnalysis {
         var cmds = cdxgenClient.createCommands(folder, projectName.toString(), false, Optional.of(config));
 
         cmds.forEach(cmd -> {
-
-            Log.infof("Commands: '%s'", cmd.commandLine());
+            Log.infof("Command: '%s'", cmd.commandLine());
+            Log.infof("Env: %n%s", cmd.environment().entrySet().stream().map(e -> "%s=%s".formatted(e.getKey(), e.getValue())).collect(Collectors.joining(System.lineSeparator())));
             var result = await(cmd.execute(metadata));
 
             switch (result) {
-                case Result.Success<CdxgenClient.SBOMGenerationResult> s -> System.out.println("Success");
+                case Result.Success<CdxgenClient.SBOMGenerationResult> s -> {
+                    Log.infof("Success: %s", s.result().getClass().getSimpleName());
+                    if (s.result() instanceof CdxgenClient.SBOMGenerationResult.Yield y) {
+                        var scoreResult = await(sbomqsClient.calculateQualityScore(y.sbomFile()));
+                        switch (scoreResult) {
+                            case Result.Success<SbomqsClient.QualityScore> score ->
+                                Log.infof("Score: %s", score.result().score());
+                            case Result.Failure<SbomqsClient.QualityScore> fail -> fail("Scoring failed", fail.cause());
+                        }
+                    }
+                }
                 case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> fail("Failed", f.cause());
             }
         });

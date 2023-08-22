@@ -121,8 +121,9 @@ public class CdxgenClient {
      * * %s # optional recursive flag [RECURSIVE_FLAG]
      * * %s # optional fail-on-error flag [FAIL_ON_ERROR_FLAG]
      * * --project-name %s # name of main component of the SBOM, defaulting to the repository name
+     * * --no-validate # disable cdxgen validation as we try to process everything
      */
-    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.4 -o %s%s%s --project-name %s";
+    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.4 -o %s%s%s --project-name %s --no-validate";
 
     public record SbomCreationCommand(
         Path repoDir,
