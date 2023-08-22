@@ -69,9 +69,9 @@ class CdxgenClientParsingTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.projectName()).hasToString("myProject");
-                var sbom = fallback.sbom();
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.projectName()).hasToString("myProject");
+                var sbom = yield.sbom();
                 assertThat(sbom.getBomFormat()).isEqualTo("CycloneDX");
                 assertThat(sbom.getMetadata().getComponent()).isNull();
             });
@@ -88,18 +88,18 @@ class CdxgenClientParsingTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-                assertThat(proper.projectName()).hasToString("myProject");
-                var sbom = proper.sbom();
-                assertThat(sbom.getBomFormat()).isEqualTo("CycloneDX");
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.projectName()).hasToString("myProject");
+                var sbom = yield.sbom();
+                assertThat(sbom.getBomFormat()).hasToString("CycloneDX");
                 var metadataComponent = sbom.getMetadata().getComponent();
-                assertThat(metadataComponent.getGroup()).isEqualTo("com.mediamarktsaturn.reco");
-                assertThat(metadataComponent.getName()).isEqualTo("recommendation-prudsys-emulator");
-                assertThat(metadataComponent.getVersion()).isEqualTo("1.6.2");
+                assertThat(metadataComponent.getGroup()).hasToString("com.mediamarktsaturn.reco");
+                assertThat(metadataComponent.getName()).hasToString("recommendation-prudsys-emulator");
+                assertThat(metadataComponent.getVersion()).hasToString("1.6.2");
 
-                assertThat(proper.group()).isEqualTo("com.mediamarktsaturn.reco");
-                assertThat(proper.name()).isEqualTo("recommendation-prudsys-emulator");
-                assertThat(proper.version()).isEqualTo("1.6.2");
+                assertThat(yield.sbom().getMetadata().getComponent().getGroup()).hasToString("com.mediamarktsaturn.reco");
+                assertThat(yield.sbom().getMetadata().getComponent().getName()).hasToString("recommendation-prudsys-emulator");
+                assertThat(yield.sbom().getMetadata().getComponent().getVersion()).hasToString("1.6.2");
             });
         });
     }

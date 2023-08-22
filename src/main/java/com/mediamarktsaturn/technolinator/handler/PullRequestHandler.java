@@ -53,10 +53,8 @@ public class PullRequestHandler extends HandlerBase {
         return Uni.combine().all().unis(sbomResults.stream().map(sbomResult ->
                 switch (sbomResult) {
                     case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
-                        case CdxgenClient.SBOMGenerationResult.Proper p ->
-                            grypeClient.createVulnerabilityReport(p.sbomFile(), p.projectName());
-                        case CdxgenClient.SBOMGenerationResult.Fallback f ->
-                            grypeClient.createVulnerabilityReport(f.sbomFile(), f.projectName());
+                        case CdxgenClient.SBOMGenerationResult.Yield y ->
+                            grypeClient.createVulnerabilityReport(y.sbomFile(), y.projectName());
                         case CdxgenClient.SBOMGenerationResult.None n -> {
                             Log.infof("Nothing to analyse in repo %s, pull-request %s", event.repoUrl(), event.payload().getNumber());
                             yield Uni.createFrom().item(Result.success(GrypeClient.VulnerabilityReport.none()));

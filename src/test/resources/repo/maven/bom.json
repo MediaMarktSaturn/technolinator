@@ -1,0 +1,39 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:db17f4b1-4c04-4743-83f0-497659622fdf",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2023-08-22T08:53:59.903Z",
+    "tools": {
+      "components": [
+        {
+          "group": "@cyclonedx",
+          "name": "cdxgen",
+          "version": "9.5.0",
+          "purl": "pkg:npm/%40cyclonedx/cdxgen@9.5.0",
+          "type": "application",
+          "bom-ref": "pkg:npm/@cyclonedx/cdxgen@9.5.0"
+        }
+      ]
+    },
+    "authors": [
+      {
+        "name": "Prabhu Subramanian",
+        "email": "prabhu@appthreat.com"
+      }
+    ],
+    "component": {
+      "group": "",
+      "name": "h-",
+      "version": "latest",
+      "type": "application",
+      "bom-ref": "pkg:maven/h-@latest",
+      "purl": "pkg:maven/h-@latest",
+      "components": []
+    }
+  },
+  "components": [],
+  "services": [],
+  "dependencies": []
+}
