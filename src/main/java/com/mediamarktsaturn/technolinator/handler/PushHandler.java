@@ -63,15 +63,11 @@ public class PushHandler extends HandlerBase {
                 sbomResults.stream().map(sbomResult ->
                     switch (sbomResult) {
                         case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
-                            // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
-                            case CdxgenClient.SBOMGenerationResult.Proper p -> {
-                                logValidationIssues(repoDetails, p.validationIssues());
-                                yield doScoreAndUploadSbom(repoDetails, p.sbom(), p.sbomFile(), p.projectName());
-                            }
-                            case CdxgenClient.SBOMGenerationResult.Fallback f -> {
-                                Log.infof("Got fallback result for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                                logValidationIssues(repoDetails, f.validationIssues());
-                                yield doScoreAndUploadSbom(repoDetails, f.sbom(), f.sbomFile(), f.projectName());
+                            case CdxgenClient.SBOMGenerationResult.Yield y -> {
+                                Log.infof("Got yield for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                                logValidationIssues(repoDetails, y.validationIssues());
+                                // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
+                                yield doScoreAndUploadSbom(repoDetails, y.sbom(), y.sbomFile(), y.projectName());
                             }
                             case CdxgenClient.SBOMGenerationResult.None n -> {
                                 Log.infof("Nothing to analyse in repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());

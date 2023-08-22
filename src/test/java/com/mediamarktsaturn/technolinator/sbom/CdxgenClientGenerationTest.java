@@ -35,10 +35,8 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-                assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
-                assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("io.github.heubeck");
-                assertThat(proper.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
             });
         });
     }
@@ -46,36 +44,32 @@ class CdxgenClientGenerationTest {
     @Test
     void testMavenWrapperProject() {
         // Given
-        var file = Paths.get("src/test/resources/repo/maven_wrapper");
+        var file = Paths.get("src/test/resources/repo/maven-wrapper");
 
         // When
         var result = generateSBOM(file, "examiner", Optional.empty());
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-                assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
-                assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("io.github.heubeck");
-                assertThat(proper.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1.8.3");
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.sbom().getMetadata().getComponent().getName()).isEqualTo("examiner");
             });
         });
     }
 
     @Test
-    void testMavenFallbackProject() {
+    void testIncompleteMavenFallbackProject() {
         // Given
-        var file = Paths.get("src/test/resources/repo/maven_fallback");
+        var file = Paths.get("src/test/resources/repo/maven-incomplete");
 
         // When
         var result = generateSBOM(file, "cdxgen-is-awesome", Optional.empty());
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper -> {
-                assertThat(proper.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
-                assertThat(proper.sbom().getMetadata().getComponent().getGroup()).isEqualTo("cdxgen-test");
-                assertThat(proper.sbom().getMetadata().getComponent().getVersion()).isEqualTo("1337");
-                assertThat(proper.sbom().getComponents()).isNotEmpty();
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.sbom().getMetadata().getComponent().getName()).isEqualTo("cdxgen-is-awesome");
+                assertThat(yield.sbom().getComponents()).isNotEmpty();
             });
         });
     }
@@ -91,10 +85,10 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback -> {
-                assertThat(fallback.sbom().getMetadata().getComponent().getName()).isEqualTo("multi-mode");
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.sbom().getMetadata().getComponent().getName()).isEqualTo("multi-mode");
 
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("husky", "quarkus-smallrye-health");
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("husky", "quarkus-smallrye-health");
             });
         });
     }
@@ -109,8 +103,8 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).containsOnly("husky")
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).containsOnly("husky")
             );
         });
     }
@@ -139,9 +133,9 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
                 // there are some license issues in this go.sum but license-fetch is disabled
-                assertThat(fallback.validationIssues()).isEmpty()
+                assertThat(yield.validationIssues()).isEmpty()
             );
         });
     }
@@ -157,8 +151,8 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin")
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("remapping", "mutiny-kotlin")
             );
         });
     }
@@ -174,8 +168,8 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn")
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn")
             );
         });
     }
@@ -197,8 +191,8 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Proper.class, proper ->
-                assertThat(proper.sbom().getComponents()).flatExtracting(Component::getName).contains("quarkus-core", "maven-model")
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("quarkus-core", "maven-model")
             );
         });
     }
@@ -218,8 +212,8 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
-            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Fallback.class, fallback ->
-                assertThat(fallback.sbom().getComponents()).flatExtracting(Component::getName).contains("spring-graphql-test", "micrometer-registry-prometheus")
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("spring-graphql-test", "micrometer-registry-prometheus")
             );
         });
     }

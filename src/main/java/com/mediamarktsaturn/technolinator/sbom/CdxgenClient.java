@@ -16,7 +16,14 @@ import org.eclipse.microprofile.config.ConfigProvider;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -230,27 +237,13 @@ public class CdxgenClient {
     private static Result<SBOMGenerationResult> readSbomFile(Path sbomFile, String projectName) {
         try {
             final var sbomContent = Files.readAllBytes(sbomFile);
-
             final var validationResult = SBOM_PARSER.validate(sbomContent);
-
             final var sbom = SBOM_PARSER.parse(sbomContent);
 
-            String group = null;
-            String name = null;
-            String version = null;
-            if (sbom.getMetadata() != null && sbom.getMetadata().getComponent() != null) {
-                group = sbom.getMetadata().getComponent().getGroup();
-                name = sbom.getMetadata().getComponent().getName();
-                version = sbom.getMetadata().getComponent().getVersion();
-            }
-            var named = isNotBlank(group) && isNotBlank(name) && isNotBlank(version);
-            if (!named &&
-                isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
+            if (isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
                 return Result.success(SBOMGenerationResult.none());
-            } else if (named) {
-                return Result.success(new SBOMGenerationResult.Proper(sbom, group, name, version, validationResult, sbomFile, projectName));
             } else {
-                return Result.success(new SBOMGenerationResult.Fallback(sbom, validationResult, sbomFile, projectName));
+                return Result.success(SBOMGenerationResult.yield(sbom, validationResult, sbomFile, projectName));
             }
         } catch (Exception e) {
             return Result.failure(e);
@@ -387,20 +380,7 @@ public class CdxgenClient {
 
     public sealed interface SBOMGenerationResult {
 
-        String projectName();
-
-        record Proper(
-            Bom sbom,
-            String group,
-            String name,
-            String version,
-            List<ParseException> validationIssues,
-            Path sbomFile,
-            String projectName
-        ) implements SBOMGenerationResult {
-        }
-
-        record Fallback(
+        record Yield(
             Bom sbom,
             List<ParseException> validationIssues,
             Path sbomFile,
@@ -409,13 +389,14 @@ public class CdxgenClient {
         }
 
         record None() implements SBOMGenerationResult {
-            public String projectName() {
-                throw new IllegalStateException();
-            }
         }
 
         static SBOMGenerationResult none() {
             return new None();
+        }
+
+        static SBOMGenerationResult yield(Bom sbom, List<ParseException> validationIssues, Path sbomFile, String projectName) {
+            return new Yield(sbom, validationIssues, sbomFile, projectName);
         }
     }
 
