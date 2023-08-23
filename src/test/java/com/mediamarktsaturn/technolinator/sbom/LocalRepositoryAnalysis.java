@@ -53,6 +53,8 @@ class LocalRepositoryAnalysis {
         #  version: 17
                 """;
 
+    boolean fetchLicenses = true;
+
     @Test
     void runLocalAnalysis() throws Exception {
         var folder = Paths.get(dir);
@@ -64,7 +66,7 @@ class LocalRepositoryAnalysis {
 
         TechnolinatorConfig config = configMapper.readValue(configString, TechnolinatorConfig.class);
 
-        var cmds = cdxgenClient.createCommands(folder, projectName.toString(), false, Optional.of(config));
+        var cmds = cdxgenClient.createCommands(folder, projectName.toString(), fetchLicenses, Optional.of(config));
 
         cmds.forEach(cmd -> {
             Log.infof("Command: '%s'", cmd.commandLine());
