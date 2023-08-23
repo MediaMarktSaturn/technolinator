@@ -240,11 +240,10 @@ public class CdxgenClient {
             final var sbomContent = Files.readAllBytes(sbomFile);
             final var validationResult = SBOM_PARSER.validate(sbomContent);
             final var sbom = SBOM_PARSER.parse(sbomContent);
-
-            if (isEmpty(sbom.getComponents()) && isEmpty(sbom.getDependencies()) && isEmpty(sbom.getServices())) {
-                return Result.success(SBOMGenerationResult.none());
-            } else {
+            if (isNotBlank(sbom.getSpecVersion()) && isNotBlank(sbom.getBomFormat())) {
                 return Result.success(SBOMGenerationResult.yield(sbom, validationResult, sbomFile, projectName));
+            } else {
+                return Result.success(SBOMGenerationResult.none());
             }
         } catch (Exception e) {
             return Result.failure(e);

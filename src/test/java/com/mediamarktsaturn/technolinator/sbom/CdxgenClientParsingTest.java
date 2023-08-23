@@ -16,7 +16,8 @@ class CdxgenClientParsingTest {
     @ParameterizedTest
     @ValueSource(strings = {
         "src/test/resources/sbom/empty.json",
-        "src/test/resources/sbom/unkown.json"
+        "src/test/resources/sbom/unkown.json",
+        "src/test/resources/sbom/does-not-exist.json",
     })
     void testInvalids(String filename) {
         // Given
@@ -42,21 +43,17 @@ class CdxgenClientParsingTest {
         assertThat(result).isInstanceOf(Result.Failure.class);
     }
 
-    @ParameterizedTest
-    @ValueSource(strings = {
-        "src/test/resources/sbom/does-not-exist.json",
-        "src/test/resources/sbom/noop.json"
-    })
-    void testNone(String filename) {
+    @Test
+    void testMinimal() {
         // Given
-        var file = Paths.get(filename);
+        var file = Paths.get("src/test/resources/sbom/noop.json");
 
         // when
         var result = CdxgenClient.parseSbomFile(file, "myProject");
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s ->
-            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class));
+            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.Yield.class));
     }
 
     @Test

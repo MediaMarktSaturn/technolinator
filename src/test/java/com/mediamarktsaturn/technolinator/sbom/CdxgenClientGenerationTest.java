@@ -119,7 +119,7 @@ class CdxgenClientGenerationTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s ->
-            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.None.class)
+            assertThat(s.result()).isInstanceOf(CdxgenClient.SBOMGenerationResult.Yield.class)
         );
     }
 
