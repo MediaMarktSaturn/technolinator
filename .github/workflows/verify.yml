@@ -12,7 +12,7 @@ on:
 env:
     CDXGEN_PLUGINS_VERSION: '1.2.0'
     GRYPE_VERSION: 'v0.65.2'
-    SBOMQS_VERSION: 'v0.0.19'
+    SBOMQS_VERSION: 'v0.0.20'
     java_version: '20'
     mvn_parameter: '-B -ntp'
     cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
