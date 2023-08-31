@@ -31,7 +31,7 @@ jobs:
 
             - name: Getting next release version
               id: semantic
-              uses: cycjimmy/semantic-release-action@v3
+              uses: cycjimmy/semantic-release-action@v4
               with:
                   dry_run: true
                   semantic_version: ${{ env.semantic_version }}
@@ -124,7 +124,7 @@ jobs:
 
             - name: Create Release
               if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-              uses: cycjimmy/semantic-release-action@v3
+              uses: cycjimmy/semantic-release-action@v4
               with:
                   semantic_version: ${{ env.semantic_version }}
               env:
