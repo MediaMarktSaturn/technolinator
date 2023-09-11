@@ -5,6 +5,7 @@ on:
             - 'README.md'
             - '.github/dependabot.yml'
             - '.github/technolinator.yml'
+            - '.github/ISSUE_TEMPLATE/**'
 env:
     CDXGEN_VERSION: '9.7.3'
     CDXGEN_PLUGINS_VERSION: '1.4.0'
