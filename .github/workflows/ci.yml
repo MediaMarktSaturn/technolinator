@@ -86,7 +86,7 @@ jobs:
                     -Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
 
             - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v2
+              uses: docker/setup-buildx-action@v3
 
             - name: Docker build
               uses: docker/build-push-action@v4
