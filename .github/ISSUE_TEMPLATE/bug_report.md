@@ -1,0 +1,51 @@
+name: Bug Report
+description: File a bug report
+title: "[Bug]: "
+labels: ["bug"]
+assignees:
+  - heubeck
+  - johannesmarx
+  - beiertu-mms
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Thank you for taking your time to fill out this bug report!
+        Please also search the [issues](https://github.com/MediaMarktSaturn/technolinator/issues) first before submitting a new one.
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected Behavior
+      description: |
+        Tell us what should happen.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-behavior
+    attributes:
+      label: Actual Behavior
+      description: |
+        Tell us what happens instead of the expected behavior.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: |
+        Please provide a step by step instruction to reproduce this bug if applicable.
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-info
+    attributes:
+      label: Additional Information
+      description: |
+        Include here any additional information (version used, environment, etc.), which you think are relevant to this bug.
+    validations:
+      required: false
+
