@@ -109,7 +109,7 @@ jobs:
                   container-structure-test test --config src/main/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
 
             - name: Login to GHCR
-              uses: docker/login-action@v2
+              uses: docker/login-action@v3
               if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
               with:
                 registry: ghcr.io
