@@ -44,6 +44,9 @@ jobs:
                   npm install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
                   npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
 
+                  # changelog-conventionalcommits for GitHub release creation
+                  npm install -D conventional-changelog-conventionalcommits
+
                   mkdir _bin
                   echo $(pwd)/_bin >> $GITHUB_PATH
 
