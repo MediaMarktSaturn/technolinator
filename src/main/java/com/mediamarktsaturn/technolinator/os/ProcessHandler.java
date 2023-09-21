@@ -30,8 +30,7 @@ public class ProcessHandler {
     static Uni<ProcessResult> run(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
         callback.log("Starting '%s' in %s".formatted(command, workingDir));
         List<String> outputLines = new ArrayList<>();
-        return Uni.createFrom().item(
-                Unchecked.supplier(() -> {
+        return Uni.createFrom().completionStage(Unchecked.supplier(() -> {
                     var commandParts = command.trim().split("\\s+");
                     var processBuilder = new ProcessBuilder(commandParts)
                         .directory(workingDir.toFile())
@@ -46,10 +45,11 @@ public class ProcessHandler {
                         callback.onOutput(line);
                         outputLines.add(line);
                     }
-                    return process.waitFor();
+                    return process.onExit().whenComplete(Unchecked.consumer((p, f) -> output.close()));
                 })
             ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
-            .map(exit -> {
+            .map(process -> {
+                int exit = process.exitValue();
                 callback.onComplete(exit);
                 if (exit != 0) {
                     return (ProcessResult) new ProcessResult.Failure(outputLines, exit, new Exception(command + " exited with " + exit));
