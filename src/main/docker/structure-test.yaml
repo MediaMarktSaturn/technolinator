@@ -59,7 +59,7 @@ commandTests:
       command: 'cdxgen'
       args: ['-h']
       expectedOutput:
-          - '.*SBoM.*'
+          - '.*SBOM.*'
     - name: "Grype installed"
       command: 'grype'
       args: ['-h']
