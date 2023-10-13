@@ -11,7 +11,7 @@ env:
     GRYPE_VERSION: 'v0.71.0'
     SBOMQS_VERSION: 'v0.0.23'
     semantic_version: '19.0.5'
-    java_version: '20'
+    java_version: '21'
     mvn_parameter: '-B -ntp'
     image_name: 'ghcr.io/mediamarktsaturn/technolinator'
 jobs:
@@ -109,7 +109,7 @@ jobs:
                   sudo curl -Lso /usr/local/bin/container-structure-test https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
                   sudo chmod a+x /usr/local/bin/container-structure-test
 
-                  container-structure-test test --config src/main/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
+                  container-structure-test test --config src/test/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
 
             - name: Login to GHCR
               uses: docker/login-action@v3

@@ -9,8 +9,8 @@ ARG GRYPE_VERSION
 ARG SBOMQS_VERSION
 
 # sdkman provided jdks
-ARG JAVA_17_VERSION='17.0.7-tem'
-ARG JAVA_20_VERSION='20.0.1-tem'
+ARG JAVA_17_VERSION='17.0.8.1-tem'
+ARG JAVA_21_VERSION='21-tem'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
@@ -77,7 +77,7 @@ ENV SDK_DIR="$APP_DIR/sdks"
 COPY --chown=root:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
 RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     sdk install java $JAVA_17_VERSION && \
-    sdk install java $JAVA_20_VERSION && \
+    sdk install java $JAVA_21_VERSION && \
     sdk install maven && \
     sdk install gradle 7.6 && \
     sdk install sbt && \
@@ -88,8 +88,8 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
 
 # app & tools env
 ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
-    JAVA20_HOME="$SDK_DIR/java/$JAVA_20_VERSION" \
-    JAVA_HOME="$SDK_DIR/java/$JAVA_20_VERSION" \
+    JAVA21_HOME="$SDK_DIR/java/$JAVA_21_VERSION" \
+    JAVA_HOME="$SDK_DIR/java/$JAVA_21_VERSION" \
     MAVEN_HOME="$SDK_DIR/maven/current" \
     GRADLE_HOME="$SDK_DIR/gradle/current" \
     MVN_CMD=mvn \
@@ -103,7 +103,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
 
 ENV PATH="$PATH:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
-ENV JAVA_OPTIONS="--enable-preview -Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"
 
 CMD ["/app/run-java.sh"]
