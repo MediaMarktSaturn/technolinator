@@ -93,7 +93,7 @@ commandTests:
       command: '/app/run-java.sh'
       exitCode: 1
       expectedOutput:
-          - '.*exec java --enable-preview .*'
+          - '.*exec java .*'
           - '.*Missing values for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
@@ -107,13 +107,13 @@ commandTests:
       command: '$JAVA17_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk 17.0.7.*'
+          - '.*openjdk 17.0.8.1.*'
 
-    - name: "Java 20 available"
-      command: '$JAVA20_HOME/bin/java'
+    - name: "Java 21 available"
+      command: '$JAVA21_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk 20.*'
+          - '.*openjdk 21.*'
 
     - name: "Running as non-root"
       command: 'whoami'
@@ -146,11 +146,11 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/20.0.1-tem'
+          value: '/app/sdks/java/21-tem'
         - key: JAVA17_HOME
-          value: '/app/sdks/java/17.0.7-tem'
-        - key: JAVA20_HOME
-          value: '/app/sdks/java/20.0.1-tem'
+          value: '/app/sdks/java/17.0.8.1-tem'
+        - key: JAVA21_HOME
+          value: '/app/sdks/java/21-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
