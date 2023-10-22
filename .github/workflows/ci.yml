@@ -8,7 +8,7 @@ on:
 env:
     CDXGEN_VERSION: '9.8.10'
     CDXGEN_PLUGINS_VERSION: '1.4.0'
-    GRYPE_VERSION: 'v0.71.0'
+    GRYPE_VERSION: 'v0.72.0'
     SBOMQS_VERSION: 'v0.0.23'
     semantic_version: '19.0.5'
     java_version: '21'
