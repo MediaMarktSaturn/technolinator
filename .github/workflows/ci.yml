@@ -21,6 +21,9 @@ jobs:
     ci:
         name: Application Build
         runs-on: ubuntu-latest
+        if: |
+            github.actor != 'dependabot[bot]' ||
+            (github.actor == 'dependabot[bot]' &&  github.ref != 'refs/heads/main')
         steps:
 
             - name: Checkout Code
