@@ -35,7 +35,7 @@
         <compiler-plugin.version>3.11.0</compiler-plugin.version>
         <clean-plugin.version>3.3.1</clean-plugin.version>
         <dependency-plugin.version>3.6.1</dependency-plugin.version>
-        <maven-license-plugin.version>2.2.0</maven-license-plugin.version>
+        <maven-license-plugin.version>2.3.0</maven-license-plugin.version>
     </properties>
     <dependencyManagement>
         <dependencies>
