@@ -9,7 +9,7 @@ concurrency:
     group: ${{ github.ref }}-${{ github.workflow }}
     cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
-    CDXGEN_VERSION: '9.9.1'
+    CDXGEN_VERSION: '9.9.2'
     CDXGEN_PLUGINS_VERSION: '1.4.0'
     GRYPE_VERSION: 'v0.72.0'
     SBOMQS_VERSION: 'v0.0.24'
