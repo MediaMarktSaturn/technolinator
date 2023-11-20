@@ -11,7 +11,7 @@ concurrency:
 env:
     CDXGEN_VERSION: '9.9.4'
     CDXGEN_PLUGINS_VERSION: '1.4.0'
-    GRYPE_VERSION: 'v0.73.1'
+    GRYPE_VERSION: 'v0.73.3'
     SBOMQS_VERSION: 'v0.0.26'
     semantic_version: '19.0.5'
     java_version: '21'
