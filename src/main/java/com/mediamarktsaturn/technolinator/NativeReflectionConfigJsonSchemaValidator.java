@@ -1,8 +1,55 @@
 package com.mediamarktsaturn.technolinator;
 
-import com.networknt.schema.*;
-import com.networknt.schema.format.DurationValidator;
-import com.networknt.schema.format.EmailValidator;
+import com.networknt.org.apache.commons.validator.routines.EmailValidator;
+import com.networknt.org.apache.commons.validator.routines.RegexValidator;
+import com.networknt.schema.AdditionalPropertiesValidator;
+import com.networknt.schema.AllOfValidator;
+import com.networknt.schema.AnyOfValidator;
+import com.networknt.schema.ConstValidator;
+import com.networknt.schema.ContainsValidator;
+import com.networknt.schema.DependenciesValidator;
+import com.networknt.schema.DependentRequired;
+import com.networknt.schema.DependentSchemas;
+import com.networknt.schema.EnumValidator;
+import com.networknt.schema.ExclusiveMaximumValidator;
+import com.networknt.schema.ExclusiveMinimumValidator;
+import com.networknt.schema.FalseValidator;
+import com.networknt.schema.FormatValidator;
+import com.networknt.schema.IfValidator;
+import com.networknt.schema.ItemsValidator;
+import com.networknt.schema.ItemsValidator202012;
+import com.networknt.schema.JsonSchema;
+import com.networknt.schema.MaxItemsValidator;
+import com.networknt.schema.MaxLengthValidator;
+import com.networknt.schema.MaxPropertiesValidator;
+import com.networknt.schema.MaximumValidator;
+import com.networknt.schema.MinItemsValidator;
+import com.networknt.schema.MinLengthValidator;
+import com.networknt.schema.MinMaxContainsValidator;
+import com.networknt.schema.MinPropertiesValidator;
+import com.networknt.schema.MinimumValidator;
+import com.networknt.schema.MultipleOfValidator;
+import com.networknt.schema.NonValidationKeyword;
+import com.networknt.schema.NotAllowedValidator;
+import com.networknt.schema.NotValidator;
+import com.networknt.schema.OneOfValidator;
+import com.networknt.schema.PatternPropertiesValidator;
+import com.networknt.schema.PatternValidator;
+import com.networknt.schema.PrefixItemsValidator;
+import com.networknt.schema.PropertiesValidator;
+import com.networknt.schema.PropertyNamesValidator;
+import com.networknt.schema.ReadOnlyValidator;
+import com.networknt.schema.RecursiveRefValidator;
+import com.networknt.schema.RefValidator;
+import com.networknt.schema.RequiredValidator;
+import com.networknt.schema.TrueValidator;
+import com.networknt.schema.TypeValidator;
+import com.networknt.schema.UnevaluatedItemsValidator;
+import com.networknt.schema.UnevaluatedPropertiesValidator;
+import com.networknt.schema.UnionTypeValidator;
+import com.networknt.schema.UniqueItemsValidator;
+import com.networknt.schema.WriteOnlyValidator;
+import com.networknt.schema.format.DateTimeValidator;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 
 /**
@@ -15,8 +62,7 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     AdditionalPropertiesValidator.class,
     TypeValidator.class,
     RequiredValidator.class,
-    EmailValidator.class,
-    DurationValidator.class,
+    EnumValidator.class,
     AllOfValidator.class,
     AnyOfValidator.class,
     ConstValidator.class,
@@ -52,10 +98,16 @@ import io.quarkus.runtime.annotations.RegisterForReflection;
     ReadOnlyValidator.class,
     RefValidator.class,
     TrueValidator.class,
-    UnEvaluatedPropertiesValidator.class,
     UnionTypeValidator.class,
     UniqueItemsValidator.class,
-    UUIDValidator.class
+    ItemsValidator202012.class,
+    MinMaxContainsValidator.class,
+    RecursiveRefValidator.class,
+    UnevaluatedItemsValidator.class,
+    UnevaluatedPropertiesValidator.class,
+    WriteOnlyValidator.class,
+    EmailValidator.class,
+    RegexValidator.class
 })
 public class NativeReflectionConfigJsonSchemaValidator {
 }

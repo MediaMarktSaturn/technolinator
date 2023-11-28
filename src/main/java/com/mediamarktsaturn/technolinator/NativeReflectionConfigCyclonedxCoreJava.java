@@ -3,6 +3,8 @@ package com.mediamarktsaturn.technolinator;
 import io.quarkus.runtime.annotations.RegisterForReflection;
 import org.cyclonedx.model.*;
 import org.cyclonedx.util.*;
+import org.cyclonedx.util.deserializer.*;
+import org.cyclonedx.util.serializer.*;
 import org.cyclonedx.util.mixin.MixInBomReference;
 
 /**
