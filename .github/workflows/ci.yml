@@ -58,8 +58,8 @@ jobs:
 
                   echo "Install grype"
                   GRYPE_URL="https://github.com/anchore/grype/releases/download"
-                  curl -Ls "$GRYPE_URL/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz" -o grype.tar.gz
-                  curl -Ls "$GRYPE_URL/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_checksums.txt" -o grype_checksums.txt
+                  curl -L "$GRYPE_URL/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz" -o grype.tar.gz
+                  curl -L "$GRYPE_URL/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_checksums.txt" -o grype_checksums.txt
 
                   if ! grep -q "$(sha256sum grype.tar.gz | cut -d' ' -f1)" grype_checksums.txt; then
                       echo "grype tar file has an invalid checksum"
