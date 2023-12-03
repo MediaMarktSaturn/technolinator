@@ -60,7 +60,6 @@ jobs:
                   GRYPE_URL="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
                   curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" -o grype.tar.gz
                   curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_checksums.txt" -o grype_checksums.txt
-
                   if ! grep -q "$(sha256sum grype.tar.gz | cut -d' ' -f1)" grype_checksums.txt; then
                       echo "::error title=Invalid checksum::grype ${GRYPE_VERSION}"
                       exit 1
