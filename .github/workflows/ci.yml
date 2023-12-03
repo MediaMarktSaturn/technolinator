@@ -49,20 +49,36 @@ jobs:
 
             - name: Install requirements
               run: |
-                  # cdxgen
+                  echo "Install cdxgen"
                   npm install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
                   npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
 
                   mkdir _bin
                   echo $(pwd)/_bin >> $GITHUB_PATH
 
-                  # grype
-                  curl -Ls https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz -o grype.tar.gz
-                  tar xf grype.tar.gz -C _bin
+                  echo "Install grype"
+                  GRYPE_URL="https://github.com/anchore/grype/releases/download"
+                  curl -Ls "$GRYPE_URL/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz" -o grype.tar.gz
+                  curl -Ls "$GRYPE_URL/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_checksums.txt" -o grype_checksums.txt
 
-                  # sbomqs
-                  curl -Ls https://github.com/interlynk-io/sbomqs/releases/download/${SBOMQS_VERSION}/sbomqs-linux-amd64 -o _bin/sbomqs
-                  chmod a+x _bin/sbomqs
+                  if ! grep -q "$(sha256sum grype.tar.gz | cut -d' ' -f1)" grype_checksums.txt; then
+                      echo "grype tar file has an invalid checksum"
+                      exit 1
+                  else
+                      tar xf grype.tar.gz -C _bin
+                  fi
+
+                  echo "Install sbomqs"
+                  SBOMQS_URL="https://github.com/interlynk-io/sbomqs/releases/download"
+                  curl -Ls "$SBOMQS_URL/${SBOMQS_VERSION}/sbomqs-linux-amd64" -o sbomqs
+                  curl -Ls "$SBOMQS_URL/${SBOMQS_VERSION}/sbomqs_${SBOMQS_VERSION:1}_checksums.txt" -o sbomqs_checksums.txt
+                  if ! grep -q "$(sha256sum sbomqs | cut -d' ' -f1)" sbomqs_checksums.txt; then
+                      echo "sbomqs file has an invalid checksum"
+                      exit 1
+                  else
+                      mv -v sbomqs _bin/sbomqs
+                      chmod a+x _bin/sbomqs
+                  fi
 
             - name: Application Build and Test
               env:
