@@ -11,8 +11,8 @@ on:
                 description: Branch of cdxgen_repo to run tests with
 env:
     CDXGEN_PLUGINS_VERSION: '1.4.0'
-    GRYPE_VERSION: 'v0.73.4'
-    SBOMQS_VERSION: 'v0.0.27'
+    GRYPE_VERSION: '0.73.4'
+    SBOMQS_VERSION: '0.0.27'
     java_version: '21'
     mvn_parameter: '-B -ntp'
     cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
@@ -47,12 +47,25 @@ jobs:
                   # cdxgen-plugins-bin
                   npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
 
-                  # grype
-                  curl -Ls https://github.com/anchore/grype/releases/download/${GRYPE_VERSION}/grype_${GRYPE_VERSION:1}_linux_amd64.tar.gz -o grype.tar.gz
+                  echo "Install grype"
+                  GRYPE_URL="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
+                  curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" -o grype.tar.gz
+                  curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_checksums.txt" -o grype_checksums.txt
+                  if ! grep -q "$(sha256sum grype.tar.gz | cut -d' ' -f1)" grype_checksums.txt; then
+                      echo "::error title=Invalid checksum::grype ${GRYPE_VERSION}"
+                      exit 1
+                  fi
                   tar xf grype.tar.gz -C _bin
 
-                  # sbomqs
-                  curl -Ls https://github.com/interlynk-io/sbomqs/releases/download/${SBOMQS_VERSION}/sbomqs-linux-amd64 -o _bin/sbomqs
+                  echo "Install sbomqs"
+                  SBOMQS_URL="https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}"
+                  curl -Ls "$SBOMQS_URL/sbomqs-linux-amd64" -o sbomqs
+                  curl -Ls "$SBOMQS_URL/sbomqs_${SBOMQS_VERSION}_checksums.txt" -o sbomqs_checksums.txt
+                  if ! grep -q "$(sha256sum sbomqs | cut -d' ' -f1)" sbomqs_checksums.txt; then
+                      echo "::error title=Invalid checksum::sbomqs ${SBOMQS_VERSION}"
+                      exit 1
+                  fi
+                  mv sbomqs _bin/sbomqs
                   chmod a+x _bin/sbomqs
 
             - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
