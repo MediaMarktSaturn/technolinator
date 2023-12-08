@@ -1,0 +1,116 @@
+---
+name: 'install-requirements'
+description: 'Install required dependencies for the build of this application'
+inputs:
+    grype_version:
+        description: |
+            anchore/grype version with or without the v-prefix
+        required: true
+    sbomqs_version:
+        description: |
+            interlynk-io/sbomqs version with or without the v-prefix
+        required: true
+    cdxgen_plugins_version:
+        description: |
+            CycloneDX/cdxgen-plugins-bin version.
+        required: true
+    cdxgen_version:
+        description: |
+            CycloneDX/cdxgen version.
+            If this is not provided, then the cdxgen_repo and cdxgen_branch inputs need to be set.
+        required: false
+        default: ''
+    cdxgen_repo:
+        description: |
+            CycloneDX/cdxgen repository name in GitHub without the `.git` suffix.
+        required: false
+        default: ''
+    cdxgen_branch:
+        description: |
+            CycloneDX/cdxgen branch name in GitHub from which cdxgen will be built from.
+        required: false
+        default: ''
+outputs:
+    bin-dir:
+        description: "The directory where the commands are located"
+        value: ${{ steps.location.outputs.dir }}
+runs:
+    using: "composite"
+    steps:
+        - shell: bash
+          run: |
+              if [[ -n "${{ inputs.cdxgen_version }}" ]]; then
+                  echo "INFO: cdxgen will be installed using the provided version"
+              elif [[ -n "${{ inputs.cdxgen_repo }}" && -n "${{ inputs.cdxgen_branch }}" ]]; then
+                  echo "INFO: cdxgen will be installed using the provided repo + branch"
+              else
+                  echo "ERROR: cdxgen_version or cdxgen_repo + cdxgen_branch need to be provided!"
+                  exit 1
+              fi
+
+        - shell: bash
+          id: location
+          run: |
+              BIN_PATH="$(pwd)/_bin"
+              mkdir -pv "$BIN_PATH"
+              echo "$BIN_PATH" >> "$GITHUB_PATH"
+              echo "dir=$BIN_PATH" >> "$GITHUB_OUTPUT"
+
+        - shell: bash
+          env:
+              CDXGEN_VERSION: ${{ inputs.cdxgen_version }}
+          if: ${{ inputs.cdxgen_version != '' }}
+          run: |
+              echo "Install cdxgen using npm"
+              npm install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
+
+        - shell: bash
+          env:
+              CDXGEN_REPO: ${{ inputs.cdxgen_repo }}
+              CDXGEN_BRANCH: ${{ inputs.cdxgen_branch }}
+          if: ${{ inputs.cdxgen_branch != '' }}
+          run: |
+              echo "Install cdxgen from $CDXGEN_REPO"
+              git clone -b "$CDXGEN_BRANCH" "https://github.com/${CDXGEN_REPO}.git" cdxgen
+              cd cdxgen
+              npm install
+              cd ..
+              ln -s $(realpath cdxgen/bin/cdxgen.js) "${{ steps.location.outputs.dir }}"/cdxgen
+
+        - shell: bash
+          env:
+              CDXGEN_PLUGINS_VERSION: ${{ inputs.cdxgen_plugins_version }}
+          run: |
+              echo "Install cdxgen plugins"
+              npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
+
+        - shell: bash
+          env:
+              GRYPE_VERSION: ${{ inputs.grype_version }}
+          run: |
+              echo "Install grype"
+              GRYPE_VERSION="${GRYPE_VERSION#v}"
+              GRYPE_URL="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
+              curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" -o grype.tar.gz
+              curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_checksums.txt" -o grype_checksums.txt
+              if ! grep -q "$(sha256sum grype.tar.gz | cut -d' ' -f1)" grype_checksums.txt; then
+                  echo "::error title=Invalid checksum::grype ${GRYPE_VERSION}"
+                  exit 1
+              fi
+              tar xf grype.tar.gz -C "${{ steps.location.outputs.dir }}"
+
+        - shell: bash
+          env:
+              SBOMQS_VERSION: ${{ inputs.sbomqs_version }}
+          run: |
+              echo "Install sbomqs"
+              SBOMQS_VERSION="${SBOMQS_VERSION#v}"
+              SBOMQS_URL="https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}"
+              curl -Ls "$SBOMQS_URL/sbomqs-linux-amd64" -o sbomqs
+              curl -Ls "$SBOMQS_URL/sbomqs_${SBOMQS_VERSION}_checksums.txt" -o sbomqs_checksums.txt
+              if ! grep -q "$(sha256sum sbomqs | cut -d' ' -f1)" sbomqs_checksums.txt; then
+                   echo "::error title=Invalid checksum::sbomqs ${SBOMQS_VERSION}"
+                   exit 1
+              fi
+              mv sbomqs "${{ steps.location.outputs.dir }}"/sbomqs
+              chmod a+x "${{ steps.location.outputs.dir }}"/sbomqs

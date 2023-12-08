@@ -48,34 +48,12 @@ jobs:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install requirements
-              run: |
-                  echo "Install cdxgen"
-                  npm install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
-                  npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
-
-                  mkdir _bin
-                  echo $(pwd)/_bin >> $GITHUB_PATH
-
-                  echo "Install grype"
-                  GRYPE_URL="https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}"
-                  curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_linux_amd64.tar.gz" -o grype.tar.gz
-                  curl -Ls "$GRYPE_URL/grype_${GRYPE_VERSION}_checksums.txt" -o grype_checksums.txt
-                  if ! grep -q "$(sha256sum grype.tar.gz | cut -d' ' -f1)" grype_checksums.txt; then
-                      echo "::error title=Invalid checksum::grype ${GRYPE_VERSION}"
-                      exit 1
-                  fi
-                  tar xf grype.tar.gz -C _bin
-
-                  echo "Install sbomqs"
-                  SBOMQS_URL="https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}"
-                  curl -Ls "$SBOMQS_URL/sbomqs-linux-amd64" -o sbomqs
-                  curl -Ls "$SBOMQS_URL/sbomqs_${SBOMQS_VERSION}_checksums.txt" -o sbomqs_checksums.txt
-                  if ! grep -q "$(sha256sum sbomqs | cut -d' ' -f1)" sbomqs_checksums.txt; then
-                      echo "::error title=Invalid checksum::sbomqs ${SBOMQS_VERSION}"
-                      exit 1
-                  fi
-                  mv sbomqs _bin/sbomqs
-                  chmod a+x _bin/sbomqs
+              uses: ./.github/actions/install-requirements
+              with:
+                  grype_version: ${{ env.GRYPE_VERSION }}
+                  sbomqs_version: ${{ env.SBOMQS_VERSION }}
+                  cdxgen_version: ${{ env.CDXGEN_VERSION }}
+                  cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
 
             - name: Application Build and Test
               env:
@@ -109,6 +87,17 @@ jobs:
 
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
+
+            - name: Sanity versions
+              env:
+                  GRYPE: ${{ env.GRYPE_VERSION }}
+                  SBOMQS: ${{ env.SBOMQS_VERSION }}
+              run: |
+                  echo "Sanity provided versions for docker build"
+                  {
+                      echo "GRYPE_VERSION=${GRYPE#v}"
+                      echo "SBOMQS_VERSION=${SBOMQS#v}"
+                  } >> "$GITHUB_ENV"
 
             - name: Docker build
               uses: docker/build-push-action@v5
