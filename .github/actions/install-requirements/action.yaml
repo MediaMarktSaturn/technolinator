@@ -1,26 +1,33 @@
 ---
 name: 'install-requirements'
-description: ''
+description: 'Install required dependencies for the build of this application'
 inputs:
   grype_version:
-    description: ''
+    description: |
+      anchore/grype version with or without the v-prefix
     required: true
   sbomqs_version:
-    description: ''
+    description: |
+      interlynk-io/sbomqs version with or without the v-prefix
     required: true
   cdxgen_plugins_version:
-    description: ''
+    description: |
+      CycloneDX/cdxgen-plugins-bin version.
     required: true
   cdxgen_version:
-    description: ''
+    description: |
+      CycloneDX/cdxgen version.
+      If this is not provided, then the cdxgen_repo and cdxgen_branch inputs need to be set.
     required: false
     default: ''
   cdxgen_repo:
-    description: ''
+    description: |
+      CycloneDX/cdxgen repository name in GitHub without the `.git` suffix.
     required: false
     default: ''
   cdxgen_branch:
-    description: ''
+    description: |
+      CycloneDX/cdxgen branch name in GitHub from which cdxgen will be built from.
     required: false
     default: ''
 outputs:
