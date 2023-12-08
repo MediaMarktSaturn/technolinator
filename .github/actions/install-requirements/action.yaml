@@ -52,7 +52,7 @@ runs:
     - shell: bash
       env:
         CDXGEN_VERSION: ${{ inputs.cdxgen_version }}
-      if: ${{ -n inputs.cdxgen_version }}
+      if: ${{ inputs.cdxgen_version != '' }}
       run: |
         echo "Install cdxgen using npm"
         npm install -g @cyclonedx/cdxgen@${CDXGEN_VERSION}
@@ -61,7 +61,7 @@ runs:
       env:
         CDXGEN_REPO: ${{ inputs.cdxgen_repo }}
         CDXGEN_BRANCH: ${{ inputs.cdxgen_branch }}
-      if: ${{ -n inputs.cdxgen_branch }}
+      if: ${{ inputs.cdxgen_branch != '' }}
       run: |
         echo "Install cdxgen from $CDXGEN_REPO"
         git clone -b "$CDXGEN_BRANCH" "https://github.com/${CDXGEN_REPO}.git" cdxgen
