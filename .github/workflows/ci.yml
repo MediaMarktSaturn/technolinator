@@ -88,6 +88,17 @@ jobs:
             - name: Set up Docker Buildx
               uses: docker/setup-buildx-action@v3
 
+            - name: Sanity versions
+              env:
+                  GRYPE: ${{ env.GRYPE_VERSION }}
+                  SBOMQS: ${{ env.SBOMQS_VERSION }}
+              run: |
+                  echo "Sanity provided versions for docker build"
+                  {
+                      echo "GRYPE_VERSION=${GRYPE#v}"
+                      echo "SBOMQS_VERSION=${SBOMQS#v}"
+                  } >> "$GITHUB_ENV"
+
             - name: Docker build
               uses: docker/build-push-action@v5
               with:
