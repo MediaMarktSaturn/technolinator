@@ -7,6 +7,8 @@ ARG CDXGEN_VERSION
 ARG CDXGEN_PLUGINS_VERSION
 ARG GRYPE_VERSION
 ARG SBOMQS_VERSION
+ARG NYDUS_VERSION
+ARG DEPSCAN_VERSION
 
 # sdkman provided jdks
 ARG JAVA_17_VERSION='17.0.8.1-tem'
@@ -29,6 +31,7 @@ RUN mkdir -p $APP_DATA/.m2 && \
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/git_askpass.sh $APP_DIR/git_askpass.sh
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/run-java.sh $APP_DIR/run-java.sh
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/grype.tmpl $APP_DIR/grype.tmpl
+COPY --chown=root:root --chmod=a-w src/main/docker/assets/depscan.j2 $APP_DIR/depscan.j2
 
 WORKDIR $APP_DATA
 RUN chown $APPLICATION_USER:$APPLICATION_GROUP -R $APP_DATA \
@@ -67,6 +70,16 @@ RUN \
     chmod a+x sbomqs && \
     mv sbomqs /usr/bin/sbomqs
 
+# install nydus
+RUN \
+    curl -Ls "https://github.com/dragonflyoss/nydus/releases/download/v${NYDUS_VERSION}/nydus-static-v${NYDUS_VERSION}-linux-amd64.tgz" -o nydus.tgz && \
+    tar xf nydus.tgz && \
+    mv nydus-static/* /usr/bin/ && \
+    rm -rf nydus.tgz nydus-static
+
+# install depscan
+RUN pip install -q owasp-depscan==${DEPSCAN_VERSION}
+
 # install sdkman
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/curlrc /root/.curlrc
 RUN curl -s "https://get.sdkman.io" | bash > /dev/null
@@ -96,6 +109,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     GRADLE_CMD=gradle \
     GITHUB_USER="nobody" \
     GRYPE_TEMPLATE="$APP_DIR/grype.tmpl" \
+    DEPSCAN_TEMPLATE="$APP_DIR/depscan.j2" \
     INTERLYNK_DISABLE_VERSION_CHECK="true" \
     GRYPE_CHECK_FOR_APP_UPDATE="false" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \

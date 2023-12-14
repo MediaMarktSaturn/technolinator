@@ -4,15 +4,23 @@ description: 'Install required dependencies for the build of this application'
 inputs:
     grype_version:
         description: |
-            anchore/grype version with or without the v-prefix
+            anchore/grype version with or without the v-prefix.
         required: true
     sbomqs_version:
         description: |
-            interlynk-io/sbomqs version with or without the v-prefix
+            interlynk-io/sbomqs version with or without the v-prefix.
         required: true
     cdxgen_plugins_version:
         description: |
             CycloneDX/cdxgen-plugins-bin version.
+        required: true
+    depscan_version:
+        description: |
+            owasp-dep-scan/dep-scan version with or without the v-prefix.
+        required: true
+    nydus_version:
+        description: |
+            dragonflyoss/nydus version with or without the v-prefix.
         required: true
     cdxgen_version:
         description: |
@@ -114,3 +122,27 @@ runs:
               fi
               mv sbomqs "${{ steps.location.outputs.dir }}"/sbomqs
               chmod a+x "${{ steps.location.outputs.dir }}"/sbomqs
+
+        - shell: bash
+          env:
+              NYDUS_VERSION: ${{ inputs.nydus_version }}
+          run: |
+              echo "Install nydus"
+              NYDUS_VERSION="${NYDUS_VERSION#v}"
+              NYDUS_URL="https://github.com/dragonflyoss/nydus/releases/download/v${NYDUS_VERSION}"
+              curl -Ls "$NYDUS_URL/nydus-static-v2.2.4-linux-amd64.tgz" -o nydus.tgz
+              curl -Ls "$NYDUS_URL/nydus-static-v2.2.4-linux-amd64.tgz.sha256sum" -o nydus.tgz.sha256sum
+              if ! grep -q "$(sha256sum nydus.tgz | cut -d' ' -f1)" nydus.tgz.sha256sum; then
+                   echo "::error title=Invalid checksum::nydus.tgz ${NYDUS_VERSION}"
+                   exit 1
+              fi
+              tar xf nydus.tgz
+              mv nydus-static/* "${{ steps.location.outputs.dir }}"/
+
+        - shell: bash
+          env:
+              DEPSCAN_VERSION: ${{ inputs.depscan_version }}
+          run: |
+              echo "Install depscan"
+              DEPSCAN_VERSION="${DEPSCAN_VERSION#v}"
+              pip install -q owasp-depscan==$DEPSCAN_VERSION

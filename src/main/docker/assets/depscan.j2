@@ -1,0 +1,20 @@
+{% if vulnerabilities %}
+⚠ **Vulnerability Report**
+
+_Please consider this as a tentative appraisal, consult [Dependency-Track](DEPENDENCY_TRACK_URL) for reliable results._
+
+| Artifact | Version | Severity (CVSS) | Vulnerability | Fixed in |
+|----------|---------|----------|---------------|----------|
+{% for vuln in vulnerabilities %}
+{%- set ns = namespace(vuln_url=(vuln.related_urls | first | d('about:blank', true))) -%}
+{%- for url in vuln.related_urls -%}
+{%- if 'nvd.nist.gov' in url or 'github.com/advisories' in url or 'npmjs.com/advisories' in url -%}
+{%- set ns.vuln_url = url -%}
+{%- endif -%}
+{%- endfor -%}
+{%- set vuln_desc = vuln.short_description | replace('|', '&vert;') | replace('\n', '<br />') | replace('"', "'") -%}
+| <details><summary>{{ vuln.package }}</summary>{{ vuln.purl }}</details> | {{ vuln.version | d('', true) }} | {{ {'UNSPECIFIED': '⚪', 'LOW': '🔵', 'MEDIUM': '🟡', 'HIGH': '🟠', 'CRITICAL': '🔴'}[vuln.severity] }}&nbsp;{{ vuln.severity }} ({{ vuln.cvss_score }}) | <details><summary>[{{ vuln.id }}]({{ ns.vuln_url }})</summary>{{ vuln_desc }}</details> | {{ vuln.fix_version | d('', true) }} |
+{% endfor %}
+{% else %}
+🏆 _No vulnerabilities found_
+{% endif %}

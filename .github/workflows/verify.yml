@@ -13,6 +13,8 @@ env:
     CDXGEN_PLUGINS_VERSION: '1.5.4'
     GRYPE_VERSION: '0.73.4'
     SBOMQS_VERSION: '0.0.28'
+    DEPSCAN_VERSION: '5.0.2'
+    NYDUS_VERSION: '2.2.4'
     java_version: '21'
     mvn_parameter: '-B -ntp'
     cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
@@ -38,6 +40,8 @@ jobs:
                   grype_version: ${{ env.GRYPE_VERSION }}
                   sbomqs_version: ${{ env.SBOMQS_VERSION }}
                   cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
+                  depscan_version: ${{ env.DEPSCAN_VERSION }}
+                  nydus_version: ${{ env.NYDUS_VERSION }}
                   cdxgen_repo: ${{ env.cdxgen_repo }}
                   cdxgen_branch: ${{ env.cdxgen_branch }}
 

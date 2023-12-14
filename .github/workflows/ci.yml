@@ -13,6 +13,8 @@ env:
     CDXGEN_PLUGINS_VERSION: '1.5.4'
     GRYPE_VERSION: '0.73.4'
     SBOMQS_VERSION: '0.0.28'
+    DEPSCAN_VERSION: '5.0.2'
+    NYDUS_VERSION: '2.2.4'
     semantic_version: '19.0.5'
     java_version: '21'
     mvn_parameter: '-B -ntp'
@@ -52,6 +54,8 @@ jobs:
               with:
                   grype_version: ${{ env.GRYPE_VERSION }}
                   sbomqs_version: ${{ env.SBOMQS_VERSION }}
+                  depscan_version: ${{ env.DEPSCAN_VERSION }}
+                  nydus_version: ${{ env.NYDUS_VERSION }}
                   cdxgen_version: ${{ env.CDXGEN_VERSION }}
                   cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
 
@@ -111,6 +115,8 @@ jobs:
                     CDXGEN_PLUGINS_VERSION=${{ env.CDXGEN_PLUGINS_VERSION }}
                     GRYPE_VERSION=${{ env.GRYPE_VERSION }}
                     SBOMQS_VERSION=${{ env.SBOMQS_VERSION }}
+                    NYDUS_VERSION=${{ env.NYDUS_VERSION }}
+                    DEPSCAN_VERSION=${{ env.DEPSCAN_VERSION }}
 
             - name: Container structure test
               run: |

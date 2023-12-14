@@ -2,12 +2,8 @@ package com.mediamarktsaturn.technolinator.sbom;
 
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.os.ProcessHandler;
-import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
-import jakarta.enterprise.context.ApplicationScoped;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -17,28 +13,25 @@ import java.util.Optional;
 /**
  * Wraps around grype for creating vulnerability reports
  */
-@ApplicationScoped
-public class GrypeClient {
-
-    private static final String OUTPUT_FILE = "report.txt";
+public class GrypeClient extends VulnerabilityReporting {
 
     private static final Map<String, String> DEFAULT_ENV = Map.of(
         "GRYPE_DB_AUTO_UPDATE", "true"
     );
 
-    private final Path templateFile;
+    private final Optional<Path> templateFile;
     private final Optional<String> configFile;
 
     public GrypeClient(
-        @ConfigProperty(name = "grype.template")
-        String templateFile,
-        @ConfigProperty(name = "grype.config")
+        Optional<String> templateFile,
         Optional<String> configFile
     ) {
-        this.templateFile = Paths.get(templateFile);
-        if (!Files.isReadable(this.templateFile)) {
-            throw new IllegalStateException("Template file not readable: " + templateFile);
-        }
+        this.templateFile = templateFile.map(Paths::get);
+        this.templateFile.ifPresent(template -> {
+            if (!Files.isReadable(template)) {
+                throw new IllegalStateException("Template file not readable: " + template);
+            }
+        });
         this.configFile = configFile;
         this.configFile.map(Paths::get).ifPresent(config -> {
             if (!Files.isReadable(config)) {
@@ -62,9 +55,14 @@ public class GrypeClient {
     /**
      * Creates a vulnerability report using grype for the given [sbomFile]
      */
+    @Override
     public Uni<Result<VulnerabilityReport>> createVulnerabilityReport(Path sbomFile, String projectName) {
+        if (templateFile.isEmpty()) {
+            return noReport;
+        }
+
         var command = GRYPE_COMMAND.formatted(
-            templateFile.toAbsolutePath().toString(),
+            templateFile.get().toAbsolutePath().toString(),
             OUTPUT_FILE,
             sbomFile.toAbsolutePath().toString(),
             configFile.map("-c "::concat).orElseGet(String::new)
@@ -74,44 +72,6 @@ public class GrypeClient {
         return ProcessHandler.run(command, reportDir, DEFAULT_ENV)
             .map(result -> createReport(result, reportDir, projectName))
             .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
-    }
-
-    Result<VulnerabilityReport> createReport(ProcessHandler.ProcessResult result, Path reportDir, String projectName) {
-        return switch (result) {
-            case ProcessHandler.ProcessResult.Success s -> parseReport(reportDir, projectName);
-            case ProcessHandler.ProcessResult.Failure f -> Result.failure(f.cause());
-        };
-    }
-
-    Result<VulnerabilityReport> parseReport(Path reportDir, String projectName) {
-        var reportFile = reportDir.resolve(OUTPUT_FILE);
-        try {
-            if (Files.isReadable(reportFile)) {
-                String report = Files.readString(reportFile);
-                return Result.success(VulnerabilityReport.report(report, projectName));
-            } else {
-                return Result.success(VulnerabilityReport.none());
-            }
-        } catch (IOException e) {
-            Log.errorf(e, "Failed to read vulnerability report from %s", reportFile);
-            return Result.failure(e);
-        }
-    }
-
-    public sealed interface VulnerabilityReport {
-        record Report(String text, String projectName) implements VulnerabilityReport {
-        }
-
-        record None() implements VulnerabilityReport {
-        }
-
-        static VulnerabilityReport report(String text, String projectName) {
-            return new Report(text, projectName);
-        }
-
-        static VulnerabilityReport none() {
-            return new None();
-        }
     }
 
 }

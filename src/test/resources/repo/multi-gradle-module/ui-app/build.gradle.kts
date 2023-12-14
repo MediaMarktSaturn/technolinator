@@ -1,5 +1,5 @@
-import com.github.gradle.node.npm.task.NpmTask
 import com.github.gradle.node.npm.proxy.ProxySettings
+import com.github.gradle.node.npm.task.NpmTask
 
 plugins {
     id("com.github.node-gradle.node")

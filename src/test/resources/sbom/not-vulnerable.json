@@ -148,24 +148,6 @@
         },
         {
             "publisher": "",
-            "group": "golang.org/x",
-            "name": "net",
-            "version": "v0.5.0",
-            "description": "",
-            "scope": "optional",
-            "hashes": [
-                {
-                    "alg": "SHA-256",
-                    "content": "0e2bc61805c480f4a5101cf11b3648f992e8862fb1523d39e237de2ae8b4d30b"
-                }
-            ],
-            "licenses": [],
-            "purl": "pkg:golang/golang.org%2Fx/net@v0.5.0",
-            "type": "library",
-            "bom-ref": "pkg:golang/golang.org%2Fx/net@v0.5.0"
-        },
-        {
-            "publisher": "",
             "group": "github.com/nsqio",
             "name": "go-diskqueue",
             "version": "v1.1.1-0.20211017194114-cc41549f81d5",
