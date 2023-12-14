@@ -73,6 +73,30 @@
             ],
             "depNameTemplate": "interlynk-io/sbomqs",
             "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Update nydus version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$",
+                ".*verify\\.yml$"
+            ],
+            "matchStrings": [
+                "NYDUS_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "dragonflyoss/nydus",
+            "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Update depscan version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$",
+                ".*verify\\.yml$"
+            ],
+            "matchStrings": [
+                "DEPSCAN_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "owasp-dep-scan/dep-scan",
+            "datasourceTemplate": "github-releases"
         }
     ]
 }

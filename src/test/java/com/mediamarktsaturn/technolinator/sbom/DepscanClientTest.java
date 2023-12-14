@@ -1,11 +1,14 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
 import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.quarkus.test.junit.QuarkusTest;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -13,13 +16,18 @@ import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
-class GrypeClientTest {
+class DepscanClientTest {
 
-    @ConfigProperty(name = "grype.template")
+    @ConfigProperty(name = "depscan.template")
     String template;
 
-    private GrypeClient cut() {
-        return new GrypeClient(Optional.of(template), Optional.empty());
+    private DepscanClient cut() {
+        return new DepscanClient(Optional.of(template));
+    }
+
+    @BeforeEach
+    void cleanup() {
+        await(ProcessHandler.run("rm -rf depscan-reports", Paths.get("src/test/resources/sbom"), Map.of()));
     }
 
     @Test

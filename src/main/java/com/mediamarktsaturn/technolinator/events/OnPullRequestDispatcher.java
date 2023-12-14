@@ -4,7 +4,7 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.PullRequestHandler;
-import com.mediamarktsaturn.technolinator.sbom.GrypeClient;
+import com.mediamarktsaturn.technolinator.sbom.VulnerabilityReporting;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Actions;
@@ -138,11 +138,11 @@ public class OnPullRequestDispatcher extends DispatcherBase {
         ).increment();
     }
 
-    private PullRequestResult mapToResult(Result<GrypeClient.VulnerabilityReport> report) {
+    private PullRequestResult mapToResult(Result<VulnerabilityReporting.VulnerabilityReport> report) {
         MetricStatusAnalysis status = switch (report) {
-            case Result.Success<GrypeClient.VulnerabilityReport> s -> switch (s.result()) {
-                case GrypeClient.VulnerabilityReport.Report r -> MetricStatusAnalysis.OK;
-                case GrypeClient.VulnerabilityReport.None n -> MetricStatusAnalysis.NONE;
+            case Result.Success<VulnerabilityReporting.VulnerabilityReport> s -> switch (s.result()) {
+                case VulnerabilityReporting.VulnerabilityReport.Report r -> MetricStatusAnalysis.OK;
+                case VulnerabilityReporting.VulnerabilityReport.None n -> MetricStatusAnalysis.NONE;
             };
             case Result.Failure<?> f -> MetricStatusAnalysis.ERROR;
         };

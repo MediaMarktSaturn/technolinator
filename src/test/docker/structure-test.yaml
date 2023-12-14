@@ -43,6 +43,13 @@ fileExistenceTests:
       uid: 0
       gid: 0
 
+    - name: 'Depscan template exists with right permissions'
+      path: /app/depscan.j2
+      shouldExist: true
+      permissions: '-r-xr-xr-x'
+      uid: 0
+      gid: 0
+
     - name: 'Tzdata for UTC exists'
       path: '/usr/share/zoneinfo/UTC'
       shouldExist: true
@@ -65,6 +72,16 @@ commandTests:
       args: ['-h']
       expectedOutput:
           - '.*A vulnerability scanner for container images, filesystems, and SBOMs.*'
+    - name: "Nydus installed"
+      command: 'nydus-image'
+      args: ['-h']
+      expectedOutput:
+          - '.*Build, analyze, inspect or validate RAFS filesystems/Nydus accelerated container images.*'
+    - name: "Depscan installed"
+      command: 'depscan'
+      args: ['-h']
+      expectedOutput:
+          - '.*Examine using the given Software Bill-of-Materials.*'
     - name: "Sbomqs installed"
       command: 'sbomqs'
       args: ['-h']
@@ -165,6 +182,8 @@ metadataTest:
           value: '/app'
         - key: GRYPE_TEMPLATE
           value: '/app/grype.tmpl'
+        - key: DEPSCAN_TEMPLATE
+          value: '/app/depscan.j2'
     cmd: ['/app/run-java.sh']
     entrypoint: []
     workdir: '/data'

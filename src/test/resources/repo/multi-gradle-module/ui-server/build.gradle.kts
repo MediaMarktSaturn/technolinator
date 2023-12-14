@@ -1,4 +1,3 @@
-import java.net.URI
 import com.google.protobuf.gradle.*
 
 plugins {

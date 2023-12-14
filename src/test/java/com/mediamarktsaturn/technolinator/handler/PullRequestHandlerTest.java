@@ -5,7 +5,7 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PullRequestEvent;
 import com.mediamarktsaturn.technolinator.git.RepositoryService;
 import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
-import com.mediamarktsaturn.technolinator.sbom.GrypeClient;
+import com.mediamarktsaturn.technolinator.sbom.VulnerabilityReporting;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.mockito.InjectSpy;
@@ -40,7 +40,7 @@ class PullRequestHandlerTest {
     @InjectSpy
     CdxgenClient cdxgenClient;
     @InjectMock
-    GrypeClient grypeClient;
+    VulnerabilityReporting reporter;
     @Inject
     PullRequestHandler cut;
 
@@ -54,7 +54,7 @@ class PullRequestHandlerTest {
         var projectName = "examiner";
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
 
-        when(grypeClient.createVulnerabilityReport(any(), eq(projectName))).thenReturn(Uni.createFrom().item(Result.success(GrypeClient.VulnerabilityReport.report("la di dum", projectName))));
+        when(reporter.createVulnerabilityReport(any(), eq(projectName))).thenReturn(Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.report("la di dum", projectName))));
 
         GHPullRequest pr = mock(GHPullRequest.class);
         GHIssueCommentQueryBuilder cqb = mock(GHIssueCommentQueryBuilder.class);
@@ -86,7 +86,7 @@ class PullRequestHandlerTest {
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommands(any(), eq(projectName), eq(false), eq(Optional.empty()));
-        verify(grypeClient).createVulnerabilityReport(any(), eq(projectName));
+        verify(reporter).createVulnerabilityReport(any(), eq(projectName));
         verify(newComment).getHtmlUrl();
     }
 }
