@@ -13,7 +13,7 @@ _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPEN
 {%- endif -%}
 {%- endfor -%}
 {%- set vuln_desc = vuln.short_description | replace('|', '&vert;') | replace('\n', '<br />') | replace('"', "'") -%}
-| <details><summary>{{ vuln.package }}</summary>{{ vuln.purl }}</details> | {{ vuln.version | d('', true) }} | {{ {'UNSPECIFIED': '⚪', 'LOW': '🔵', 'MEDIUM': '🟡', 'HIGH': '🟠', 'CRITICAL': '🔴'}[vuln.severity] }}&nbsp;{{ vuln.severity }} ({{ vuln.cvss_score }}) | <details><summary>[{{ vuln.id }}]({{ ns.vuln_url }})</summary>{{ vuln_desc }}</details> | {{ vuln.fix_version | d('', true) }} |
+| <details><summary>{{ vuln.package }}</summary>`{{ vuln.purl }}`</details> | {{ vuln.version | d('', true) }} | {{ {'UNSPECIFIED': '⚪', 'LOW': '🔵', 'MEDIUM': '🟡', 'HIGH': '🟠', 'CRITICAL': '🔴'}[vuln.severity] }}&nbsp;{{ vuln.severity | capitalize }} ({{ vuln.cvss_score }}) | <details><summary>[{{ vuln.id }}]({{ ns.vuln_url }})</summary>{{ vuln_desc }}</details> | {{ vuln.fix_version | d('', true) }} |
 {% endfor %}
 {% else %}
 🏆 _No vulnerabilities found_
