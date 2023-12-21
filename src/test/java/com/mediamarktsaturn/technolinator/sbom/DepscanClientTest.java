@@ -82,8 +82,12 @@ class DepscanClientTest {
         var result = await(cut().createVulnerabilityReport(sbom, "myProject"));
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(Result.Failure.class, failure -> {
-            assertThat(failure.cause()).hasMessageEndingWith("exited with 1");
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
+            assertThat(success.result()).isInstanceOfSatisfying(VulnerabilityReporting.VulnerabilityReport.Report.class, report -> {
+                assertThat(report.text()).contains(
+                    "No vulnerabilities found"
+                );
+            });
         });
     }
 
