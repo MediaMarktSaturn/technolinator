@@ -3,18 +3,24 @@
 
 _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPENDENCY_TRACK_URL) for reliable results._
 
-| Artifact | Version | Severity (CVSS) | Vulnerability | Fixed in |
-|----------|---------|----------|---------------|----------|
+| Artifact | Vulnerability | Severity (CVSS v3) | Recommendation |
+|----------|---------------|--------------------|----------------|
 {% for vuln in vulnerabilities %}
-{%- set ns = namespace(vuln_url=(vuln.related_urls | first | d('about:blank', true))) -%}
-{%- for url in vuln.related_urls -%}
-{%- if 'nvd.nist.gov' in url or 'github.com/advisories' in url or 'npmjs.com/advisories' in url -%}
-{%- set ns.vuln_url = url -%}
+{%- set ns = namespace(score='', severity='unspecified') -%}
+
+{%- set vuln_desc = vuln.description | replace('|', '&vert;') | replace('\n', '<br />') | replace('"', "'") -%}
+
+{%- for rating in vuln.ratings -%}
+{%- if 'CVSSv3' in rating.method -%}
+{%- set ns.score = rating.score -%}
+{%- set ns.severity = rating.severity -%}
 {%- endif -%}
 {%- endfor -%}
-{%- set vuln_desc = vuln.short_description | replace('|', '&vert;') | replace('\n', '<br />') | replace('"', "'") -%}
-| <details><summary>{{ vuln.package }}</summary>`{{ vuln.purl }}`</details> | {{ vuln.version | d('', true) }} | {{ {'UNSPECIFIED': '⚪', 'LOW': '🔵', 'MEDIUM': '🟡', 'HIGH': '🟠', 'CRITICAL': '🔴'}[vuln.severity] }}&nbsp;{{ vuln.severity | capitalize }} ({{ vuln.cvss_score }}) | <details><summary>[{{ vuln.id }}]({{ ns.vuln_url }})</summary>{{ vuln_desc }}</details> | {{ vuln.fix_version | d('', true) }} |
-{% endfor %}
+
+{%- set severity_icon = {'unspecified': '⚪', 'low': '🔵', 'medium': '🟡', 'high': '🟠', 'critical': '🔴'}[ns.severity] -%}
+
+| `{{ (vuln.affects | first).ref }}` | <details><summary>[{{ vuln.id }}]({{ vuln.source.url }} "{{ vuln.source.name }}")</summary>{{ vuln_desc }}</details> | {{ severity_icon }}&nbsp;{{ ns.severity | capitalize }}&nbsp;({{ ns.score }}) | {{ vuln.recommendation | d('', true) }} |
+{% endfor -%}
 {% else %}
 🏆 _No vulnerabilities found_
 {% endif %}
