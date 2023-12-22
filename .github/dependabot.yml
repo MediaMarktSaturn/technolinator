@@ -1,19 +1,19 @@
 version: 2
 updates:
-    - package-ecosystem: "github-actions"
-      directory: "/"
-      schedule:
-          interval: "daily"
-    - package-ecosystem: "maven"
-      directory: "/"
-      schedule:
-          interval: "daily"
-      open-pull-requests-limit: 10
-    - package-ecosystem: "docker"
-      directory: "/src/main/docker"
-      schedule:
-          interval: "daily"
-    - package-ecosystem: "docker"
-      directory: "/src/test/resources/testcontainers"
-      schedule:
-          interval: "daily"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "maven"
+    directory: "/"
+    schedule:
+      interval: "daily"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "docker"
+    directory: "/src/main/docker"
+    schedule:
+      interval: "daily"
+  - package-ecosystem: "docker"
+    directory: "/src/test/resources/testcontainers"
+    schedule:
+      interval: "daily"

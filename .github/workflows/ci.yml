@@ -1,158 +1,158 @@
 name: Application build and test
 on:
-    push:
-        paths-ignore:
-            - 'README.md'
-            - '.github/dependabot.yml'
-            - '.github/technolinator.yml'
+  push:
+    paths-ignore:
+      - 'README.md'
+      - '.github/dependabot.yml'
+      - '.github/technolinator.yml'
 concurrency:
-    group: ${{ github.ref }}-${{ github.workflow }}
-    cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ${{ github.ref }}-${{ github.workflow }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 env:
-    CDXGEN_VERSION: '9.10.0'
-    CDXGEN_PLUGINS_VERSION: '1.5.4'
-    GRYPE_VERSION: 'v0.73.5'
-    SBOMQS_VERSION: '0.0.28'
-    DEPSCAN_VERSION: 'v5.1.3'
-    NYDUS_VERSION: '2.2.4'
-    semantic_version: '19.0.5'
-    java_version: '21'
-    mvn_parameter: '-B -ntp'
-    image_name: 'ghcr.io/mediamarktsaturn/technolinator'
+  CDXGEN_VERSION: '9.10.0'
+  CDXGEN_PLUGINS_VERSION: '1.5.4'
+  GRYPE_VERSION: 'v0.73.5'
+  SBOMQS_VERSION: '0.0.28'
+  DEPSCAN_VERSION: 'v5.1.3'
+  NYDUS_VERSION: '2.2.4'
+  semantic_version: '19.0.5'
+  java_version: '21'
+  mvn_parameter: '-B -ntp'
+  image_name: 'ghcr.io/mediamarktsaturn/technolinator'
 jobs:
-    ci:
-        name: Application Build
-        runs-on: ubuntu-latest
-        if: |
-            github.actor != 'dependabot[bot]' ||
-            (github.actor == 'dependabot[bot]' &&  github.ref != 'refs/heads/main')
-        steps:
+  ci:
+    name: Application Build
+    runs-on: ubuntu-latest
+    if: |
+      github.actor != 'dependabot[bot]' ||
+      (github.actor == 'dependabot[bot]' &&  github.ref != 'refs/heads/main')
+    steps:
 
-            - name: Checkout Code
-              uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-            - name: Setup Java
-              uses: actions/setup-java@v4
-              with:
-                  java-version: '${{ env.java_version }}'
-                  distribution: 'temurin'
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '${{ env.java_version }}'
+          distribution: 'temurin'
 
-            - name: Install dependencies for semantic-release-action
-              run: npm install -D conventional-changelog-conventionalcommits
+      - name: Install dependencies for semantic-release-action
+        run: npm install -D conventional-changelog-conventionalcommits
 
-            - name: Getting next release version
-              id: semantic
-              uses: cycjimmy/semantic-release-action@v4
-              with:
-                  dry_run: true
-                  semantic_version: ${{ env.semantic_version }}
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Getting next release version
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          dry_run: true
+          semantic_version: ${{ env.semantic_version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Install requirements
-              uses: ./.github/actions/install-requirements
-              with:
-                  grype_version: ${{ env.GRYPE_VERSION }}
-                  sbomqs_version: ${{ env.SBOMQS_VERSION }}
-                  depscan_version: ${{ env.DEPSCAN_VERSION }}
-                  nydus_version: ${{ env.NYDUS_VERSION }}
-                  cdxgen_version: ${{ env.CDXGEN_VERSION }}
-                  cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
+      - name: Install requirements
+        uses: ./.github/actions/install-requirements
+        with:
+          grype_version: ${{ env.GRYPE_VERSION }}
+          sbomqs_version: ${{ env.SBOMQS_VERSION }}
+          depscan_version: ${{ env.DEPSCAN_VERSION }}
+          nydus_version: ${{ env.NYDUS_VERSION }}
+          cdxgen_version: ${{ env.CDXGEN_VERSION }}
+          cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
 
-            - name: Application Build and Test
-              env:
-                  sem_ver: ${{ steps.semantic.outputs.new_release_version }}
-                  QUARKUS_GITHUB_APP_APP_ID: 32168
-                  QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
-                  QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  DTRACK_APIKEY: theres-nothing-to-see-here
-              run: |
-                  if [ -n "$sem_ver" ]; then
-                    mvn ${{ env.mvn_parameter }} versions:set -DnewVersion="$sem_ver"
-                  fi
+      - name: Application Build and Test
+        env:
+          sem_ver: ${{ steps.semantic.outputs.new_release_version }}
+          QUARKUS_GITHUB_APP_APP_ID: 32168
+          QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
+          QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DTRACK_APIKEY: theres-nothing-to-see-here
+        run: |
+          if [ -n "$sem_ver" ]; then
+            mvn ${{ env.mvn_parameter }} versions:set -DnewVersion="$sem_ver"
+          fi
 
-                  mvn ${{ env.mvn_parameter }} clean install
-                  VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
-                  echo VERSION="$VERSION" >> $GITHUB_ENV
+          mvn ${{ env.mvn_parameter }} clean install
+          VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo VERSION="$VERSION" >> $GITHUB_ENV
 
-            - name: Static code analysis
-              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-              env:
-                SONAR_TOKEN: ${{ secrets.SONARQUBE_ANALYSIS_TOKEN }}
-                SONAR_HOST: ${{ secrets.SONARQUBE_HOST_URL }}
-                PROJECT_KEY: technolinator:main
-              run: |
-                  mvn ${{ env.mvn_parameter }} org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
-                    -Dsonar.host.url="$SONAR_HOST" \
-                    -Dsonar.login="$SONAR_TOKEN" \
-                    -Dsonar.projectKey="$PROJECT_KEY" \
-                    -Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
+      - name: Static code analysis
+        if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+        env:
+          SONAR_TOKEN: ${{ secrets.SONARQUBE_ANALYSIS_TOKEN }}
+          SONAR_HOST: ${{ secrets.SONARQUBE_HOST_URL }}
+          PROJECT_KEY: technolinator:main
+        run: |
+          mvn ${{ env.mvn_parameter }} org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+            -Dsonar.host.url="$SONAR_HOST" \
+            -Dsonar.login="$SONAR_TOKEN" \
+            -Dsonar.projectKey="$PROJECT_KEY" \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/jacoco-report/jacoco.xml
 
-            - name: Set up Docker Buildx
-              uses: docker/setup-buildx-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-            - name: Sanity versions
-              env:
-                  GRYPE: ${{ env.GRYPE_VERSION }}
-                  SBOMQS: ${{ env.SBOMQS_VERSION }}
-              run: |
-                  echo "Sanity provided versions for docker build"
-                  {
-                      echo "GRYPE_VERSION=${GRYPE#v}"
-                      echo "SBOMQS_VERSION=${SBOMQS#v}"
-                  } >> "$GITHUB_ENV"
+      - name: Sanity versions
+        env:
+          GRYPE: ${{ env.GRYPE_VERSION }}
+          SBOMQS: ${{ env.SBOMQS_VERSION }}
+        run: |
+          echo "Sanity provided versions for docker build"
+          {
+              echo "GRYPE_VERSION=${GRYPE#v}"
+              echo "SBOMQS_VERSION=${SBOMQS#v}"
+          } >> "$GITHUB_ENV"
 
-            - name: Docker build
-              uses: docker/build-push-action@v5
-              with:
-                  context: .
-                  file: src/main/docker/Dockerfile
-                  tags: ${{ env.image_name }}:${{ env.VERSION }}
-                  load: true
-                  build-args: |
-                    CDXGEN_VERSION=${{ env.CDXGEN_VERSION }}
-                    CDXGEN_PLUGINS_VERSION=${{ env.CDXGEN_PLUGINS_VERSION }}
-                    GRYPE_VERSION=${{ env.GRYPE_VERSION }}
-                    SBOMQS_VERSION=${{ env.SBOMQS_VERSION }}
-                    NYDUS_VERSION=${{ env.NYDUS_VERSION }}
-                    DEPSCAN_VERSION=${{ env.DEPSCAN_VERSION }}
+      - name: Docker build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: src/main/docker/Dockerfile
+          tags: ${{ env.image_name }}:${{ env.VERSION }}
+          load: true
+          build-args: |
+            CDXGEN_VERSION=${{ env.CDXGEN_VERSION }}
+            CDXGEN_PLUGINS_VERSION=${{ env.CDXGEN_PLUGINS_VERSION }}
+            GRYPE_VERSION=${{ env.GRYPE_VERSION }}
+            SBOMQS_VERSION=${{ env.SBOMQS_VERSION }}
+            NYDUS_VERSION=${{ env.NYDUS_VERSION }}
+            DEPSCAN_VERSION=${{ env.DEPSCAN_VERSION }}
 
-            - name: Container structure test
-              run: |
-                  sudo curl -Lso /usr/local/bin/container-structure-test https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
-                  sudo chmod a+x /usr/local/bin/container-structure-test
+      - name: Container structure test
+        run: |
+          sudo curl -Lso /usr/local/bin/container-structure-test https://storage.googleapis.com/container-structure-test/latest/container-structure-test-linux-amd64
+          sudo chmod a+x /usr/local/bin/container-structure-test
 
-                  container-structure-test test --config src/test/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
+          container-structure-test test --config src/test/docker/structure-test.yaml --image ${{ env.image_name }}:${{ env.VERSION }}
 
-            - name: Login to GHCR
-              uses: docker/login-action@v3
-              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-              with:
-                registry: ghcr.io
-                username: ${{ github.actor }}
-                password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Docker push
-              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-              run: |
-                  # upload image
-                  docker push ${{ env.image_name }}:${{ env.VERSION }}
+      - name: Docker push
+        if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+        run: |
+          # upload image
+          docker push ${{ env.image_name }}:${{ env.VERSION }}
 
-            - name: Create and upload container SBOM
-              if: github.ref == 'refs/heads/main'
-              run: |
-                cdxgen -t container \
-                    --server-url ${{ secrets.DTRACK_URL }} \
-                    --api-key ${{ secrets.DTRACK_APIKEY }} \
-                    --project-name technolinator_container \
-                    --project-version 1 \
-                    "${{ env.image_name }}:${{ env.VERSION }}"
+      - name: Create and upload container SBOM
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cdxgen -t container \
+              --server-url ${{ secrets.DTRACK_URL }} \
+              --api-key ${{ secrets.DTRACK_APIKEY }} \
+              --project-name technolinator_container \
+              --project-version 1 \
+              "${{ env.image_name }}:${{ env.VERSION }}"
 
-            - name: Create Release
-              if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-              uses: cycjimmy/semantic-release-action@v4
-              with:
-                  semantic_version: ${{ env.semantic_version }}
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          semantic_version: ${{ env.semantic_version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

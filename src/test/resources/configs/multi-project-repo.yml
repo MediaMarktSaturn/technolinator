@@ -1,19 +1,19 @@
 projects:
-    - project:
-          name: sub1
-      analysis:
-          location: sub1
-          recursive: false
-      projects:
-          - project:
-                name: sub11
-            analysis:
-                location: sub11
-    - project:
-          name: sub12
-      analysis:
-          location: sub1/sub12
-    - project:
-          name: sub2
-      analysis:
-          location: sub2
+  - project:
+      name: sub1
+    analysis:
+      location: sub1
+      recursive: false
+    projects:
+      - project:
+          name: sub11
+        analysis:
+          location: sub11
+  - project:
+      name: sub12
+    analysis:
+      location: sub1/sub12
+  - project:
+      name: sub2
+    analysis:
+      location: sub2

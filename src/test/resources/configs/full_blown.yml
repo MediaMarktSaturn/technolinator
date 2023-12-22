@@ -1,6 +1,6 @@
 enable: true
 project:
-    name: awesomeProject
+  name: awesomeProject
 analysis:
-    location: projectLocation
-    recursive: true
+  location: projectLocation
+  recursive: true

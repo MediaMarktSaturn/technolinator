@@ -1,55 +1,55 @@
 name: Verify cdxgen pre-release
 on:
-    workflow_dispatch:
-        inputs:
-            cdxgen_repo:
-                required: false
-                description: Repository (cdxgen or fork of https://github.com/CycloneDX/cdxgen/) to run tests with
-                default: CycloneDX/cdxgen
-            cdxgen_branch:
-                required: true
-                description: Branch of cdxgen_repo to run tests with
+  workflow_dispatch:
+    inputs:
+      cdxgen_repo:
+        required: false
+        description: Repository (cdxgen or fork of https://github.com/CycloneDX/cdxgen/) to run tests with
+        default: CycloneDX/cdxgen
+      cdxgen_branch:
+        required: true
+        description: Branch of cdxgen_repo to run tests with
 env:
-    CDXGEN_PLUGINS_VERSION: '1.5.4'
-    GRYPE_VERSION: 'v0.73.5'
-    SBOMQS_VERSION: '0.0.28'
-    DEPSCAN_VERSION: 'v5.1.3'
-    NYDUS_VERSION: '2.2.4'
-    java_version: '21'
-    mvn_parameter: '-B -ntp'
-    cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
-    cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}
+  CDXGEN_PLUGINS_VERSION: '1.5.4'
+  GRYPE_VERSION: 'v0.73.5'
+  SBOMQS_VERSION: '0.0.28'
+  DEPSCAN_VERSION: 'v5.1.3'
+  NYDUS_VERSION: '2.2.4'
+  java_version: '21'
+  mvn_parameter: '-B -ntp'
+  cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
+  cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}
 jobs:
-    verify:
-        name: Verify cdxgen pre-release from branch
-        runs-on: ubuntu-latest
-        steps:
+  verify:
+    name: Verify cdxgen pre-release from branch
+    runs-on: ubuntu-latest
+    steps:
 
-            - name: Checkout Code
-              uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-            - name: Setup Java
-              uses: actions/setup-java@v4
-              with:
-                  java-version: '${{ env.java_version }}'
-                  distribution: 'temurin'
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '${{ env.java_version }}'
+          distribution: 'temurin'
 
-            - name: Install requirements
-              uses: ./.github/actions/install-requirements
-              with:
-                  grype_version: ${{ env.GRYPE_VERSION }}
-                  sbomqs_version: ${{ env.SBOMQS_VERSION }}
-                  cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
-                  depscan_version: ${{ env.DEPSCAN_VERSION }}
-                  nydus_version: ${{ env.NYDUS_VERSION }}
-                  cdxgen_repo: ${{ env.cdxgen_repo }}
-                  cdxgen_branch: ${{ env.cdxgen_branch }}
+      - name: Install requirements
+        uses: ./.github/actions/install-requirements
+        with:
+          grype_version: ${{ env.GRYPE_VERSION }}
+          sbomqs_version: ${{ env.SBOMQS_VERSION }}
+          cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
+          depscan_version: ${{ env.DEPSCAN_VERSION }}
+          nydus_version: ${{ env.NYDUS_VERSION }}
+          cdxgen_repo: ${{ env.cdxgen_repo }}
+          cdxgen_branch: ${{ env.cdxgen_branch }}
 
-            - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
-              env:
-                  QUARKUS_GITHUB_APP_APP_ID: 32168
-                  QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
-                  QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  DTRACK_APIKEY: theres-nothing-to-see-here
-              run: mvn ${{ env.mvn_parameter }} clean verify
+      - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
+        env:
+          QUARKUS_GITHUB_APP_APP_ID: 32168
+          QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
+          QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DTRACK_APIKEY: theres-nothing-to-see-here
+        run: mvn ${{ env.mvn_parameter }} clean verify
