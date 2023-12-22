@@ -1,13 +1,11 @@
 # Technolinator
 
-Source:
+**The MediaMarktSaturn GitHub app for pull-request vulnerability analysis, SBOM creation and upload to Dependency-Track.**
+
 ![dependencies](https://dtrack.mmst.eu/api/v1/badge/vulns/project/technolinator/main) ![policies](https://dtrack.mmst.eu/api/v1/badge/violations/project/technolinator/main)
 [![Quality Gate Status](https://sonarqube.cloud.mmst.eu/api/project_badges/measure?project=technolinator%3Amain&metric=alert_status&token=squ_c20d5a134cfb4e85c6046de00451b6f4d21ee225)](https://sonarqube.cloud.mmst.eu/dashboard?id=technolinator%3Amain) [![Maintainability Rating](https://sonarqube.cloud.mmst.eu/api/project_badges/measure?project=technolinator%3Amain&metric=sqale_rating&token=squ_c20d5a134cfb4e85c6046de00451b6f4d21ee225)](https://sonarqube.cloud.mmst.eu/dashboard?id=technolinator%3Amain) [![Reliability Rating](https://sonarqube.cloud.mmst.eu/api/project_badges/measure?project=technolinator%3Amain&metric=reliability_rating&token=squ_c20d5a134cfb4e85c6046de00451b6f4d21ee225)](https://sonarqube.cloud.mmst.eu/dashboard?id=technolinator%3Amain) [![Security Rating](https://sonarqube.cloud.mmst.eu/api/project_badges/measure?project=technolinator%3Amain&metric=security_rating&token=squ_c20d5a134cfb4e85c6046de00451b6f4d21ee225)](https://sonarqube.cloud.mmst.eu/dashboard?id=technolinator%3Amain)
 
-Container `ghcr.io/mediamarktsaturn/technolinator:VERSION` ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square):
-![dependencies](https://dtrack.mmst.eu/api/v1/badge/vulns/project/technolinator_container/1) ![policies](https://dtrack.mmst.eu/api/v1/badge/violations/project/technolinator_container/1)
-
-**The MediaMarktSaturn GitHub app for pull-request vulnerability analysis, SBOM creation and upload to Dependency-Track.**
+🚢 `ghcr.io/mediamarktsaturn/technolinator:VERSION` ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
 
 It wraps around
 * [![](https://img.shields.io/badge/dynamic/yaml?url=https%3A%2F%2Fraw.githubusercontent.com%2FMediaMarktSaturn%2Ftechnolinator%2Fmain%2F.github%2Fworkflows%2Fci.yml&query=%24.env.CDXGEN_VERSION&style=flat-square&label=cdxgen)](https://github.com/CycloneDX/cdxgen) which covers many programming languages and build systems for SBOM creation
