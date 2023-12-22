@@ -163,11 +163,11 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/21-tem'
+          value: '/app/sdks/java/21.0.1-tem'
         - key: JAVA17_HOME
-          value: '/app/sdks/java/17.0.8.1-tem'
+          value: '/app/sdks/java/17.0.9-tem'
         - key: JAVA21_HOME
-          value: '/app/sdks/java/21-tem'
+          value: '/app/sdks/java/21.0.1-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME

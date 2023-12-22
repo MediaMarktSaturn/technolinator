@@ -43,3 +43,5 @@ nb-configuration.xml
 src/test/**/sbom.*
 src/test/**/report.txt
 src/test/**/.gradle/**
+reports/depscan*
+reports/*.report

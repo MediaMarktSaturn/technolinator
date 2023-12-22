@@ -11,8 +11,8 @@ ARG NYDUS_VERSION
 ARG DEPSCAN_VERSION
 
 # sdkman provided jdks
-ARG JAVA_17_VERSION='17.0.8.1-tem'
-ARG JAVA_21_VERSION='21-tem'
+ARG JAVA_17_VERSION='17.0.9-tem'
+ARG JAVA_21_VERSION='21.0.1-tem'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
