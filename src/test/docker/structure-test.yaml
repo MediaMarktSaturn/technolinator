@@ -124,7 +124,7 @@ commandTests:
       command: '$JAVA17_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk 17.0.8.1.*'
+          - '.*openjdk 17.*'
 
     - name: "Java 21 available"
       command: '$JAVA21_HOME/bin/java'

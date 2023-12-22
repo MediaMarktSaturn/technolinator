@@ -139,6 +139,16 @@ jobs:
                   # upload image
                   docker push ${{ env.image_name }}:${{ env.VERSION }}
 
+            - name: Create and upload container SBOM
+              if: github.ref == 'refs/heads/main'
+              run: |
+                cdxgen -t container \
+                    --server-url ${{ secrets.DTRACK_URL }} \
+                    --api-key ${{ secrets.DTRACK_APIKEY }} \
+                    --project-name technolinator_container \
+                    --project-version 1 \
+                    "${{ env.image_name }}:${{ env.VERSION }}"
+
             - name: Create Release
               if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
               uses: cycjimmy/semantic-release-action@v4
