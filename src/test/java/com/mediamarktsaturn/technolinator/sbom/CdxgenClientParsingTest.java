@@ -100,4 +100,23 @@ class CdxgenClientParsingTest {
             });
         });
     }
+
+    @Test
+    void testCdx1dot5spec() {
+        // Given
+        var file = Paths.get("src/test/resources/sbom/technolinator-cdx-1.5.json");
+
+        // When
+        var result = CdxgenClient.parseSbomFile(file, "technolinator");
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
+            assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield -> {
+                assertThat(yield.projectName()).hasToString("technolinator");
+                var sbom = yield.sbom();
+                assertThat(sbom.getBomFormat()).hasToString("CycloneDX");
+                assertThat(sbom.getSpecVersion()).hasToString("1.5");
+            });
+        });
+    }
 }
