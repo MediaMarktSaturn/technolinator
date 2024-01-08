@@ -18,6 +18,8 @@ public class DepscanClient extends VulnerabilityReporting {
     private static final String OUTPUT_DIR = "depscan-reports";
     private static final String OUTPUT_FILE = "report.txt";
 
+    private static final Map<String, String> DEPSCAN_ENV = Map.of("USE_VDB_10Y", "true");
+
     private final Optional<Path> templateFile;
 
     public DepscanClient(Optional<String> templateFile) {
@@ -57,7 +59,7 @@ public class DepscanClient extends VulnerabilityReporting {
         );
 
         var reportDir = sbomFile.getParent();
-        return ProcessHandler.run(command, reportDir, Map.of())
+        return ProcessHandler.run(command, reportDir, DEPSCAN_ENV)
             .map(result -> createReport(result, reportDir.resolve(OUTPUT_DIR), projectName))
             .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
     }
