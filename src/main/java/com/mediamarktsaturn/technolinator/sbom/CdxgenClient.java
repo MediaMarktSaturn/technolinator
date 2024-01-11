@@ -80,7 +80,7 @@ public class CdxgenClient {
     /**
      * Variable names that are allowed to be resolved from ENV.
      */
-    private final List<String> allowedEnvSubstitutions;
+    final List<String> allowedEnvSubstitutions;
 
     /**
      * Configurable, supported jdk versions.
