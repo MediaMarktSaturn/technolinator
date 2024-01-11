@@ -1,6 +1,7 @@
 package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
+import com.mediamarktsaturn.technolinator.CustomTestProfiles;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.PushHandler;
@@ -9,6 +10,7 @@ import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
 import io.restassured.RestAssured;
 import io.smallrye.mutiny.Uni;
 import org.hamcrest.CoreMatchers;
@@ -19,7 +21,6 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.net.MalformedURLException;
 import java.util.List;
 import java.util.Optional;
 
@@ -69,9 +70,7 @@ class OnPushDispatcherTest {
 
         // When
         GitHubAppTesting.given()
-            .github(mocks -> {
-                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/project_name_override.yml");
-            })
+            .github(mocks -> mocks.configFile(CONFIG_FILE).fromClasspath("/configs/project_name_override.yml"))
             .when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
             .event(GHEvent.PUSH);
@@ -84,9 +83,7 @@ class OnPushDispatcherTest {
     void testConfigDisabled() throws IOException {
         // When
         GitHubAppTesting.given()
-            .github(mocks -> {
-                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/disabled.yml");
-            })
+            .github(mocks -> mocks.configFile(CONFIG_FILE).fromClasspath("/configs/disabled.yml"))
             .when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
             .event(GHEvent.PUSH);
@@ -106,9 +103,7 @@ class OnPushDispatcherTest {
 
         // When
         GitHubAppTesting.given()
-            .github(mocks -> {
-                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/full_blown.yml");
-            })
+            .github(mocks -> mocks.configFile(CONFIG_FILE).fromClasspath("/configs/full_blown.yml"))
             .when()
             .payloadFromClasspath("/events/push_to_default_branch.json")
             .event(GHEvent.PUSH);
@@ -118,7 +113,7 @@ class OnPushDispatcherTest {
     }
 
     @Test
-    void testRepoEnabledConfig_noRestriction() throws MalformedURLException {
+    void testRepoEnabledConfig_noRestriction() {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of();
@@ -128,7 +123,7 @@ class OnPushDispatcherTest {
     }
 
     @Test
-    void testRepoEnabledConfig_restriction() throws MalformedURLException {
+    void testRepoEnabledConfig_restriction() {
         // Given
         var cur = new OnPushDispatcher();
         cur.enabledRepos = List.of(" technolinator ", "", " analyzeMe");

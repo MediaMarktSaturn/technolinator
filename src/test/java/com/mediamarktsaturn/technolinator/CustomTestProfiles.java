@@ -20,4 +20,11 @@ public class CustomTestProfiles {
             return Collections.singletonMap("app.allowed_env_substitutions", "   ");
         }
     }
+
+    public static class CommitStatusWriteDisabled implements QuarkusTestProfile {
+        @Override
+        public Map<String, String> getConfigOverrides() {
+            return Collections.singletonMap("app.commit_status_write.enabled", "false");
+        }
+    }
 }
