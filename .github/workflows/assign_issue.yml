@@ -17,6 +17,6 @@ jobs:
           GH_REPO: ${{ github.repository }}
           NUMBER: ${{ github.event.issue.number }}
           BODY: |-
-            Thank you for taking your time to inform us about this. :heart:
+            Thank you for taking your time to reach out. :heart:
 
             @MediaMarktSaturn/software-supply-chain-security :eyes:
