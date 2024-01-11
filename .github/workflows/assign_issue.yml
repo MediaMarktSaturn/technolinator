@@ -1,0 +1,22 @@
+---
+name: "Assign issue"
+"on":
+  issues:
+    types:
+      - opened
+jobs:
+  add-comment:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - run: |
+          gh issue comment "$NUMBER" --body "$BODY"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          NUMBER: ${{ github.event.issue.number }}
+          BODY: |-
+            Thank you for taking your time to reach out. :heart:
+
+            @MediaMarktSaturn/software-supply-chain-security :eyes:

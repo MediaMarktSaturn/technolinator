@@ -2,10 +2,6 @@ name: Feature Request
 description: Request a new feature
 title: "[FEAT]: "
 labels: [ "enhancement" ]
-assignees:
-  - heubeck
-  - johannesmarx
-  - beiertu-mms
 body:
   - type: markdown
     attributes:
