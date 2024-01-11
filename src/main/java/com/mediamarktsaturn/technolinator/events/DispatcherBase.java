@@ -32,6 +32,9 @@ public abstract class DispatcherBase {
     @ConfigProperty(name = "app.enabled_repos")
     List<String> enabledRepos;
 
+    @ConfigProperty(name = "app.commit_status_write.enabled")
+    Boolean enabledCommitStatusWrite;
+
     String createTraceId() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
@@ -47,6 +50,12 @@ public abstract class DispatcherBase {
     }
 
     Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description, Command.Metadata metadata) {
+        if (!enabledCommitStatusWrite) {
+            metadata.writeToMDC();
+            Log.infof("Skip setting repo %s commit %s status to %s, because it's disabled via configuration.", repo.getUrl(), commitSha, state);
+            return Uni.createFrom().nothing();
+        }
+
         return Uni.createFrom().item(Unchecked.supplier(() -> {
                 metadata.writeToMDC();
                 Log.infof("Setting repo %s commit %s status to %s", repo.getUrl(), commitSha, state);
