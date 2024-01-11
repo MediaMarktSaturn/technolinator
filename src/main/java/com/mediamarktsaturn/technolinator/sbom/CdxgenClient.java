@@ -19,6 +19,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -94,9 +95,10 @@ public class CdxgenClient {
         this.recursiveDefault = config.getValue("analysis.recursive_default", Boolean.TYPE);
         this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
 
-        this.allowedEnvSubstitutions = Arrays.stream(
-            config.getValue("app.allowed_env_substitutions", String.class).split(",")
-        ).map(String::trim).toList();
+        this.allowedEnvSubstitutions = config.getOptionalValue("app.allowed_env_substitutions", String.class)
+            .filter(str -> !str.isBlank())
+            .map(str -> Arrays.stream(str.split(",")).map(String::trim).toList())
+            .orElse(Collections.emptyList());
 
         // https://github.com/AppThreat/cdxgen#environment-variables
         this.cdxgenEnv = Map.of(
