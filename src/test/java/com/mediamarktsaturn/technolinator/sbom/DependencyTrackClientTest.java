@@ -16,10 +16,13 @@ import org.cyclonedx.parsers.JsonParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockserver.client.MockServerClient;
+import org.mockserver.model.HttpRequest;
 import org.mockserver.model.MediaType;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Base64;
+import java.util.Comparator;
 import java.util.List;
 
 import static com.mediamarktsaturn.technolinator.MockServerResource.API_KEY;
@@ -150,8 +153,9 @@ class DependencyTrackClientTest {
             assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, s -> assertThat(s.url()).endsWith("/projects/uuid-3"));
         });
 
-        var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
         var patchedProjects = dtrackMock.retrieveRecordedRequests(patchProject);
+        Arrays.sort(patchedProjects, Comparator.comparing(HttpRequest::getPath).reversed());
+
         assertThat(patchedProjects).hasSize(3);
         assertThat(patchedProjects[0]).satisfies(disabled -> {
             assertThat(disabled.getPath()).hasToString("/api/v1/project/uuid-1");
@@ -189,6 +193,7 @@ class DependencyTrackClientTest {
             );
         });
 
+        var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
         var uploadedJson = new JsonObject(uploadedValue);
         var uploadedName = uploadedJson.getString("projectName");
         var uploadedVersion = uploadedJson.getString("projectVersion");
