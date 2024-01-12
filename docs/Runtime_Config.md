@@ -2,7 +2,7 @@
 
 Technolinator is available as container image: `ghcr.io/mediamarktsaturn/technolinator:VERSION` ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
 
-You can run it by providing the minimal conf values as listed below. Please have a look to the adoption doc as well to fine tune the image to your needs.
+You can run it by providing the minimal configuration values as listed below. Please have a look to the [adoption doc](./Adoption.md) as well to fine tune the image to your needs.
 
 Technolinator is configured via the following parameter which can either be provided via ENV, or be put in a `.env` file in the apps working directory.
 
@@ -34,11 +34,12 @@ Technolinator is configured via the following parameter which can either be prov
 | APP_PULL_REQUESTS_CDXGEN_FETCH_LICENSES | false                                        | Whether license information should be included in pull-request created sboms                                              |
 | APP_ANALYSIS_CDXGEN_FETCH_LICENSES      | true                                         | Wheter license information should be included in default-branch analysis                                                  |
 | GRYPE_CONFIG                            |                                              | Path to a [grype configuration](https://github.com/anchore/grype#configuration) file used in PR analysis                  |
-| APP_USE_PENDING_COMMIT_STATUS           | false                                        | Wether a PENDING commit status should be announced when analysing the default branch                                      |
+| APP_USE_PENDING_COMMIT_STATUS           | false                                        | Wehther a PENDING commit status should be announced when analysing the default branch                                     |
+| APP_COMMIT_STATUS_WRITE_ENABLED         | true                                         | Whether commit status in the repository should be updated (the app requires commit writes permission in this case)        |
 
 ## Observability
 
-Technolinators process can best be followed using its log. Every push event received is noted, and the output of cdxgen is logged as well.
+Technolinator's process can best be followed using its log. Every push event received is noted, and the output of cdxgen is logged as well.
 In addition, Technolinator provides Prometheus metrics about push events and analysis results.
 
 There's a Grafana dashboard available in [here](_dashboards), that visualizes these metrics.
