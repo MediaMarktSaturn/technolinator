@@ -17,6 +17,10 @@ analysis:
     location: projectLocation
     # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: true
     recursive: false
+    # include only 'required' scoped dependencies to created BOM
+    requiredScopeOnly: false
+    # create sbom with evidence (slows down the process)
+    evidence: false
     # folders within 'analysis.location' to exclude from created sbom (e.g. non-production stuff)
     excludes:
         - subfolder1

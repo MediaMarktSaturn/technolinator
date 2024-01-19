@@ -52,8 +52,9 @@ RUN \
 # locale options
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
-# install cdxgen
+# install cdxgen and relatives
 RUN \
+    npm install -g @appthreat/atom && \
     npm install -g @cyclonedx/cdxgen@"$CDXGEN_VERSION" && \
     npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
 

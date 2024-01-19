@@ -6,6 +6,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,6 +44,70 @@ class CdxgenClientCommandCreationTest {
 
         // Then
         assertThat(paths).isEmpty();
+    }
+
+    @Test
+    void testRequiredScopeOnlyFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, true, null, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).contains("--required-only");
+        });
+    }
+
+    @Test
+    void testNoEvidenceFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).doesNotContain("--evidence");
+        });
+    }
+
+    @Test
+    void testEvidenceFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, true, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).contains("--evidence");
+        });
+    }
+
+    @Test
+    void testNoRequiredScopeOnlyFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).doesNotContain("--required-only");
+        });
     }
 
     @Test

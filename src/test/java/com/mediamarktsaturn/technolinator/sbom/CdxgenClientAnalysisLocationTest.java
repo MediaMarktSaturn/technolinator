@@ -47,7 +47,7 @@ class CdxgenClientAnalysisLocationTest {
         // Given
         var path = "test_tmp";
         var repo = Paths.get(path);
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(givenLocation, null, List.of())).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(givenLocation, null, null, null, List.of())).build();
 
 
         // When
