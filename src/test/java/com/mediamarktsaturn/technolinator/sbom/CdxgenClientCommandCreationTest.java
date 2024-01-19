@@ -50,15 +50,47 @@ class CdxgenClientCommandCreationTest {
     void testRequiredScopeOnlyFlag() {
         // Given
         var config = ConfigBuilder.create()
-            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, true, List.of()))
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, true, null, List.of()))
             .build();
 
         // When
         var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
 
         // Then
-        assertThat(commands).hasSize(1).first().satisfies( cmd -> {
-          assertThat(cmd.commandLine()).contains("--required-only");
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).contains("--required-only");
+        });
+    }
+
+    @Test
+    void testNoEvidenceFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).doesNotContain("--evidence");
+        });
+    }
+
+    @Test
+    void testEvidenceFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, true, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).contains("--evidence");
         });
     }
 
@@ -66,14 +98,14 @@ class CdxgenClientCommandCreationTest {
     void testNoRequiredScopeOnlyFlag() {
         // Given
         var config = ConfigBuilder.create()
-            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, List.of()))
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, List.of()))
             .build();
 
         // When
         var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
 
         // Then
-        assertThat(commands).hasSize(1).first().satisfies( cmd -> {
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
             assertThat(cmd.commandLine()).doesNotContain("--required-only");
         });
     }

@@ -48,6 +48,7 @@ class TechnolinatorConfigTest {
                 location: projectLocation
                 recursive: false
                 requiredScopeOnly: true
+                evidence: true
             gradle:
                 multiProject: true
                 args:
@@ -76,6 +77,7 @@ class TechnolinatorConfigTest {
                 assertThat(a.location()).isEqualTo("projectLocation");
                 assertThat(a.recursive()).isFalse();
                 assertThat(a.requiredScopeOnly()).isTrue();
+                assertThat(a.evidence()).isTrue();
             });
             assertThat(c.env())
                 .containsEntry("PROP", "value1")

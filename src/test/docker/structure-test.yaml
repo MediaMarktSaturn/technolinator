@@ -67,6 +67,11 @@ commandTests:
       args: ['-h']
       expectedOutput:
           - '.*SBOM.*'
+    - name: "Atom installed"
+      command: 'atom'
+      args: ['--help']
+      expectedOutput:
+        - 'Usage: atom.*'
     - name: "Grype installed"
       command: 'grype'
       args: ['-h']

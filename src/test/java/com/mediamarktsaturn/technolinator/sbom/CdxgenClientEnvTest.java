@@ -170,7 +170,7 @@ class CdxgenClientEnvTest {
             .doesNotContainKey("GRADLE_ARGS")
             .containsEntry("CDXGEN_TIMEOUT_MS", Long.toString(60 * 60 * 1000))
             .containsEntry("MVN_ARGS", "-B -ntp")
-            .containsEntry("CDX_MAVEN_INCLUDE_TEST_SCOPE", "false")
+            .containsEntry("CDX_MAVEN_INCLUDE_TEST_SCOPE", "true")
             .containsEntry("FETCH_LICENSE", "false")
             .containsEntry("USE_GOSUM", "true")
             .containsEntry("JAVA_HOME", System.getenv("JAVA_HOME"));
