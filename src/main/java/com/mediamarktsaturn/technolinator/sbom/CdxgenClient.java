@@ -49,6 +49,11 @@ public class CdxgenClient {
      */
     private static final String FAIL_ON_ERROR_FLAG = " --fail-on-error";
 
+    /**
+     * cdxgen option --required-only: Include only the packages with required scope on the SBOM.
+     */
+    private static final String REQUIRED_ONLY_FLAG = " --required-only";
+
     // cdxgen ENV variable names
     private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
@@ -86,13 +91,14 @@ public class CdxgenClient {
      * Configurable, supported jdk versions.
      */
     private final Map<String, String> jdkHomes;
-    private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, failOnError;
+    private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, requiredScopeOnlyDefault, failOnError;
 
     public CdxgenClient() {
         var config = ConfigProvider.getConfig();
         this.cleanWrapperScripts = config.getValue("app.clean_wrapper_scripts", Boolean.TYPE);
         this.excludeGithubFolder = config.getValue("app.exclude_github_folder", Boolean.TYPE);
         this.recursiveDefault = config.getValue("analysis.recursive_default", Boolean.TYPE);
+        this.requiredScopeOnlyDefault = config.getValue("cdxgen.required_scope_only", Boolean.TYPE);
         this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
 
         this.allowedEnvSubstitutions = config.getOptionalValue("app.allowed_env_substitutions", String.class)
@@ -105,7 +111,7 @@ public class CdxgenClient {
             "GITHUB_TOKEN", config.getValue("github.token", String.class).trim(),
             "USE_GOSUM", config.getValue("cdxgen.use_gosum", Boolean.class).toString(),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            "CDX_MAVEN_INCLUDE_TEST_SCOPE", config.getValue("cdxgen.maven_include_test_scope", Boolean.class).toString(),
+            "CDX_MAVEN_INCLUDE_TEST_SCOPE", Boolean.valueOf(!requiredScopeOnlyDefault).toString(),
             "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
         );
 
@@ -122,10 +128,11 @@ public class CdxgenClient {
      * * -o %s # output to file [SBOM_JSON]
      * * %s # optional recursive flag [RECURSIVE_FLAG]
      * * %s # optional fail-on-error flag [FAIL_ON_ERROR_FLAG]
+     * * %s # optional --required-only flag
      * * --project-name %s # name of main component of the SBOM, defaulting to the repository name
      * * --no-validate # disable cdxgen validation as we try to process everything
      */
-    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.5 -o %s%s%s --project-name %s --no-validate";
+    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.5 -o %s%s%s%s --project-name %s --no-validate";
 
     public record SbomCreationCommand(
         Path repoDir,
@@ -143,7 +150,6 @@ public class CdxgenClient {
                 .chain(() -> generateSbom(this, metadata))
                 .map(result -> parseSbom(this, result, metadata));
         }
-
     }
 
     /**
@@ -156,7 +162,7 @@ public class CdxgenClient {
                 new SbomCreationCommand(
                     repoDir,
                     repoName,
-                    buildCdxgenCommand(recursiveDefault, failOnError, repoName),
+                    buildCdxgenCommand(recursiveDefault, requiredScopeOnlyDefault, failOnError, repoName),
                     buildEnv(List.of(), fetchLicenses),
                     buildExcludeList(List.of())
                 )
@@ -167,7 +173,7 @@ public class CdxgenClient {
                     return new SbomCreationCommand(
                         determineAnalysisFolder(repoDir, configPath),
                         projectName,
-                        buildCdxgenCommand(analyseRecursive(configPath), failOnError, projectName),
+                        buildCdxgenCommand(analyseRecursive(configPath), requiredScopeOnlyFlag(configPath), failOnError, projectName),
                         buildEnv(configPath, fetchLicenses),
                         buildExcludeList(configPath)
                     );
@@ -176,11 +182,12 @@ public class CdxgenClient {
         }
     }
 
-    private String buildCdxgenCommand(boolean recursive, boolean failOnError, String projectName) {
+    private String buildCdxgenCommand(boolean recursive, boolean requiredOnly, boolean failOnError, String projectName) {
         return CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
             recursive ? RECURSIVE_FLAG : NO_RECURSIVE_FLAG,
             failOnError ? FAIL_ON_ERROR_FLAG : "",
+            requiredOnly ? REQUIRED_ONLY_FLAG : "",
             projectName
         );
     }
@@ -353,6 +360,15 @@ public class CdxgenClient {
             return recursiveDefault;
         } else {
             return recursiveConfig.get(recursiveConfig.size() - 1);
+        }
+    }
+
+    boolean requiredScopeOnlyFlag(List<TechnolinatorConfig> path) {
+        var requiredOnlyConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::requiredScopeOnly);
+        if (requiredOnlyConfig.isEmpty()) {
+            return requiredScopeOnlyDefault;
+        } else {
+            return requiredOnlyConfig.get(requiredOnlyConfig.size() - 1);
         }
     }
 

@@ -26,6 +26,7 @@ public record TechnolinatorConfig(
     public record AnalysisConfig(
         String location,
         Boolean recursive,
+        Boolean requiredScopeOnly,
         List<String> excludes
     ) {
     }
