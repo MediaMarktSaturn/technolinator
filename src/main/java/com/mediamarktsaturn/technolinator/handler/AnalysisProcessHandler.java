@@ -110,7 +110,7 @@ public class AnalysisProcessHandler {
     }
 
     Uni<Result<Project>> handleDependencyTrack(Event<?> event, RepositoryDetails repoDetails, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
-        if (event.targetsDefaultBranch()) {
+        if (event.isDefaultBranch()) {
             return Uni.createFrom().deferred(() -> scoreAndUploadSbomIfApplicable(repoDetails, sbomResults, metadata));
         } else {
             return Uni.createFrom().item(Result.success(Project.none()));

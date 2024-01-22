@@ -126,9 +126,9 @@ class PullRequestHandlingTest {
         GHIssueComment newComment = mock(GHIssueComment.class);
 
         GHCommitPointer head = mock(GHCommitPointer.class);
-        when(head.getRef()).thenReturn("main");
+        when(head.getRef()).thenReturn("technolinator-test");
         GHCommitPointer base = mock(GHCommitPointer.class);
-        when(base.getRef()).thenReturn("nowhere");
+        when(base.getRef()).thenReturn("main");
         when(pr.getHead()).thenReturn(head);
         when(pr.getBase()).thenReturn(base);
         when(pr.queryComments()).thenReturn(cqb);

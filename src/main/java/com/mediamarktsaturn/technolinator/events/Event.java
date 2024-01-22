@@ -27,6 +27,10 @@ public interface Event<P extends GHEventPayload> {
         return branch().equals(defaultBranch());
     }
 
+    default boolean isDefaultBranch() {
+        return branch().equals(defaultBranch());
+    }
+
     default String getRepoName() {
         var path = repoUrl().getPath();
         return path.substring(path.lastIndexOf('/') + 1);
