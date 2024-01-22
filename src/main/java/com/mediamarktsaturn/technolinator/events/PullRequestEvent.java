@@ -25,12 +25,19 @@ public record PullRequestEvent(
         return "refs/heads/" + branch();
     }
 
+    @Override
     public URL repoUrl() {
         return payload.getRepository().getHtmlUrl();
     }
 
+    @Override
     public String defaultBranch() {
         return payload.getRepository().getDefaultBranch();
+    }
+
+    @Override
+    public boolean targetsDefaultBranch() {
+        return payload.getPullRequest().getBase().getRef().equals(defaultBranch());
     }
 
     @Override

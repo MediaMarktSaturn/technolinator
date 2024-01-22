@@ -20,7 +20,7 @@ import java.util.stream.StreamSupport;
 /**
  * Orchestrator of the checkout from GitHub, SBOM-creation and upload to Dependency-Track process
  */
-@ApplicationScoped
+@Deprecated(forRemoval = true)
 public class PullRequestHandler extends HandlerBase {
 
     private static final String COMMENT_MARKER = "[//]: # (Technolinator)";

@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 /**
  * Orchestrator of the checkout from GitHub, SBOM-creation and upload to Dependency-Track process
  */
-@ApplicationScoped
+@Deprecated(forRemoval = true)
 public class PushHandler extends HandlerBase {
 
     private static final String SBOM_QUALITY_TAG = "sbom-quality-score=%s";

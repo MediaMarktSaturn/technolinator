@@ -23,6 +23,10 @@ public interface Event<P extends GHEventPayload> {
 
     Optional<TechnolinatorConfig> config();
 
+    default boolean targetsDefaultBranch() {
+        return branch().equals(defaultBranch());
+    }
+
     default String getRepoName() {
         var path = repoUrl().getPath();
         return path.substring(path.lastIndexOf('/') + 1);

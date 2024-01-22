@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+@Deprecated
 public abstract class HandlerBase {
 
     protected static final String DTRACK_PROJECT_SEARCH_TMPL = "%s/projects?searchText=%s";
@@ -23,13 +24,6 @@ public abstract class HandlerBase {
     protected final String dtrackUrl;
     private final boolean fetchLicenses;
 
-    // dummy constructor required by ARC
-    protected HandlerBase() {
-        this.repoService = null;
-        this.cdxgenClient = null;
-        this.fetchLicenses = false;
-        this.dtrackUrl = null;
-    }
 
     protected HandlerBase(RepositoryService repoService, CdxgenClient cdxgenClient, boolean fetchLicenses, String dtrackUrl) {
         this.repoService = repoService;

@@ -1,7 +1,7 @@
 package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.CustomTestProfiles;
-import com.mediamarktsaturn.technolinator.handler.PushHandler;
+import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.InjectMock;
@@ -26,7 +26,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 class OnPushDispatcherWithDisabledCommitStatusWriteTest {
 
     @InjectMock
-    PushHandler handler;
+    AnalysisProcessHandler handler;
 
     @BeforeEach
     void setup() {
