@@ -300,7 +300,7 @@ public class AnalysisProcessHandler {
     }
 
     @SuppressWarnings("unchecked")
-    static Uni<List<Result<CdxgenClient.SBOMGenerationResult>>> executeCommands(List<CdxgenClient.SbomCreationCommand> commands, Command.Metadata metadata) {
+    public static Uni<List<Result<CdxgenClient.SBOMGenerationResult>>> executeCommands(List<CdxgenClient.SbomCreationCommand> commands, Command.Metadata metadata) {
         return Uni.combine().all().unis(
             commands.stream().map(cmd -> cmd.execute(metadata)).toList()
         ).combinedWith(results -> {
