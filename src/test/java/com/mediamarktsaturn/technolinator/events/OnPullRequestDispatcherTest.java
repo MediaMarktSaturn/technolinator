@@ -1,7 +1,7 @@
 package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.PullRequestHandler;
+import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.InjectMock;
@@ -30,7 +30,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 class OnPullRequestDispatcherTest {
 
     @InjectMock
-    PullRequestHandler handler;
+    AnalysisProcessHandler handler;
 
     @BeforeEach
     void setup() {

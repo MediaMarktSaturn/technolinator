@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.HandlerBase;
 import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -15,6 +14,7 @@ import java.nio.file.Paths;
 import java.util.Optional;
 
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
+import static com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler.executeCommands;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
@@ -48,7 +48,7 @@ public class CdxgenClientMultiProjectTest {
         var metadata = new Command.Metadata("https://github.com/SomeOrg/SomeRepo", "SomeOrg/SomeRepo", "0815", Optional.empty());
 
         // When again
-        var results = await(HandlerBase.executeCommands(cmds, metadata));
+        var results = await(executeCommands(cmds, metadata));
 
         // Then eventually
         assertThat(results).hasSize(3);

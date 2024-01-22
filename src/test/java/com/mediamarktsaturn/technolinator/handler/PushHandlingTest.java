@@ -32,7 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @QuarkusTest
-class PushHandlerTest {
+class PushHandlingTest {
 
     @InjectSpy
     RepositoryService repoService;
@@ -43,7 +43,7 @@ class PushHandlerTest {
     @InjectMock
     DependencyTrackClient dtrackClient;
     @Inject
-    PushHandler cut;
+    AnalysisProcessHandler cut;
 
     @Test
     void testSuccessfulProcess() throws IOException {

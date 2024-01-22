@@ -30,6 +30,14 @@ public interface Command<T> {
             commitSha.ifPresent(sha -> MDC.put("commitSha", sha));
         }
 
+
+        /**
+         * Unique identifier for a combination of repo, ref and commit, used for identify the same origin of an analysis
+         */
+        public String uniqueId() {
+            return repoFullName + "#" + gitRef + "#" + commitSha.orElse("");
+        }
+
         /**
          * Construct a [Metadata] from information present on the MDC
          */

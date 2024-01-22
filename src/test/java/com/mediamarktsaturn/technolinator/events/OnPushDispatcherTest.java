@@ -1,16 +1,14 @@
 package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
-import com.mediamarktsaturn.technolinator.CustomTestProfiles;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.PushHandler;
+import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.TestProfile;
 import io.restassured.RestAssured;
 import io.smallrye.mutiny.Uni;
 import org.hamcrest.CoreMatchers;
@@ -36,7 +34,7 @@ import static org.mockito.ArgumentMatchers.argThat;
 class OnPushDispatcherTest {
 
     @InjectMock
-    PushHandler handler;
+    AnalysisProcessHandler handler;
 
     @BeforeEach
     void setup() {

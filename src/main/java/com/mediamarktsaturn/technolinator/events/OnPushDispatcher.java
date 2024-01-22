@@ -4,7 +4,7 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.PushHandler;
+import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -32,7 +32,7 @@ public class OnPushDispatcher extends DispatcherBase {
 
     // constructor injection not possible here, because GH app extension requires a no-arg constructor
     @Inject
-    PushHandler pushHandler;
+    AnalysisProcessHandler handler;
 
     @ConfigProperty(name = "app.use_pending_commit_status")
     boolean usePendingCommitStatus;
@@ -82,7 +82,7 @@ public class OnPushDispatcher extends DispatcherBase {
 
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
-            pushHandler.onPush(new PushEvent(pushPayload, config), metadata)
+            handler.onPush(new PushEvent(pushPayload, config), metadata)
                 .ifNoItem().after(analysisTimeout).fail()
                 .chain(result -> reportAnalysisResult(result, repo, commitSha, metadata))
                 .onFailure().recoverWithUni(failure -> {

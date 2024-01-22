@@ -5,7 +5,6 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.Result.Failure;
 import com.mediamarktsaturn.technolinator.Result.Success;
 import com.mediamarktsaturn.technolinator.events.Event;
-import com.mediamarktsaturn.technolinator.events.PushEvent;
 import com.mediamarktsaturn.technolinator.os.Util;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -102,7 +101,7 @@ public class RepositoryService {
         }
     }
 
-    public RepositoryDetails getRepositoryDetails(PushEvent event) {
+    public RepositoryDetails getRepositoryDetails(Event<?> event) {
         return new RepositoryDetails(
             event.getRepoName(),
             buildProjectVersionFromEvent(event),
@@ -117,15 +116,15 @@ public class RepositoryService {
         return event.branch();
     }
 
-    static String getWebsiteUrl(PushEvent event) {
+    static String getWebsiteUrl(Event<?> event) {
         return event.payload().getRepository().getHtmlUrl().toString();
     }
 
-    static String getVCSUrl(PushEvent event) {
+    static String getVCSUrl(Event<?> event) {
         return event.payload().getRepository().getGitTransportUrl();
     }
 
-    static List<String> getProjectTopics(PushEvent event) {
+    static List<String> getProjectTopics(Event<?> event) {
         try {
             return event.payload().getRepository().listTopics();
         } catch (IOException e) {
@@ -134,7 +133,7 @@ public class RepositoryService {
         }
     }
 
-    static String getProjectDescription(PushEvent event) {
+    static String getProjectDescription(Event<?> event) {
         return event.payload().getRepository().getDescription();
     }
 }
