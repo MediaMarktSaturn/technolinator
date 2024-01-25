@@ -46,7 +46,7 @@ public class DependencyTrackClient {
     /**
      * Uploads the given  [sbom] to Dependency-Track, deactivating other versions of the same project if any
      */
-    public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName) {
+    public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject) {
         var projectVersion = repoDetails.version();
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator15(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
@@ -55,6 +55,9 @@ public class DependencyTrackClient {
             "autoCreate", true,
             "bom", sbomBase64
         ));
+        if (parentProject instanceof Project.Available a) {
+            payload.put("parentUUID", a.projectId());
+        }
 
         return client.putAbs(dtrackApiUrl + "/bom")
             .putHeader(API_KEY, dtrackApikey)
@@ -83,7 +86,7 @@ public class DependencyTrackClient {
             .onFailure().recoverWithItem(Result.Failure::new);
     }
 
-    Uni<Result<Project.Available>> createOrUpdateParentProject(RepositoryDetails repoDetails) {
+    public Uni<Result<Project>> createOrUpdateParentProject(RepositoryDetails repoDetails) {
         var parentProject = createProjectBaseData(repoDetails);
         parentProject.put("name", repoDetails.name());
         parentProject.put("version", repoDetails.version());
@@ -108,7 +111,7 @@ public class DependencyTrackClient {
                             return Uni.createFrom().item(Result.failure(new Exception("Parent project could not be found")));
                         }).map(lookupResult -> {
                             if (lookupResult instanceof Result.Success<Project> success && success.result() instanceof Project.Available) {
-                                return Result.success((Project.Available) success.result());
+                                return Result.success(success.result());
                             }
                             return Result.failure(new Exception("Parent project could not be found"));
                         });

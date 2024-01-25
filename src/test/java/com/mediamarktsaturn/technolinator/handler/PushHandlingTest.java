@@ -19,6 +19,7 @@ import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GitHub;
 import org.mockito.ArgumentCaptor;
+import org.testcontainers.shaded.org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -55,7 +56,7 @@ class PushHandlingTest {
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
 
-        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName)))
+        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any()))
             .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
@@ -76,7 +77,7 @@ class PushHandlingTest {
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommands(any(), eq(projectName), eq(true), eq(Optional.empty()));
         verify(sbomqsClient).calculateQualityScore(any());
-        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName));
+        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any());
 
         assertThat(captor.getValue()).isNotNull().satisfies(repoDetails -> {
             assertThat(repoDetails.name()).hasToString(projectName);

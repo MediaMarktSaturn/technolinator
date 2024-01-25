@@ -146,7 +146,7 @@ class DependencyTrackClientTest {
         var projectDetails = new RepositoryDetails(name, version, description, website, vcs, tags);
 
         // When
-        var result = await(cut.uploadSBOM(projectDetails, sbom, name));
+        var result = await(cut.uploadSBOM(projectDetails, sbom, name, Project.none()));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -224,7 +224,7 @@ class DependencyTrackClientTest {
         var sbom = new Bom();
 
         // When
-        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom, ""));
+        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom, "", Project.none()));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);

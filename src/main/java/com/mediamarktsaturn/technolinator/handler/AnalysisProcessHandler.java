@@ -44,11 +44,9 @@ public class AnalysisProcessHandler {
 
     private static final ConcurrentHashMap<String, Instant> TASKS = new ConcurrentHashMap<>();
 
-
     private final DependencyTrackClient dtrackClient;
     private final SbomqsClient sbomqsClient;
     private final VulnerabilityReporting reporter;
-
 
     private final RepositoryService repoService;
     private final CdxgenClient cdxgenClient;
@@ -226,45 +224,58 @@ public class AnalysisProcessHandler {
     @SuppressWarnings("unchecked")
     Uni<Result<Project>> scoreAndUploadSbomIfApplicable(RepositoryDetails repoDetails, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
         metadata.writeToMDC();
-        return Uni.combine().all().unis(
-                sbomResults.stream().map(sbomResult ->
-                    switch (sbomResult) {
-                        case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
-                            case CdxgenClient.SBOMGenerationResult.Yield y -> {
-                                Log.infof("Got yield for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                                logValidationIssues(repoDetails, y.validationIssues());
-                                // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
-                                yield doScoreAndUploadSbom(repoDetails, y.sbom(), y.sbomFile(), y.projectName());
-                            }
-                            case CdxgenClient.SBOMGenerationResult.None n -> {
-                                Log.infof("Nothing to analyse in repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                                yield Uni.createFrom().item(Result.success(Project.none()));
-                            }
-                        };
-
-                        case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
-                            Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
-                            yield Uni.createFrom().item(Result.failure(f.cause()));
-                        }
-                    }).toList()).combinedWith(Function.identity())
-            .map(results -> {
-                var failure = results.stream().filter(r -> r instanceof Result.Failure).findAny();
-                if (failure.isPresent()) {
-                    return (Result.Failure<Project>) failure.get();
+        Uni<Project> parent;
+        if (sbomResults.size() > 1) {
+            // that's a multi-module project. let's create a parent project to group them
+            parent = dtrackClient.createOrUpdateParentProject(repoDetails).map(result -> {
+                if (result instanceof Result.Success<Project> s && s.result() instanceof Project.Available a) {
+                    return a;
                 }
-                var projects = results.stream().map(r -> ((Result.Success<Project>) r).result())
-                    .filter(p -> p instanceof Project.Available).toList();
-                if (projects.isEmpty()) {
-                    return Result.success(Project.none());
-                } else if (projects.size() == 1) {
-                    return Result.success(projects.get(0));
-                } else {
-                    return Result.success(Project.list(buildDTrackProjectSearchUrl(repoDetails.name())));
-                }
+                return Project.none();
             });
+        } else {
+            parent = Uni.createFrom().nullItem();
+        }
+        return parent.chain(parentProject ->
+            Uni.combine().all().unis(
+                    sbomResults.stream().map(sbomResult ->
+                        switch (sbomResult) {
+                            case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
+                                case CdxgenClient.SBOMGenerationResult.Yield y -> {
+                                    Log.infof("Got yield for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                                    logValidationIssues(repoDetails, y.validationIssues());
+                                    // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
+                                    yield doScoreAndUploadSbom(repoDetails, y.sbom(), y.sbomFile(), y.projectName(), parentProject);
+                                }
+                                case CdxgenClient.SBOMGenerationResult.None n -> {
+                                    Log.infof("Nothing to analyse in repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                                    yield Uni.createFrom().item(Result.success(Project.none()));
+                                }
+                            };
+
+                            case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
+                                Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
+                                yield Uni.createFrom().item(Result.failure(f.cause()));
+                            }
+                        }).toList()).with(Function.identity())
+                .map(results -> {
+                    var failure = results.stream().filter(r -> r instanceof Result.Failure).findAny();
+                    if (failure.isPresent()) {
+                        return (Result.Failure<Project>) failure.get();
+                    }
+                    var projects = results.stream().map(r -> ((Result.Success<Project>) r).result())
+                        .filter(p -> p instanceof Project.Available).toList();
+                    if (projects.isEmpty()) {
+                        return Result.success(Project.none());
+                    } else if (projects.size() == 1) {
+                        return Result.success(projects.get(0));
+                    } else {
+                        return Result.success(Project.list(buildDTrackProjectSearchUrl(repoDetails.name())));
+                    }
+                }));
     }
 
-    Uni<Result<Project>> doScoreAndUploadSbom(RepositoryDetails repoDetails, Bom sbom, Path sbomFile, String projectName) {
+    Uni<Result<Project>> doScoreAndUploadSbom(RepositoryDetails repoDetails, Bom sbom, Path sbomFile, String projectName, Project parentProject) {
         return sbomqsClient.calculateQualityScore(sbomFile)
             .map(result -> switch (result) {
                 case Result.Success<SbomqsClient.QualityScore> s -> Optional.of(s.result());
@@ -273,7 +284,7 @@ public class AnalysisProcessHandler {
             .chain(score ->
                 dtrackClient.uploadSBOM(
                     addQualityScore(repoDetails, score),
-                    sbom, projectName
+                    sbom, projectName, parentProject
                 ));
     }
 
