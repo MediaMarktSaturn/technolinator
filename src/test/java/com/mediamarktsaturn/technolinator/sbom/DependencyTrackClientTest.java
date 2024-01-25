@@ -230,4 +230,128 @@ class DependencyTrackClientTest {
         assertThat(result).isInstanceOf(Result.Failure.class);
         assertThat(dtrackMock.retrieveRecordedRequests(putBom)).hasSize(4);
     }
+
+    @Test
+    void testParentProjectCreation() {
+        // Given
+        var putProject = request()
+            .withPath("/api/v1/project")
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("PUT");
+        dtrackMock.when(putProject).respond(response()
+            .withStatusCode(201)
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withBody("""
+                {
+                  "name": "my-test-parent-project",
+                  "description": "my sample parent project",
+                  "version": "test",
+                  "uuid": "3a50f759-c69f-48d1-a412-9f01e189e4b2",
+                  "active": true
+                }
+                """));
+        var repoDetails = new RepositoryDetails("my-test-parent-project", "test", "my sample parent project", "link://to.nowhere", "nope", List.of());
+
+        // When
+        var project = await(cut.createOrUpdateParentProject(repoDetails));
+
+        // Then
+        assertThat(project).isInstanceOfSatisfying(Result.Success.class, success -> {
+            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, available -> {
+                assertThat(available.projectId()).hasToString("3a50f759-c69f-48d1-a412-9f01e189e4b2");
+            });
+        });
+
+        var puttedProject = dtrackMock.retrieveRecordedRequests(putProject);
+        assertThat(puttedProject).hasSize(1);
+        assertThat(puttedProject[0]).satisfies(put -> {
+            assertThat(put.getPath()).hasToString("/api/v1/project");
+            var json = new JsonObject(put.getBodyAsString());
+            assertThat(json.getBoolean("active")).isTrue();
+            assertThat(json.getString("name")).hasToString("my-test-parent-project");
+            assertThat(json.getString("version")).hasToString("test");
+            assertThat(json.getString("description")).hasToString("my sample parent project");
+        });
+    }
+
+    @Test
+    void testParentProjectUpdate() {
+        // Given
+        var putProject = request()
+            .withPath("/api/v1/project")
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("PUT");
+        dtrackMock.when(putProject).respond(response()
+            .withStatusCode(409)
+            .withContentType(MediaType.APPLICATION_JSON)
+            // yes, that's what dtrack actually returns, even with content-type json
+            .withBody("A project with the specified name already exists."));
+
+        var lookupProject = request()
+            .withPath("/api/v1/project/lookup")
+            .withQueryStringParameter("name", "my-updated-parent-project")
+            .withQueryStringParameter("version", "test")
+            .withHeader("Accept", MediaType.APPLICATION_JSON.toString())
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("GET");
+        dtrackMock.when(lookupProject).respond(response()
+            .withStatusCode(200)
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withBody("""
+                {
+                  "name": "my-updated-parent-project",
+                  "version": "test",
+                  "uuid": "9a50f759-c69f-48d1-a412-9f01e189e4b2"
+                }
+                """));
+
+        var patchProject = request()
+            .withPath("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2")
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("PATCH");
+        dtrackMock.when(putProject).respond(response()
+            .withStatusCode(200)
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withBody("{}"));
+        var repoDetails = new RepositoryDetails("my-updated-parent-project", "test", "my sample parent project", "link://to.nowhere", "nope", List.of());
+
+        // When
+        var project = await(cut.createOrUpdateParentProject(repoDetails));
+
+        // Then
+        assertThat(project).isInstanceOfSatisfying(Result.Success.class, success -> {
+            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, available -> {
+                assertThat(available.projectId()).hasToString("9a50f759-c69f-48d1-a412-9f01e189e4b2");
+            });
+        });
+
+        var puttedProject = dtrackMock.retrieveRecordedRequests(putProject);
+        assertThat(puttedProject).hasSize(1);
+        assertThat(puttedProject[0]).satisfies(put -> {
+            assertThat(put.getPath()).hasToString("/api/v1/project");
+            var json = new JsonObject(put.getBodyAsString());
+            assertThat(json.getBoolean("active")).isTrue();
+            assertThat(json.getString("name")).hasToString("my-updated-parent-project");
+            assertThat(json.getString("version")).hasToString("test");
+            assertThat(json.getString("description")).hasToString("my sample parent project");
+        });
+
+        var lookedupProject = dtrackMock.retrieveRecordedRequests(lookupProject);
+        assertThat(lookedupProject).hasSize(1);
+        assertThat(lookedupProject[0]).satisfies(put -> {
+            assertThat(put.getPath()).hasToString("/api/v1/project/lookup");
+        });
+
+        var patchedProject = dtrackMock.retrieveRecordedRequests(patchProject);
+        assertThat(patchedProject).hasSize(1);
+        assertThat(patchedProject[0]).satisfies(patch -> {
+            assertThat(patch.getPath()).hasToString("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2");
+            var json = new JsonObject(patch.getBodyAsString());
+            assertThat(json.getBoolean("active")).isTrue();
+            assertThat(json.getString("description")).hasToString("my sample parent project");
+        });
+    }
 }

@@ -1,0 +1,104 @@
+### Query for project by name
+GET {{dtrack-url}}/api/v1/project/lookup?name=juice-shop&version=10.1.2
+Accept: application/json
+X-API-Key: {{dtrack-apikey}}
+
+> {%
+    client.global.set("last_seen_project_id", response.body.uuid);
+%}
+
+### List projects by name
+GET {{dtrack-url}}/api/v1/project?name=juice-shop&excludeInactive=true
+Accept: application/json
+X-API-Key: {{dtrack-apikey}}
+
+### Update tags, refs and description
+PATCH {{dtrack-url}}/api/v1/project/{{last_seen_project_id}}
+Content-Type: application/json
+X-API-Key: {{dtrack-apikey}}
+
+{
+    "tags": [
+        {"name": "juicy"},
+        {"name": "highly-secure"}
+    ],
+    "description": "extraordinary exemplary in web app security",
+    "externalReferences": [
+        {"type": "other", "url": "link://to.nowhere"}
+    ],
+    "active": true
+}
+
+### Create empty project to be used as parent
+PUT {{dtrack-url}}/api/v1/project
+Content-Type: application/json
+X-API-Key: {{dtrack-apikey}}
+
+{
+    "name": "my-test-parent-project",
+    "version": "test",
+    "externalReferences": [
+        {
+            "type": "other",
+            "url": "link://to.nowhere"
+        }
+    ],
+    "description": "my sample parent project",
+    "tags": [
+        {
+            "name": "juicy"
+        },
+        {
+            "name": "highly-secure"
+        }
+    ],
+    "active": true
+}
+
+### Update project
+PUT {{dtrack-url}}/api/v1/project
+Content-Type: application/json
+X-API-Key: {{dtrack-apikey}}
+
+{
+    "name": "my-test-parent-project",
+    "version": "test",
+    "externalReferences": [
+        {
+            "type": "other",
+            "url": "link://to.nowhere"
+        }
+    ],
+    "description": "my sample parent project",
+    "tags": [
+        {
+            "name": "juicy"
+        },
+        {
+            "name": "highly-secure"
+        }
+    ],
+    "active": true
+}
+
+
+
+> {%
+    client.global.set("last_parent_project_id", response.body.uuid);
+    client.global.set("last_seen_project_id", response.body.uuid);
+%}
+
+### Attach a project to that parent
+PUT {{dtrack-url}}/api/v1/project
+Content-Type: application/json
+X-API-Key: {{dtrack-apikey}}
+
+{
+    "name": "my-test-child-project-1",
+    "version": "test",
+    "parent": {"uuid":"{{last_parent_project_id}}"}
+}
+
+> {%
+    client.global.set("last_seen_project_id", response.body.uuid);
+%}

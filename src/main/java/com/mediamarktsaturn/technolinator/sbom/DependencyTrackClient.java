@@ -70,7 +70,7 @@ public class DependencyTrackClient {
             .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s", projectName, projectVersion))
             .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
             .call(() -> deactivatePreviousVersion(projectName, projectVersion))
-            .chain(i -> getCurrentVersionUrl(projectName, projectVersion))
+            .chain(i -> lookupProject(projectName, projectVersion))
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
                     Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
@@ -83,7 +83,43 @@ public class DependencyTrackClient {
             .onFailure().recoverWithItem(Result.Failure::new);
     }
 
-    Uni<Result<Project>> getCurrentVersionUrl(String projectName, String projectVersion) {
+    Uni<Result<Project.Available>> createOrUpdateParentProject(RepositoryDetails repoDetails) {
+        var parentProject = createProjectBaseData(repoDetails);
+        parentProject.put("name", repoDetails.name());
+        parentProject.put("version", repoDetails.version());
+
+        return client.putAbs(dtrackApiUrl + "/project")
+            .putHeader(API_KEY, dtrackApikey)
+            .sendJsonObject(parentProject)
+            .chain(response -> {
+                if (response.statusCode() == 201) {
+                    var parentProjectId = response.bodyAsJsonObject().getString("uuid");
+                    Log.infof("Created parent project %s named %s in version %s", parentProjectId, repoDetails.name(), repoDetails.version());
+                    return Uni.createFrom().item(Result.success(new Project.Available("%s/projects/%s".formatted(dtrackBaseUrl, parentProjectId), parentProjectId)));
+                } else if (response.statusCode() == 409) {
+                    return lookupProject(repoDetails.name(), repoDetails.version())
+                        .call(lookupResult -> {
+                            if (lookupResult instanceof Result.Success<Project> lookedupProject) {
+                                if (lookedupProject.result() instanceof Project.Available lookedupParent) {
+                                    return tagAndDescribeAndActivateProject(lookedupParent.projectId(), repoDetails);
+                                }
+                            }
+                            Log.errorf("Could not lookup parent project named %s in version %s", repoDetails.name(), repoDetails.version());
+                            return Uni.createFrom().item(Result.failure(new Exception("Parent project could not be found")));
+                        }).map(lookupResult -> {
+                            if (lookupResult instanceof Result.Success<Project> success && success.result() instanceof Project.Available) {
+                                return Result.success((Project.Available) success.result());
+                            }
+                            return Result.failure(new Exception("Parent project could not be found"));
+                        });
+                } else {
+                    Log.errorf("Failed to create parent project named %s version %s: %s", repoDetails.name(), repoDetails.version(), response.bodyAsString());
+                    return Uni.createFrom().item(Result.failure(new Exception("Failed to create parent project")));
+                }
+            });
+    }
+
+    Uni<Result<Project>> lookupProject(String projectName, String projectVersion) {
         return client.getAbs(dtrackApiUrl + "/project/lookup")
             .addQueryParam("name", projectName)
             .addQueryParam("version", projectVersion)
@@ -140,6 +176,18 @@ public class DependencyTrackClient {
     }
 
     Uni<Void> tagAndDescribeAndActivateProject(String projectUUID, RepositoryDetails repoDetails) {
+        var projectDetails = createProjectBaseData(repoDetails);
+        return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
+            .putHeader(API_KEY, dtrackApikey)
+            .sendJsonObject(projectDetails)
+            .onItem().invoke(() -> Log.infof("Updated projects %s metadata", projectUUID))
+            .onFailure().retry().atMost(3)
+            .onFailure().invoke(e -> Log.warnf(e, "Failed to update projects %s metadata", projectUUID))
+            .onFailure().recoverWithNull()
+            .replaceWithVoid();
+    }
+
+    JsonObject createProjectBaseData(RepositoryDetails repoDetails) {
         var tagsArray = new JsonArray(repoDetails.topics().stream()
             .filter(t -> t != null && !t.isBlank())
             .map(tag -> JsonObject.of("name", tag)
@@ -160,17 +208,12 @@ public class DependencyTrackClient {
                 "url", repoDetails.websiteUrl() + "/releases"
             )
         );
-        return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
-            .putHeader(API_KEY, dtrackApikey)
-            .sendJsonObject(JsonObject.of(
-                "tags", tagsArray,
-                "description", descValue,
-                "externalReferences", extRefs,
-                "active", true
-            )).onFailure().retry().atMost(3)
-            .onFailure().invoke(e -> Log.warnf(e, "Failed to tag and describe project %s", projectUUID))
-            .onFailure().recoverWithNull()
-            .replaceWithVoid();
+        return JsonObject.of(
+            "tags", tagsArray,
+            "description", descValue,
+            "externalReferences", extRefs,
+            "active", true
+        );
     }
 
     boolean isDifferentVersionOfSameProject(JsonObject project, String projectName, String projectVersion) {
