@@ -55,9 +55,6 @@ public class DependencyTrackClient {
             "autoCreate", true,
             "bom", sbomBase64
         ));
-        if (parentProject instanceof Project.Available a) {
-            payload.put("parentUUID", a.projectId());
-        }
 
         return client.putAbs(dtrackApiUrl + "/bom")
             .putHeader(API_KEY, dtrackApikey)
@@ -77,7 +74,7 @@ public class DependencyTrackClient {
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
                     Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
-                    return tagAndDescribeAndActivateProject(p.projectId(), repoDetails);
+                    return updateProjectMetaData(p.projectId(), repoDetails, parentProject);
                 } else {
                     Log.infof("Cannot describe and tag project %s: %s", projectName, r);
                     return Uni.createFrom().voidItem();
@@ -104,7 +101,7 @@ public class DependencyTrackClient {
                         .call(lookupResult -> {
                             if (lookupResult instanceof Result.Success<Project> lookedupProject) {
                                 if (lookedupProject.result() instanceof Project.Available lookedupParent) {
-                                    return tagAndDescribeAndActivateProject(lookedupParent.projectId(), repoDetails);
+                                    return updateProjectMetaData(lookedupParent.projectId(), repoDetails, Project.none());
                                 }
                             }
                             Log.errorf("Could not lookup parent project named %s in version %s", repoDetails.name(), repoDetails.version());
@@ -178,8 +175,11 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    Uni<Void> tagAndDescribeAndActivateProject(String projectUUID, RepositoryDetails repoDetails) {
+    Uni<Void> updateProjectMetaData(String projectUUID, RepositoryDetails repoDetails, Project parentProject) {
         var projectDetails = createProjectBaseData(repoDetails);
+        if (parentProject instanceof Project.Available parent) {
+            projectDetails.put("parent", JsonObject.of("uuid", parent.projectId()));
+        }
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(projectDetails)

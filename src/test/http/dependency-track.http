@@ -55,6 +55,11 @@ X-API-Key: {{dtrack-apikey}}
     "active": true
 }
 
+> {%
+    client.global.set("last_parent_project_id", response.body.uuid);
+    client.global.set("last_seen_project_id", response.body.uuid);
+%}
+
 ### Update project
 PUT {{dtrack-url}}/api/v1/project
 Content-Type: application/json
@@ -81,10 +86,7 @@ X-API-Key: {{dtrack-apikey}}
     "active": true
 }
 
-
-
 > {%
-    client.global.set("last_parent_project_id", response.body.uuid);
     client.global.set("last_seen_project_id", response.body.uuid);
 %}
 
