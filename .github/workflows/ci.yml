@@ -41,6 +41,7 @@ jobs:
             **/*.md
             .github/dependabot.yml
             .github/technolinator.yml
+            .github/workflows/ci.yml
 
   skip_ci:
     # Use the same name as CI build as workaround for required status checks for pull requests
