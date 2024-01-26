@@ -183,7 +183,13 @@ public class DependencyTrackClient {
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(projectDetails)
-            .onItem().invoke(() -> Log.infof("Updated projects %s metadata", projectUUID))
+            .onItem().invoke(response -> {
+                if (response.statusCode() == 200) {
+                    Log.infof("Updated projects %s metadata", projectUUID);
+                } else {
+                    Log.warnf("Failed to update projects %s metadata with %s: %s", projectUUID, response.statusCode(), response.bodyAsString());
+                }
+            })
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.warnf(e, "Failed to update projects %s metadata", projectUUID))
             .onFailure().recoverWithNull()
