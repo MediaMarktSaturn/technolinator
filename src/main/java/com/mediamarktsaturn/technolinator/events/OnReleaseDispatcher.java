@@ -10,10 +10,11 @@ import io.quarkiverse.githubapp.event.Release;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.kohsuke.github.GHEventPayload;
-import org.kohsuke.github.GHTagObject;
+import org.kohsuke.github.GHRepository;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.stream.StreamSupport;
 
 @ApplicationScoped
 public class OnReleaseDispatcher extends DispatcherBase {
@@ -38,23 +39,20 @@ public class OnReleaseDispatcher extends DispatcherBase {
             var traceId = createTraceId();
             var release = releasePayload.getRelease();
             var releaseTag = release.getTagName();
-            GHTagObject tag;
-            try {
-                tag = repo.getTagObject(releaseTag);
-            } catch (IOException e) {
-                Log.errorf(e, "Failed to fetch tag object %s of repo %s", releaseTag, repo.getUrl());
+            var commitSha = getTaggedCommit(releaseTag, repo);
+
+            if (commitSha.isEmpty()) {
                 return;
             }
-            var commitSha = tag.getSha();
 
             Log.infof("Repository %s released '%s' from tag '%s' targeting commit '%s'",
                 releasePayload.getRepository().getUrl(),
                 release.getName(),
                 release.getTagName(),
-                commitSha
+                commitSha.get()
             );
 
-            final var metadata = new Command.Metadata(releaseTag, repo.getFullName(), traceId, Optional.of(commitSha));
+            final var metadata = new Command.Metadata(releaseTag, repo.getFullName(), traceId, commitSha);
             metadata.writeToMDC();
 
             handler.onRelease(new ReleaseEvent(releasePayload, config), metadata)
@@ -75,6 +73,17 @@ public class OnReleaseDispatcher extends DispatcherBase {
                         Log.warnf(failure, "Failed to handle release tag %s of repo %s", releaseTag, repoUrl);
                     }
                 );
+        }
+    }
+
+    private Optional<String> getTaggedCommit(String tagName, GHRepository repo) {
+        try {
+            return StreamSupport.stream(repo.listTags().spliterator(), false)
+                .filter(t -> t.getName().equals(tagName)).findFirst()
+                .map(t -> t.getCommit().getSHA1());
+        } catch (IOException e) {
+            Log.errorf(e, "Failed to fetch commit referenced by tag %s in repo %s", tagName, repo.getUrl());
+            return Optional.empty();
         }
     }
 }

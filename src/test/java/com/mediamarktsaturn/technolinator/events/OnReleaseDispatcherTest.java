@@ -8,13 +8,15 @@ import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.kohsuke.github.GHCommit;
 import org.kohsuke.github.GHEvent;
-import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GHTagObject;
+import org.kohsuke.github.GHTag;
+import org.kohsuke.github.PagedIterable;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
 
 import static com.mediamarktsaturn.technolinator.TestUtil.url;
@@ -22,7 +24,6 @@ import static com.mediamarktsaturn.technolinator.events.DispatcherBase.CONFIG_FI
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -43,10 +44,15 @@ class OnReleaseDispatcherTest {
         // When
         GitHubAppTesting.given()
             .github(mocks -> {
+                var tag = mock(GHTag.class);
+                when(tag.getName()).thenReturn("v0.0.1");
+                var commit = mock(GHCommit.class);
+                when(commit.getSHA1()).thenReturn("945782495872394572349");
+                when(tag.getCommit()).thenReturn(commit);
                 var repo = mocks.repository("heubeck/app-test");
-                var tag = mock(GHTagObject.class);
-                when(tag.getSha()).thenReturn("awesomeHash");
-                when(repo.getTagObject(eq("v0.0.1"))).thenReturn(tag);
+                PagedIterable<GHTag> pi = mock(PagedIterable.class);
+                when(pi.spliterator()).thenReturn(List.of(tag).spliterator());
+                when(repo.listTags()).thenReturn(pi);
             })
             .when()
             .payloadFromClasspath("/events/release_released.json")
@@ -55,7 +61,6 @@ class OnReleaseDispatcherTest {
         // Then
         await().untilAsserted(() -> Mockito.verify(handler)
             .onRelease(argThat(matches("https://github.com/heubeck/app-test", "v0.0.1", "main", null)), any()));
-
     }
 
     @Test
