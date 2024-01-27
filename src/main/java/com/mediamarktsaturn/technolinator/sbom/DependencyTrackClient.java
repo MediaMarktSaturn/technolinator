@@ -75,7 +75,7 @@ public class DependencyTrackClient {
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
                     Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
-                    return updateProjectMetaData(p.projectId(), repoDetails, parentProject, commitSha);
+                    return updateProjectMetaData(p.projectId(), repoDetails, parentProject, commitSha, Optional.empty());
                 } else {
                     Log.infof("Cannot describe and tag project %s: %s", projectName, r);
                     return Uni.createFrom().voidItem();
@@ -85,7 +85,7 @@ public class DependencyTrackClient {
     }
 
     public Uni<Result<Project>> createOrUpdateParentProject(RepositoryDetails repoDetails, Optional<String> commitSha) {
-        var parentProject = createProjectBaseData(repoDetails, commitSha);
+        var parentProject = createProjectBaseData(repoDetails, commitSha, Optional.empty());
         parentProject.put("name", repoDetails.name());
         parentProject.put("version", repoDetails.version());
 
@@ -94,15 +94,17 @@ public class DependencyTrackClient {
             .sendJsonObject(parentProject)
             .chain(response -> {
                 if (response.statusCode() == 201) {
-                    var parentProjectId = response.bodyAsJsonObject().getString("uuid");
+                    var projectJson = response.bodyAsJsonObject();
+                    var parentProjectId = projectJson.getString("uuid");
+                    var projectCommitSha = parseCommitShaFromDescription(projectJson.getString("description"));
                     Log.infof("Created parent project %s named %s in version %s", parentProjectId, repoDetails.name(), repoDetails.version());
-                    return Uni.createFrom().item(Result.success(new Project.Available("%s/projects/%s".formatted(dtrackBaseUrl, parentProjectId), parentProjectId)));
+                    return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, parentProjectId), parentProjectId, projectCommitSha)));
                 } else if (response.statusCode() == 409) {
                     return lookupProject(repoDetails.name(), repoDetails.version())
                         .call(lookupResult -> {
                             if (lookupResult instanceof Result.Success<Project> lookedupProject) {
                                 if (lookedupProject.result() instanceof Project.Available lookedupParent) {
-                                    return updateProjectMetaData(lookedupParent.projectId(), repoDetails, Project.none(), commitSha);
+                                    return updateProjectMetaData(lookedupParent.projectId(), repoDetails, Project.none(), commitSha, Optional.empty());
                                 }
                             }
                             Log.errorf("Could not lookup parent project named %s in version %s", repoDetails.name(), repoDetails.version());
@@ -120,6 +122,30 @@ public class DependencyTrackClient {
             });
     }
 
+    /**
+     * Appends the given version to the projects description if it matches the given commitSha
+     */
+    public Uni<Result<Project>> appendVersionInfo(RepositoryDetails repoDetails, String version, Optional<String> commitSha) {
+        if (commitSha.isEmpty()) {
+            return Uni.createFrom().item(Result.success(Project.none()));
+        }
+        return lookupProject(repoDetails.name(), repoDetails.version())
+            .chain(result -> {
+                if (result instanceof Result.Success<Project> p && p.result() instanceof Project.Available a) {
+                    if (a.commitSha().isEmpty()) {
+                        Log.warnf("Project %s does not have commit information available", a.projectId());
+                    } else if (!commitSha.get().startsWith(a.commitSha().get())) {
+                        Log.warnf("Projects %s commit %s doesn't match versions %s commit %s", a.projectId(), a.commitSha().get(), version, commitSha.get());
+                    } else {
+                        // commit hashes match, let's update the project with the given version
+                        return updateProjectMetaData(a.projectId(), repoDetails, Project.none(), commitSha, Optional.of(version))
+                            .replaceWith(result);
+                    }
+                }
+                return Uni.createFrom().item(Result.success(Project.none()));
+            });
+    }
+
     Uni<Result<Project>> lookupProject(String projectName, String projectVersion) {
         return client.getAbs(dtrackApiUrl + "/project/lookup")
             .addQueryParam("name", projectName)
@@ -131,8 +157,10 @@ public class DependencyTrackClient {
             .onFailure().invoke(e -> Log.errorf(e, "Failed to lookup project %s in version %s", projectName, projectVersion))
             .chain(response -> {
                 if (response.statusCode() == 200) {
-                    var projectUUID = response.bodyAsJsonObject().getString("uuid");
-                    return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID), projectUUID)));
+                    var projectJson = response.bodyAsJsonObject();
+                    var projectUUID = projectJson.getString("uuid");
+                    var projectCommitSha = parseCommitShaFromDescription(projectJson.getString("description"));
+                    return Uni.createFrom().item(Result.success(Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUUID), projectUUID, projectCommitSha)));
                 } else {
                     Log.errorf("Could not get uuid for project %s in version %s, status: %s, message: %s", projectName, projectVersion, response.statusCode(), response.bodyAsString());
                     return Uni.createFrom().failure(new Exception("Status " + response.statusCode()));
@@ -176,8 +204,8 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    Uni<Void> updateProjectMetaData(String projectUUID, RepositoryDetails repoDetails, Project parentProject, Optional<String> commitSha) {
-        var projectDetails = createProjectBaseData(repoDetails, commitSha);
+    Uni<Void> updateProjectMetaData(String projectUUID, RepositoryDetails repoDetails, Project parentProject, Optional<String> commitSha, Optional<String> version) {
+        var projectDetails = createProjectBaseData(repoDetails, commitSha, version);
         if (parentProject instanceof Project.Available parent) {
             projectDetails.put("parent", JsonObject.of("uuid", parent.projectId()));
         }
@@ -197,14 +225,15 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    JsonObject createProjectBaseData(RepositoryDetails repoDetails, Optional<String> commitSha) {
+    JsonObject createProjectBaseData(RepositoryDetails repoDetails, Optional<String> commitSha, Optional<String> version) {
         var tagsArray = new JsonArray(repoDetails.topics().stream()
             .filter(t -> t != null && !t.isBlank())
             .map(tag -> JsonObject.of("name", tag)
             ).toList());
         // prefix description with #commitSha# to allow VCS matching
-        var shaDesc = commitSha.map(sha -> sha.substring(0, Integer.min(7, sha.length()))).map(sha -> "#" + sha + "# ").orElse("");
-        var description = Optional.ofNullable(repoDetails.description()).map(String::trim).map(shaDesc::concat).orElse(shaDesc);
+        var shaDesc = createCommitShaDescriptionPrefix(commitSha);
+        var shaAndVersionDesc = shaDesc + version.map(v -> v + " | ").orElse("");
+        var description = Optional.ofNullable(repoDetails.description()).map(String::trim).map(shaAndVersionDesc::concat).orElse(shaAndVersionDesc);
         // dtrack allows a max of 255 chars for description
         var descValue = description.length() < 255 ? description : (description.substring(0, 251) + "...");
         var extRefs = JsonArray.of(
@@ -227,6 +256,27 @@ public class DependencyTrackClient {
             "externalReferences", extRefs,
             "active", true
         );
+    }
+
+    /**
+     * Build the prefix for a projects description in form:
+     * '#7charShortCommitSha# ' or '' if there's no commitSha available
+     */
+    String createCommitShaDescriptionPrefix(Optional<String> commitSha) {
+        return commitSha.map(sha -> sha.substring(0, Integer.min(7, sha.length()))).map(sha -> "#" + sha + "# ").orElse("");
+    }
+
+    /**
+     * Extracts the commit hash from a given project description prefixed by {@link #createCommitShaDescriptionPrefix(Optional)}
+     */
+    Optional<String> parseCommitShaFromDescription(String description) {
+        if (description != null && description.matches("^#\\w{1,7}#.*")) {
+            var desc = description.substring(1);
+            desc = desc.substring(0, desc.indexOf('#'));
+            return Optional.of(desc);
+        } else {
+            return Optional.empty();
+        }
     }
 
     boolean isDifferentVersionOfSameProject(JsonObject project, String projectName, String projectVersion) {

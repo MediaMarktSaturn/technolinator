@@ -315,7 +315,7 @@ class DependencyTrackClientTest {
             .withContentType(MediaType.APPLICATION_JSON)
             .withHeader("X-API-Key", API_KEY)
             .withMethod("PATCH");
-        dtrackMock.when(putProject).respond(response()
+        dtrackMock.when(patchProject).respond(response()
             .withStatusCode(200)
             .withContentType(MediaType.APPLICATION_JSON)
             .withBody("{}"));
@@ -358,5 +358,75 @@ class DependencyTrackClientTest {
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("description")).hasSizeLessThan(255).startsWith("#myhash# that's a really long desc").endsWith("...");
         });
+    }
+
+    @Test
+    void testAppendVersionInformation() {
+        // Given
+        var lookupProject = request()
+            .withPath("/api/v1/project/lookup")
+            .withQueryStringParameter("name", "to-be-versioned")
+            .withQueryStringParameter("version", "test")
+            .withHeader("Accept", MediaType.APPLICATION_JSON.toString())
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("GET");
+        dtrackMock.when(lookupProject).respond(response()
+            .withStatusCode(200)
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withBody("""
+                {
+                  "name": "to-be-versioned",
+                  "version": "test",
+                  "uuid": "ea50f759-c69f-48d1-a412-9f01e189e4b2",
+                  "description": "#7654321# This doesn't has a version yet"
+                }
+                """));
+
+        var patchProject = request()
+            .withPath("/api/v1/project/ea50f759-c69f-48d1-a412-9f01e189e4b2")
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withHeader("X-API-Key", API_KEY)
+            .withMethod("PATCH");
+        dtrackMock.when(patchProject).respond(response()
+            .withStatusCode(200)
+            .withContentType(MediaType.APPLICATION_JSON)
+            .withBody("{}"));
+        var repoDetails = new RepositoryDetails("to-be-versioned", "test", "Version me, plenty", "link://to.nowhere", "nope", List.of());
+
+        // When
+        var project = await(cut.appendVersionInfo(repoDetails, "v23.5", Optional.of("7654321dklj34toasldfkaj")));
+
+        // Then
+        assertThat(project).isInstanceOfSatisfying(Result.Success.class, success -> {
+            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, available -> {
+                assertThat(available.projectId()).hasToString("ea50f759-c69f-48d1-a412-9f01e189e4b2");
+            });
+        });
+
+        var lookedupProject = dtrackMock.retrieveRecordedRequests(lookupProject);
+        assertThat(lookedupProject).hasSize(1);
+        assertThat(lookedupProject[0]).satisfies(put -> {
+            assertThat(put.getPath()).hasToString("/api/v1/project/lookup");
+        });
+
+        var patchedProject = dtrackMock.retrieveRecordedRequests(patchProject);
+        assertThat(patchedProject).hasSize(1);
+        assertThat(patchedProject[0]).satisfies(patch -> {
+            assertThat(patch.getPath()).hasToString("/api/v1/project/ea50f759-c69f-48d1-a412-9f01e189e4b2");
+            var json = new JsonObject(patch.getBodyAsString());
+            assertThat(json.getBoolean("active")).isTrue();
+            assertThat(json.getString("description")).hasToString("#7654321# v23.5 | Version me, plenty");
+        });
+    }
+
+    @Test
+    void testParseCommitShaFromDescription() {
+        assertThat(cut.parseCommitShaFromDescription("")).isEqualTo(Optional.empty());
+        assertThat(cut.parseCommitShaFromDescription(" # that's worthless")).isEqualTo(Optional.empty());
+        assertThat(cut.parseCommitShaFromDescription("#pro #dude")).isEqualTo(Optional.empty());
+        assertThat(cut.parseCommitShaFromDescription("#thatstolong#")).isEqualTo(Optional.empty());
+        assertThat(cut.parseCommitShaFromDescription("#1234567#")).isEqualTo(Optional.of("1234567"));
+        assertThat(cut.parseCommitShaFromDescription("#54321#")).isEqualTo(Optional.of("54321"));
+        assertThat(cut.parseCommitShaFromDescription("#abcdef0#")).isEqualTo(Optional.of("abcdef0"));
     }
 }

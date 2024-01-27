@@ -57,7 +57,7 @@ class PushHandlingTest {
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
 
         when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any(), any()))
-            .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
+            .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa", Optional.empty()))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
         when(pushPayload.getRepository()).thenReturn(ghRepo);

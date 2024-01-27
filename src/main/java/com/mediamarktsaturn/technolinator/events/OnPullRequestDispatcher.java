@@ -3,7 +3,6 @@ package com.mediamarktsaturn.technolinator.events;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -11,7 +10,6 @@ import io.quarkiverse.githubapp.event.Actions;
 import io.quarkiverse.githubapp.event.PullRequest;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHUser;
@@ -26,10 +24,6 @@ import java.util.function.DoubleSupplier;
 public class OnPullRequestDispatcher extends DispatcherBase {
 
     private static final List<String> RELEVANT_ACTIONS = List.of(Actions.OPENED, Actions.SYNCHRONIZE, Actions.REOPENED);
-
-    // constructor injection not possible here, because GH app extension requires a no-arg constructor
-    @Inject
-    AnalysisProcessHandler handler;
 
     @ConfigProperty(name = "app.pull_requests.ignore_bots")
     boolean ignoreBotPullRequests;

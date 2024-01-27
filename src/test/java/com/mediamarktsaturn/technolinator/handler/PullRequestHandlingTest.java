@@ -67,7 +67,7 @@ class PullRequestHandlingTest {
         when(reporter.createVulnerabilityReport(any(), eq(projectName))).thenReturn(Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.report("la di dum", projectName))));
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
         when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any(), any()))
-            .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
+            .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa", Optional.empty()))));
 
         GHPullRequest pr = mock(GHPullRequest.class);
         GHIssueCommentQueryBuilder cqb = mock(GHIssueCommentQueryBuilder.class);

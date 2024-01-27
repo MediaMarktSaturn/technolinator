@@ -4,7 +4,6 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
-import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -13,7 +12,6 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
@@ -29,10 +27,6 @@ import java.util.function.DoubleSupplier;
  */
 @ApplicationScoped
 public class OnPushDispatcher extends DispatcherBase {
-
-    // constructor injection not possible here, because GH app extension requires a no-arg constructor
-    @Inject
-    AnalysisProcessHandler handler;
 
     @ConfigProperty(name = "app.use_pending_commit_status")
     boolean usePendingCommitStatus;

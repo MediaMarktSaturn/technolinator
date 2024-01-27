@@ -5,6 +5,7 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.Event;
 import com.mediamarktsaturn.technolinator.events.PullRequestEvent;
 import com.mediamarktsaturn.technolinator.events.PushEvent;
+import com.mediamarktsaturn.technolinator.events.ReleaseEvent;
 import com.mediamarktsaturn.technolinator.git.LocalRepository;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import com.mediamarktsaturn.technolinator.git.RepositoryService;
@@ -98,6 +99,11 @@ public class AnalysisProcessHandler {
             .onTermination().invoke(() -> TASKS.remove(taskKey));
     }
 
+    public Uni<Result<Project>> onRelease(ReleaseEvent event, Command.Metadata metadata) {
+        var repoDetails = repoService.getRepositoryDetails(event);
+        return dtrackClient.appendVersionInfo(repoDetails, event.ref(), metadata.commitSha());
+    }
+
     Uni<Result<Project>> handleAnalysis(Event<?> event, Command.Metadata metadata, boolean fetchLicenses) {
         var repoDetails = repoService.getRepositoryDetails(event);
         return checkoutAndGenerateSBOMs(event, metadata, fetchLicenses)
@@ -174,7 +180,7 @@ public class AnalysisProcessHandler {
                         Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), metadata.gitRef());
                         yield Uni.createFrom().item(Result.failure(f.cause()));
                     }
-                }).toList()).combinedWith(Function.identity())
+                }).toList()).with(Function.identity())
             .map(results ->
                 results.stream().filter(r -> r instanceof Result.Success)
                     .map(r -> ((Result.Success<VulnerabilityReporting.VulnerabilityReport>) r).result())
@@ -314,7 +320,7 @@ public class AnalysisProcessHandler {
     public static Uni<List<Result<CdxgenClient.SBOMGenerationResult>>> executeCommands(List<CdxgenClient.SbomCreationCommand> commands, Command.Metadata metadata) {
         return Uni.combine().all().unis(
             commands.stream().map(cmd -> cmd.execute(metadata)).toList()
-        ).combinedWith(results -> {
+        ).with(results -> {
             metadata.writeToMDC();
             var resultClasses = results.stream().collect(Collectors.groupingBy(Object::getClass))
                 .entrySet().stream().map(e -> "%s x %s".formatted(e.getValue().size(), e.getKey().getSimpleName()))

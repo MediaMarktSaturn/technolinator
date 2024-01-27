@@ -1,6 +1,7 @@
 package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -19,6 +20,10 @@ import java.util.function.Predicate;
 public abstract class DispatcherBase {
 
     public static final String CONFIG_FILE = "technolinator.yml";
+
+    // constructor injection not possible here, because GH app extension requires a no-arg constructor
+    @Inject
+    AnalysisProcessHandler handler;
 
     @Inject
     MeterRegistry meterRegistry;
