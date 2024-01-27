@@ -227,7 +227,7 @@ public class AnalysisProcessHandler {
         Uni<Project> parent;
         if (sbomResults.size() > 1) {
             // that's a multi-module project. let's create a parent project to group them
-            parent = dtrackClient.createOrUpdateParentProject(repoDetails).map(result -> {
+            parent = dtrackClient.createOrUpdateParentProject(repoDetails, metadata.commitSha()).map(result -> {
                 if (result instanceof Result.Success<Project> s && s.result() instanceof Project.Available a) {
                     return a;
                 }
@@ -245,7 +245,7 @@ public class AnalysisProcessHandler {
                                     Log.infof("Got yield for repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
                                     logValidationIssues(repoDetails, y.validationIssues());
                                     // upload sbom even with validationIssues as validation is very strict and most of the issues are tolerated by dependency-track
-                                    yield doScoreAndUploadSbom(repoDetails, y.sbom(), y.sbomFile(), y.projectName(), parentProject);
+                                    yield doScoreAndUploadSbom(repoDetails, y.sbom(), y.sbomFile(), y.projectName(), parentProject, metadata.commitSha());
                                 }
                                 case CdxgenClient.SBOMGenerationResult.None n -> {
                                     Log.infof("Nothing to analyse in repo %s, ref %s", repoDetails.websiteUrl(), repoDetails.version());
@@ -275,7 +275,7 @@ public class AnalysisProcessHandler {
                 }));
     }
 
-    Uni<Result<Project>> doScoreAndUploadSbom(RepositoryDetails repoDetails, Bom sbom, Path sbomFile, String projectName, Project parentProject) {
+    Uni<Result<Project>> doScoreAndUploadSbom(RepositoryDetails repoDetails, Bom sbom, Path sbomFile, String projectName, Project parentProject, Optional<String> commitSha) {
         return sbomqsClient.calculateQualityScore(sbomFile)
             .map(result -> switch (result) {
                 case Result.Success<SbomqsClient.QualityScore> s -> Optional.of(s.result());
@@ -284,7 +284,7 @@ public class AnalysisProcessHandler {
             .chain(score ->
                 dtrackClient.uploadSBOM(
                     addQualityScore(repoDetails, score),
-                    sbom, projectName, parentProject
+                    sbom, projectName, parentProject, commitSha
                 ));
     }
 

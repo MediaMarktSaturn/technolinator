@@ -56,7 +56,7 @@ class PushHandlingTest {
         var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
 
-        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any()))
+        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any(), any()))
             .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHEventPayload.Push pushPayload = mock(GHEventPayload.Push.class);
@@ -77,7 +77,7 @@ class PushHandlingTest {
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommands(any(), eq(projectName), eq(true), eq(Optional.empty()));
         verify(sbomqsClient).calculateQualityScore(any());
-        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any());
+        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any(), eq(Optional.empty()));
 
         assertThat(captor.getValue()).isNotNull().satisfies(repoDetails -> {
             assertThat(repoDetails.name()).hasToString(projectName);

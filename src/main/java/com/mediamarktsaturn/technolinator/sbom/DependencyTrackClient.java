@@ -18,6 +18,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * API client for Dependency-Track
@@ -46,7 +47,7 @@ public class DependencyTrackClient {
     /**
      * Uploads the given  [sbom] to Dependency-Track, deactivating other versions of the same project if any
      */
-    public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject) {
+    public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject, Optional<String> commitSha) {
         var projectVersion = repoDetails.version();
         var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator15(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
@@ -74,7 +75,7 @@ public class DependencyTrackClient {
             .call(r -> {
                 if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
                     Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
-                    return updateProjectMetaData(p.projectId(), repoDetails, parentProject);
+                    return updateProjectMetaData(p.projectId(), repoDetails, parentProject, commitSha);
                 } else {
                     Log.infof("Cannot describe and tag project %s: %s", projectName, r);
                     return Uni.createFrom().voidItem();
@@ -83,8 +84,8 @@ public class DependencyTrackClient {
             .onFailure().recoverWithItem(Result.Failure::new);
     }
 
-    public Uni<Result<Project>> createOrUpdateParentProject(RepositoryDetails repoDetails) {
-        var parentProject = createProjectBaseData(repoDetails);
+    public Uni<Result<Project>> createOrUpdateParentProject(RepositoryDetails repoDetails, Optional<String> commitSha) {
+        var parentProject = createProjectBaseData(repoDetails, commitSha);
         parentProject.put("name", repoDetails.name());
         parentProject.put("version", repoDetails.version());
 
@@ -101,7 +102,7 @@ public class DependencyTrackClient {
                         .call(lookupResult -> {
                             if (lookupResult instanceof Result.Success<Project> lookedupProject) {
                                 if (lookedupProject.result() instanceof Project.Available lookedupParent) {
-                                    return updateProjectMetaData(lookedupParent.projectId(), repoDetails, Project.none());
+                                    return updateProjectMetaData(lookedupParent.projectId(), repoDetails, Project.none(), commitSha);
                                 }
                             }
                             Log.errorf("Could not lookup parent project named %s in version %s", repoDetails.name(), repoDetails.version());
@@ -175,8 +176,8 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    Uni<Void> updateProjectMetaData(String projectUUID, RepositoryDetails repoDetails, Project parentProject) {
-        var projectDetails = createProjectBaseData(repoDetails);
+    Uni<Void> updateProjectMetaData(String projectUUID, RepositoryDetails repoDetails, Project parentProject, Optional<String> commitSha) {
+        var projectDetails = createProjectBaseData(repoDetails, commitSha);
         if (parentProject instanceof Project.Available parent) {
             projectDetails.put("parent", JsonObject.of("uuid", parent.projectId()));
         }
@@ -196,13 +197,16 @@ public class DependencyTrackClient {
             .replaceWithVoid();
     }
 
-    JsonObject createProjectBaseData(RepositoryDetails repoDetails) {
+    JsonObject createProjectBaseData(RepositoryDetails repoDetails, Optional<String> commitSha) {
         var tagsArray = new JsonArray(repoDetails.topics().stream()
             .filter(t -> t != null && !t.isBlank())
             .map(tag -> JsonObject.of("name", tag)
             ).toList());
-        var description = repoDetails.description();
-        var descValue = description == null || description.isBlank() ? "" : description;
+        // prefix description with #commitSha# to allow VCS matching
+        var shaDesc = commitSha.map(sha -> sha.substring(0, Integer.min(7, sha.length()))).map(sha -> "#" + sha + "# ").orElse("");
+        var description = Optional.ofNullable(repoDetails.description()).map(String::trim).map(shaDesc::concat).orElse(shaDesc);
+        // dtrack allows a max of 255 chars for description
+        var descValue = description.length() < 255 ? description : (description.substring(0, 251) + "...");
         var extRefs = JsonArray.of(
             JsonObject.of(
                 "type", ExternalReference.Type.VCS.getTypeName(),

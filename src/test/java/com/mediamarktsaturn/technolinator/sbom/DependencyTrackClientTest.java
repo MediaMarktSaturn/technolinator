@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 import static com.mediamarktsaturn.technolinator.MockServerResource.API_KEY;
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
@@ -144,9 +145,10 @@ class DependencyTrackClientTest {
         var website = "https://github.com/MediaMarktSaturn/awesome-project";
         var vcs = "git://github.com/MediaMarktSaturn/awesome-project.git";
         var projectDetails = new RepositoryDetails(name, version, description, website, vcs, tags);
+        var commitSha = "1234567891011121314151617181920";
 
         // When
-        var result = await(cut.uploadSBOM(projectDetails, sbom, name, Project.none()));
+        var result = await(cut.uploadSBOM(projectDetails, sbom, name, Project.none(), Optional.of(commitSha)));
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -171,7 +173,7 @@ class DependencyTrackClientTest {
             assertThat(described.getPath()).hasToString("/api/v1/project/uuid-3");
             var json = new JsonObject(described.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
-            assertThat(json.getString("description")).hasToString(description);
+            assertThat(json.getString("description")).hasToString("#1234567# " + description);
             assertThat(json.getJsonArray("tags")).containsExactlyInAnyOrder(
                 JsonObject.of("name", "thisIsGreat"),
                 JsonObject.of("name", "awesome_project"),
@@ -224,7 +226,7 @@ class DependencyTrackClientTest {
         var sbom = new Bom();
 
         // When
-        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom, "", Project.none()));
+        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom, "", Project.none(), Optional.empty()));
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);
@@ -252,9 +254,10 @@ class DependencyTrackClientTest {
                 }
                 """));
         var repoDetails = new RepositoryDetails("my-test-parent-project", "test", "my sample parent project", "link://to.nowhere", "nope", List.of());
+        var commitSha = "4321";
 
         // When
-        var project = await(cut.createOrUpdateParentProject(repoDetails));
+        var project = await(cut.createOrUpdateParentProject(repoDetails, Optional.of(commitSha)));
 
         // Then
         assertThat(project).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -271,7 +274,7 @@ class DependencyTrackClientTest {
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("name")).hasToString("my-test-parent-project");
             assertThat(json.getString("version")).hasToString("test");
-            assertThat(json.getString("description")).hasToString("my sample parent project");
+            assertThat(json.getString("description")).hasToString("#4321# my sample parent project");
         });
     }
 
@@ -316,10 +319,12 @@ class DependencyTrackClientTest {
             .withStatusCode(200)
             .withContentType(MediaType.APPLICATION_JSON)
             .withBody("{}"));
-        var repoDetails = new RepositoryDetails("my-updated-parent-project", "test", "my sample parent project", "link://to.nowhere", "nope", List.of());
+        var repoDetails = new RepositoryDetails("my-updated-parent-project", "test",
+            /*description longer than 255 chars*/ "that's a really long description because we need to test whether our dependency-track client correctly trims really long (but of cause always valuable) description information for a project to a maximum of 255 characters what's the longest value allowed to be submitted to dependency-track, indeed",
+            "link://to.nowhere", "nope", List.of());
 
         // When
-        var project = await(cut.createOrUpdateParentProject(repoDetails));
+        var project = await(cut.createOrUpdateParentProject(repoDetails, Optional.of("myhash")));
 
         // Then
         assertThat(project).isInstanceOfSatisfying(Result.Success.class, success -> {
@@ -336,7 +341,7 @@ class DependencyTrackClientTest {
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("name")).hasToString("my-updated-parent-project");
             assertThat(json.getString("version")).hasToString("test");
-            assertThat(json.getString("description")).hasToString("my sample parent project");
+            assertThat(json.getString("description")).hasSizeLessThan(255).startsWith("#myhash# that's a really long desc").endsWith("...");
         });
 
         var lookedupProject = dtrackMock.retrieveRecordedRequests(lookupProject);
@@ -351,7 +356,7 @@ class DependencyTrackClientTest {
             assertThat(patch.getPath()).hasToString("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2");
             var json = new JsonObject(patch.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
-            assertThat(json.getString("description")).hasToString("my sample parent project");
+            assertThat(json.getString("description")).hasSizeLessThan(255).startsWith("#myhash# that's a really long desc").endsWith("...");
         });
     }
 }

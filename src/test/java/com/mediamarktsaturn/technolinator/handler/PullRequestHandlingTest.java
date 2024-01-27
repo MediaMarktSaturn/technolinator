@@ -66,7 +66,7 @@ class PullRequestHandlingTest {
 
         when(reporter.createVulnerabilityReport(any(), eq(projectName))).thenReturn(Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.report("la di dum", projectName))));
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
-        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any()))
+        when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any(), any()))
             .thenReturn(Uni.createFrom().item(Result.success(Project.available("http://project/yehaaa", "yehaaa"))));
 
         GHPullRequest pr = mock(GHPullRequest.class);
@@ -104,7 +104,7 @@ class PullRequestHandlingTest {
         verify(repoService).createCheckoutCommand(any(), any());
         verify(cdxgenClient).createCommands(any(), eq(projectName), eq(false), eq(Optional.empty()));
         verify(reporter).createVulnerabilityReport(any(), eq(projectName));
-        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any());
+        verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any(), eq(Optional.empty()));
         verify(newComment).getHtmlUrl();
     }
 
