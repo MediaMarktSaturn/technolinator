@@ -13,6 +13,7 @@ ARG DEPSCAN_VERSION
 # sdkman provided jdks
 ARG JAVA_17_VERSION='17.0.10-tem'
 ARG JAVA_21_VERSION='21.0.2-tem'
+ARG NODE_VERSION='21'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
@@ -45,15 +46,26 @@ RUN \
     microdnf update --nodocs -y && \
     microdnf reinstall --nodocs -y tzdata && \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git nodejs npm golang python3 pip php php-cli php-zip php-json && \
+    microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git golang python3 pip php php-cli php-zip php-json && \
     curl -s https://raw.githubusercontent.com/composer/getcomposer.org/main/web/installer | php -- --filename=composer --install-dir=/usr/bin --quiet && \
     microdnf clean all -y
+
+ENV NODE_HOME="$APP_DIR/node$NODE_VERSION"
+
+# install nodejs and npm using nvm (node version manager) to get the latest version
+RUN \
+    curl -sf https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash && \
+    . /root/.nvm/nvm.sh && \
+    nvm install 21 && \
+    mv /root/.nvm/versions/node/* $NODE_HOME && \
+    rm -rf /root/.nvm
 
 # locale options
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 # install cdxgen and relatives
 RUN \
+    export PATH="$PATH:$NODE_HOME/bin" && \
     npm install -g @appthreat/atom && \
     npm install -g @cyclonedx/cdxgen@"$CDXGEN_VERSION" && \
     npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
@@ -116,7 +128,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \
     ALLOWED_ENV_SUBSTITUTIONS=""
 
-ENV PATH="$PATH:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
 
 ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"

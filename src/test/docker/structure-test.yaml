@@ -119,6 +119,18 @@ commandTests:
           - '.*Missing values for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
+    - name: "Nodejs 21 available"
+      command: 'node'
+      args: ["-v"]
+      expectedOutput:
+          - 'v21.*'
+
+    - name: "NPM 10 available"
+      command: 'npm'
+      args: ["-v"]
+      expectedOutput:
+          - '10.*'
+
     - name: "Composer installed"
       command: 'composer'
       args: ["about"]
@@ -177,6 +189,8 @@ metadataTest:
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
           value: '/app/sdks/gradle/current'
+        - key: NODE_HOME
+          value: '/app/node21'
         - key: MVN_CMD
           value: 'mvn'
         - key: GRADLE_CMD

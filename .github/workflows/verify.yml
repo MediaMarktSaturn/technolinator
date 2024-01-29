@@ -16,6 +16,7 @@ env:
   DEPSCAN_VERSION: 'v5.2.3'
   NYDUS_VERSION: '2.2.4'
   java_version: '21'
+  node_version: '21'
   mvn_parameter: '-B -ntp'
   cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
   cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}
@@ -27,6 +28,11 @@ jobs:
 
       - name: Checkout Code
         uses: actions/checkout@v4
+
+      - name: Setup Nodejs
+        uses: actions/setup-node@v4
+        with:
+          node-version: '${{ env.node_version }}'
 
       - name: Setup Java
         uses: actions/setup-java@v4
