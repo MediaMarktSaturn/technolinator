@@ -12,7 +12,7 @@ env:
   CDXGEN_PLUGINS_VERSION: '1.5.5'
   GRYPE_VERSION: 'v0.74.3'
   SBOMQS_VERSION: 'v0.0.30'
-  DEPSCAN_VERSION: 'v5.2.5'
+  DEPSCAN_VERSION: 'v5.2.6'
   NYDUS_VERSION: '2.2.4'
   semantic_version: '19.0.5'
   java_version: '21'
