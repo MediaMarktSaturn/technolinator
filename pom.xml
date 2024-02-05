@@ -23,7 +23,7 @@
         <jruby.joni.version>2.2.1</jruby.joni.version>
 
         <!-- test -->
-        <assertj.version>3.25.2</assertj.version>
+        <assertj.version>3.25.3</assertj.version>
         <awaitility.version>4.2.0</awaitility.version>
 
         <testcontainers.version>1.19.4</testcontainers.version>
