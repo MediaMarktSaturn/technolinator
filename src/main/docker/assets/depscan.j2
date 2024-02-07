@@ -8,7 +8,7 @@ _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPEN
 {% for vuln in vulnerabilities %}
 {%- set ns = namespace(score='', severity='unspecified') -%}
 
-{%- set vuln_desc = vuln.description | replace('|', '&vert;') | replace('\n', '<br />') | replace('"', "'") -%}
+{%- set vuln_desc = vuln.description | replace('|', '&vert;') | replace('\n', '<br />') | replace('\r', '') | replace('"', "'") -%}
 
 {%- for rating in vuln.ratings -%}
 {%- if 'CVSSv3' in rating.method -%}
