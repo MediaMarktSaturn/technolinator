@@ -1,0 +1,16 @@
+FROM technolinator:regular
+
+ARG SWIFT_VERSION
+ARG APPLICATION_USER='app'
+
+USER root
+
+RUN \
+    mkdir -p /tmp/swift && cd /tmp/swift && \
+    curl -Ls -o swift.tgz https://download.swift.org/swift-${SWIFT_VERSION}-release/ubi9/swift-${SWIFT_VERSION}-RELEASE/swift-${SWIFT_VERSION}-RELEASE-ubi9.tar.gz && \
+    tar xzf swift.tgz && \
+    chmod "a-w" -R swift-${SWIFT_VERSION}-RELEASE-ubi9/ && \
+    cp -R swift-${SWIFT_VERSION}-RELEASE-ubi9/* / && \
+    cd / && rm -rf /tmp/swift
+
+USER $APPLICATION_USER

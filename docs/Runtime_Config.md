@@ -1,6 +1,7 @@
 # Runtime Configuration
 
 Technolinator is available as container image: `ghcr.io/mediamarktsaturn/technolinator:VERSION` ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
+There is in addition a container image tagged with `fat-VERSION` containing even or SDKs (like Swift).
 
 You can run it by providing the minimal configuration values as listed below. Please have a look to the [adoption doc](./Adoption.md) as well to fine tune the image to your needs.
 
