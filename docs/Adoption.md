@@ -8,6 +8,7 @@ This could look like in the following example:
 
 ```dockerfile
 FROM ghcr.io/mediamarktsaturn/technolinator:VERSION
+# or FROM ghcr.io/mediamarktsaturn/technolinator:fat-VERSION for the full-blown image
 
 # app runs as user 201 in group 101, files should be read-only to it
 COPY --chown=root:root --chmod=a-w assets/settings.xml ${MAVEN_HOME}/conf/settings.xml

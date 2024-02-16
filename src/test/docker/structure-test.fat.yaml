@@ -1,0 +1,8 @@
+schemaVersion: 2.0.0
+
+commandTests:
+    - name: 'Swift installed'
+      command: 'swift'
+      args: ['-v']
+      expectedOutput:
+          - 'Welcome to Swift!'

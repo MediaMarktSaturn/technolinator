@@ -97,6 +97,18 @@
             ],
             "depNameTemplate": "owasp-dep-scan/dep-scan",
             "datasourceTemplate": "github-releases"
+        },
+        {
+            "description": "Update swift version in GH action",
+            "fileMatch": [
+                ".*ci\\.yml$"
+            ],
+            "matchStrings": [
+                "SWIFT_VERSION: '(?<currentValue>.*?)'"
+            ],
+            "depNameTemplate": "apple/swift",
+            "datasourceTemplate": "github-releases",
+            "extractVersionTemplate": "swift-(?<version>.*)-RELEASE"
         }
     ]
 }
