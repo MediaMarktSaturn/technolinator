@@ -1,0 +1,15 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: technolinator
+  title: technolinator
+  description: "GitHub app for SBOM creation using cdxgen and upload to Dependency-Track"
+  annotations:
+    github.com/project-slug: MediaMarktSaturn/technolinator # https://backstage.io/docs/features/software-catalog/well-known-annotations/#githubcomproject-slug
+    github.com/team-slug: MediaMarktSaturn/software-supply-chain-security
+    mms.tech/product_id: '6239'
+    mms.tech/app_id: ''
+spec:
+  type: service  # alternatives: website, library
+  lifecycle: production # alternative: experimental, deprecated
+  owner: Cyber Security
