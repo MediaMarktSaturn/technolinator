@@ -6,10 +6,10 @@ metadata:
   description: "GitHub app for SBOM creation using cdxgen and upload to Dependency-Track"
   annotations:
     github.com/project-slug: MediaMarktSaturn/technolinator # https://backstage.io/docs/features/software-catalog/well-known-annotations/#githubcomproject-slug
-    github.com/team-slug: MediaMarktSaturn/<TEAM> # https://backstage.io/docs/features/software-catalog/well-known-annotations/#githubcomteam-slug
-    mms.tech/product_id: "<PRODUCT_ID>" # https://lookerstudio.google.com/u/0/reporting/12072637-58fe-4f6e-8509-9dc00c806962/page/p_4kaxep2g1c
-    mms.tech/app_id: <APP_ID> # https://mms.cherwellondemand.com/CherwellClient/Access/Dashboard/IT%20Product%20Catalog
+    github.com/team-slug: MediaMarktSaturn/software-supply-chain-security
+    mms.tech/product_id: '6239'
+    mms.tech/app_id: ''
 spec:
-  type: <TYPE> # like service, website, library
-  lifecycle: <LIFECYCLE> # like production, experimental, deprecated
-  owner: <OWNER> # product team or owner
+  type: service  # alternatives: website, library
+  lifecycle: production # alternative: experimental, deprecated
+  owner: Cyber Security
