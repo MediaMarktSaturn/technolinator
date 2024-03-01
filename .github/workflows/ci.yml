@@ -2,6 +2,11 @@
 name: Application build and test
 on:
   push:
+    branches:
+      - "main"
+  pull_request_target:
+    branches:
+      - "main"
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
@@ -42,6 +47,7 @@ jobs:
         with:
           files_ignore: |
             **/*.md
+            docs/
             .github/dependabot.yml
             .github/technolinator.yml
 
