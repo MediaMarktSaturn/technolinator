@@ -5,4 +5,5 @@ analysis:
   location: projectLocation
   recursive: true
   evidence: true
+  formulation: true
   requiredScopeOnly: true

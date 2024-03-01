@@ -1,0 +1,157 @@
+# This docker compose should be seen as a starting point for your
+# technolinator + dependency track adventure. It is not optimized
+# and may contain unsafe config options.
+# Go ahead and modify it! Also check out the sample.env which contains
+# the secrets. Please use a better secrets manager in prod :)
+# For more config options, please consult the readmes of the images.
+
+version: '3.7'
+
+volumes:
+  dependency-track:
+  technolinator:
+
+services:
+  dtrack-apiserver:
+    image: dependencytrack/apiserver
+    container_name: "dtrack-apiserver"
+    environment:
+      # The Dependency-Track container can be configured using any of the
+      # available configuration properties defined in:
+      # https://docs.dependencytrack.org/getting-started/configuration/
+      # All properties are upper case with periods replaced by underscores.
+      #
+      # Database Properties
+      - ALPINE_DATABASE_MODE=external
+      - ALPINE_DATABASE_URL=jdbc:postgresql://db:5432/dtrack
+      - ALPINE_DATABASE_DRIVER=org.postgresql.Driver
+      - ALPINE_DATABASE_USERNAME=postgres
+      - ALPINE_DATABASE_POOL_ENABLED=true
+      - ALPINE_DATABASE_POOL_MAX_SIZE=20
+      - ALPINE_DATABASE_POOL_MIN_IDLE=10
+      - ALPINE_DATABASE_POOL_IDLE_TIMEOUT=300000
+      - ALPINE_DATABASE_POOL_MAX_LIFETIME=600000
+      #  ---- snip ----
+      # Optional HTTP Outbound Connection Timeout Settings. All values are in seconds.
+      - ALPINE_HTTP_TIMEOUT_CONNECTION=30
+      - ALPINE_HTTP_TIMEOUT_SOCKET=30
+      - ALPINE_HTTP_TIMEOUT_POOL=60
+      # Optional logging configuration
+      - LOGGING_LEVEL=INFO
+      - LOGGING_CONFIG_PATH=logback.xml
+      # Optional configuration for the OSS Index analyzer
+      - OSSINDEX_REQUEST_MAX_PURL=128
+      - OSSINDEX_RETRY_BACKOFF_MAX_ATTEMPTS=50
+      - OSSINDEX_RETRY_BACKOFF_MULTIPLIER=2
+      - OSSINDEX_RETRY_BACKOFF_MAX_DURATION=600000
+    env_file:
+      - sample.env
+    deploy:
+      resources:
+        limits:
+          memory: 8192m
+        reservations:
+          memory: 6144m
+      restart_policy:
+        condition: on-failure
+    ports:
+      - '127.0.0.1:8081:8080'
+    volumes:
+      # Optional volume mount to override default notification publisher templates
+      # - "/host/path/to/template/base/dir:/data/templates"
+      - 'dependency-track:/data'
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dtrack-apiserver.rule=Host(`dt.example.com`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.dtrack-apiserver.entrypoints=websecure"
+      - "traefik.http.routers.dtrack-apiserver.tls.certresolver=myresolver"
+
+  dtrack-frontend:
+    image: dependencytrack/frontend
+    container_name: "dtrack-frontend"
+    depends_on:
+      - dtrack-apiserver
+    environment:
+      # The base URL of the API server.
+      # NOTE:
+      #   * This URL must be reachable by the browsers of your users.
+      #   * The frontend container itself does NOT communicate with the API server directly, it just serves static files.
+      #   * When deploying to dedicated servers, please use the external IP or domain of the API server.
+      - API_BASE_URL=https://dt.example.com
+      # - "OIDC_ISSUER="
+      # - "OIDC_CLIENT_ID="
+      # - "OIDC_SCOPE="
+      # - "OIDC_FLOW="
+      # - "OIDC_LOGIN_BUTTON_TEXT="
+      # volumes:
+      # - "/host/path/to/config.json:/app/static/config.json"
+    ports:
+      - "127.0.0.1:8080:8080"
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.dtrack-frontend.rule=Host(`dt.example.com`)"
+      - "traefik.http.routers.dtrack-frontend.entrypoints=websecure"
+      - "traefik.http.routers.dtrack-frontend.tls.certresolver=myresolver"
+
+  db:
+    image: postgres:16.1-alpine
+    container_name: "db"
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=dtrack
+    env_file:
+      - sample.env
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+
+
+  technolinator:
+    image: "ghcr.io/mediamarktsaturn/technolinator:fat-1.57.3"
+    container_name: "technolinator"
+    restart: always
+    volumes:
+      - "technolinator:/data"
+    ports:
+      - "127.0.0.1:8082:8080"
+    env_file:
+      - sample.env
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.technolinator.rule=Host(`dt.example.com`) && PathPrefix(`/technohook`)"
+      - "traefik.http.routers.technolinator.entrypoints=websecure"
+      - "traefik.http.routers.technolinator.tls.certresolver=myresolver"
+      - "traefik.http.middlewares.technolinator-stripprefix.stripprefix.prefixes=/technohook"
+      - "traefik.http.routers.technolinator.middlewares=technolinator-stripprefix"
+      - "traefik.http.services.technolinator.loadbalancer.server.port=8080"
+
+  traefik:
+    image: "traefik:v2.10"
+    container_name: "traefik"
+    restart: always
+    environment:
+      - TZ="Europe/Berlin"
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=example@example.com"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--log.level=INFO"
+      - "--log.filePath=/logs/traefik.log"
+      - "--accesslog=true"
+      - "--accesslog.filePath=/logs/access.log"
+      - "--accesslog.bufferingsize=50"
+      - "--accesslog.format=json"
+      - "--serversTransport.maxIdleConnsPerHost=50"
+    ports:
+      - "443:443"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "./traefik:/logs"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"

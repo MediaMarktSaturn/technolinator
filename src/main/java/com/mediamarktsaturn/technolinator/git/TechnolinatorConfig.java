@@ -28,6 +28,7 @@ public record TechnolinatorConfig(
         Boolean recursive,
         Boolean requiredScopeOnly,
         Boolean evidence,
+        Boolean formulation,
         List<String> excludes
     ) {
     }

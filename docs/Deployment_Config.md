@@ -10,6 +10,8 @@ For guidance on how to register a GitHub app, just follow the [Quarkus GitHub Ap
 
 Btw: There's also a nice Helm chart for hosting Dependency-Track on Kubernetes available [here](https://github.com/MediaMarktSaturn/helm-charts/tree/main/charts/dependency-track).
 
+If Kubernetes isn't the right thing for you and you'd like something simpler, there's also a sample [docker compose file](/docs/docker-compose/docker-compose.sample.yml) and an accompanying [sample.env](/docs/docker-compose/sample.env) available.
+
 ## HelmRepository
 
 ```yaml
