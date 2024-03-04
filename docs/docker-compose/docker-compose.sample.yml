@@ -54,6 +54,9 @@ services:
           memory: 6144m
       restart_policy:
         condition: on-failure
+    depends_on:
+      db:
+        condition: service_started
     ports:
       - '127.0.0.1:8081:8080'
     volumes:
@@ -71,7 +74,8 @@ services:
     image: dependencytrack/frontend
     container_name: "dtrack-frontend"
     depends_on:
-      - dtrack-apiserver
+      dtrack-apiserver:
+        condition: service_started
     environment:
       # The base URL of the API server.
       # NOTE:
@@ -111,7 +115,7 @@ services:
 
 
   technolinator:
-    image: "ghcr.io/mediamarktsaturn/technolinator:fat-1.57.3"
+    image: "ghcr.io/mediamarktsaturn/technolinator" # alternative: technolinator:fat-1.57.3
     container_name: "technolinator"
     restart: always
     volumes:
