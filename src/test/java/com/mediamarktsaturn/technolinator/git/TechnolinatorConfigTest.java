@@ -49,6 +49,7 @@ class TechnolinatorConfigTest {
                 recursive: false
                 requiredScopeOnly: true
                 evidence: true
+                formulation: true
             gradle:
                 multiProject: true
                 args:
@@ -78,6 +79,7 @@ class TechnolinatorConfigTest {
                 assertThat(a.recursive()).isFalse();
                 assertThat(a.requiredScopeOnly()).isTrue();
                 assertThat(a.evidence()).isTrue();
+                assertThat(a.formulation()).isTrue();
             });
             assertThat(c.env())
                 .containsEntry("PROP", "value1")

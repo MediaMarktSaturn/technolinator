@@ -78,7 +78,7 @@ class CdxgenClientGenerationTest {
     void testRecurseMixedProject() {
         // Given
         var file = Paths.get("src/test/resources/repo/multi-mode");
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, false, false, List.of())).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, false, false, false, List.of())).enable(true).build();
 
         // When
         var result = generateSBOM(file, "multi-mode", Optional.of(config));
@@ -144,7 +144,7 @@ class CdxgenClientGenerationTest {
     void testMultiModuleMavenNodeProject() {
         // Given
         var file = Paths.get("src/test/resources/repo/multi-module-mode");
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, false, false, List.of())).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, false, false, false, List.of())).enable(true).build();
 
         // When
         var result = generateSBOM(file, "multi-module-mode", Optional.of(config));
@@ -161,7 +161,7 @@ class CdxgenClientGenerationTest {
     void testMultiModuleGradleProject() {
         // Given
         var file = Paths.get("src/test/resources/repo/multi-gradle-module");
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, false, false, List.of())).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, true, false, false, false, List.of())).enable(true).build();
 
         // When
         var result = generateSBOM(file, "multi-gradle-module", Optional.of(config));
@@ -184,7 +184,7 @@ class CdxgenClientGenerationTest {
     void testSimpleGradleProject(String repoName, boolean recursive) {
         // Given
         var file = Paths.get("src/test/resources/repo/" + repoName);
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, recursive, false, false, List.of())).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, recursive, false, false, false, List.of())).enable(true).build();
 
         // When
         var result = generateSBOM(file, repoName, Optional.of(config));
@@ -205,7 +205,7 @@ class CdxgenClientGenerationTest {
     void testGradleJarQualifierProject(String repoName, boolean recursive) {
         // Given
         var file = Paths.get("src/test/resources/repo/" + repoName);
-        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, recursive, false, false, List.of())).enable(true).build();
+        var config = ConfigBuilder.create().analysis(new TechnolinatorConfig.AnalysisConfig(null, recursive, false, false, false, List.of())).enable(true).build();
 
         // When
         var result = generateSBOM(file, repoName, Optional.of(config));

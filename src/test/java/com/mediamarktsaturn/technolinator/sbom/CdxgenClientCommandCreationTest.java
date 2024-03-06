@@ -50,7 +50,7 @@ class CdxgenClientCommandCreationTest {
     void testRequiredScopeOnlyFlag() {
         // Given
         var config = ConfigBuilder.create()
-            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, true, null, List.of()))
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, true, null, null, List.of()))
             .build();
 
         // When
@@ -66,7 +66,7 @@ class CdxgenClientCommandCreationTest {
     void testNoEvidenceFlag() {
         // Given
         var config = ConfigBuilder.create()
-            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, List.of()))
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, null, List.of()))
             .build();
 
         // When
@@ -82,7 +82,7 @@ class CdxgenClientCommandCreationTest {
     void testEvidenceFlag() {
         // Given
         var config = ConfigBuilder.create()
-            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, true, List.of()))
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, true, null, List.of()))
             .build();
 
         // When
@@ -95,10 +95,42 @@ class CdxgenClientCommandCreationTest {
     }
 
     @Test
+    void testNoFormulationFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, null, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).doesNotContain("--include-formulation");
+        });
+    }
+
+    @Test
+    void testFormulationFlag() {
+        // Given
+        var config = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, true, List.of()))
+            .build();
+
+        // When
+        var commands = cut.createCommands(Path.of("my-repo"), "my-repo", false, Optional.of(config));
+
+        // Then
+        assertThat(commands).hasSize(1).first().satisfies(cmd -> {
+            assertThat(cmd.commandLine()).contains("--include-formulation");
+        });
+    }
+
+    @Test
     void testNoRequiredScopeOnlyFlag() {
         // Given
         var config = ConfigBuilder.create()
-            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, List.of()))
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, null, List.of()))
             .build();
 
         // When

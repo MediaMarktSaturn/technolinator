@@ -21,6 +21,8 @@ analysis:
     requiredScopeOnly: false
     # create sbom with evidence (slows down the process)
     evidence: false
+    # Generate formulation section using git metadata.
+    formulation: false
     # folders within 'analysis.location' to exclude from created sbom (e.g. non-production stuff)
     excludes:
         - subfolder1

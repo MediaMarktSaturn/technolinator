@@ -59,6 +59,12 @@ public class CdxgenClient {
      */
     private static final String EVIDENCE_FLAG = " --evidence";
 
+    /**
+     * cdxgen option --include-formulation: Generate formulation section using git metadata.
+     */
+    private static final String FORMULATION_FLAG = " --include-formulation";
+
+
     // cdxgen ENV variable names
     private static final String CDXGEN_GRADLE_ARGS = "GRADLE_ARGS";
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
@@ -96,7 +102,7 @@ public class CdxgenClient {
      * Configurable, supported jdk versions.
      */
     private final Map<String, String> jdkHomes;
-    private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, failOnError;
+    private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError;
 
     public CdxgenClient() {
         var config = ConfigProvider.getConfig();
@@ -105,6 +111,7 @@ public class CdxgenClient {
         this.recursiveDefault = config.getValue("analysis.recursive_default", Boolean.TYPE);
         this.requiredScopeOnlyDefault = config.getValue("cdxgen.required_scope_only", Boolean.TYPE);
         this.evidenceDefault = config.getValue("cdxgen.evidence", Boolean.TYPE);
+        this.formulationDefault = config.getValue("cdxgen.formulation", Boolean.TYPE);
         this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
 
         this.allowedEnvSubstitutions = config.getOptionalValue("app.allowed_env_substitutions", String.class)
@@ -136,10 +143,11 @@ public class CdxgenClient {
      * * %s # optional fail-on-error flag [FAIL_ON_ERROR_FLAG]
      * * %s # optional --required-only flag
      * * %s # optional --evidence flag
+     * * %s # optional --include-formulation flag
      * * --project-name %s # name of main component of the SBOM, defaulting to the repository name
      * * --no-validate # disable cdxgen validation as we try to process everything
      */
-    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.5 -o %s%s%s%s%s --project-name %s --no-validate";
+    private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.5 -o %s%s%s%s%s%s --project-name %s --no-validate";
 
     public record SbomCreationCommand(
         Path repoDir,
@@ -169,7 +177,7 @@ public class CdxgenClient {
                 new SbomCreationCommand(
                     repoDir,
                     repoName,
-                    buildCdxgenCommand(recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, failOnError, repoName),
+                    buildCdxgenCommand(recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError, repoName),
                     buildEnv(List.of(), fetchLicenses),
                     buildExcludeList(List.of())
                 )
@@ -180,7 +188,7 @@ public class CdxgenClient {
                     return new SbomCreationCommand(
                         determineAnalysisFolder(repoDir, configPath),
                         projectName,
-                        buildCdxgenCommand(analyseRecursive(configPath), requiredScopeOnlyFlag(configPath), evidenceFlag(configPath), failOnError, projectName),
+                        buildCdxgenCommand(analyseRecursive(configPath), requiredScopeOnlyFlag(configPath), evidenceFlag(configPath), formulationFlag(configPath), failOnError, projectName),
                         buildEnv(configPath, fetchLicenses),
                         buildExcludeList(configPath)
                     );
@@ -189,13 +197,14 @@ public class CdxgenClient {
         }
     }
 
-    private String buildCdxgenCommand(boolean recursive, boolean requiredOnly, boolean evidence, boolean failOnError, String projectName) {
+    private String buildCdxgenCommand(boolean recursive, boolean requiredOnly, boolean evidence, boolean formulation, boolean failOnError, String projectName) {
         return CDXGEN_CMD_FMT.formatted(
             SBOM_JSON,
             recursive ? RECURSIVE_FLAG : NO_RECURSIVE_FLAG,
             failOnError ? FAIL_ON_ERROR_FLAG : "",
             requiredOnly ? REQUIRED_ONLY_FLAG : "",
             evidence ? EVIDENCE_FLAG : "",
+            formulation ? FORMULATION_FLAG: "",
             projectName
         );
     }
@@ -386,6 +395,15 @@ public class CdxgenClient {
             return evidenceDefault;
         } else {
             return evidenceConfig.getLast();
+        }
+    }
+
+    boolean formulationFlag(List<TechnolinatorConfig> path) {
+        var formulationConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::formulation);
+        if (formulationConfig.isEmpty()) {
+            return formulationDefault;
+        } else {
+            return formulationConfig.getLast();
         }
     }
 
