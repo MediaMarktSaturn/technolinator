@@ -16,7 +16,7 @@
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
         <quarkus.platform.version>3.8.2</quarkus.platform.version>
 
-        <quarkus-github-app.version>2.3.2</quarkus-github-app.version>
+        <quarkus-github-app.version>2.3.3</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>8.0.3</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
@@ -24,7 +24,7 @@
 
         <!-- test -->
         <assertj.version>3.25.3</assertj.version>
-        <awaitility.version>4.2.0</awaitility.version>
+        <awaitility.version>4.2.1</awaitility.version>
 
         <testcontainers.version>1.19.7</testcontainers.version>
         <!-- must be same as server version bundled in org.testcontainers.mockserver -->
