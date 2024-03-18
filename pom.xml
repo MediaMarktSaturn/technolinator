@@ -24,7 +24,7 @@
 
         <!-- test -->
         <assertj.version>3.25.3</assertj.version>
-        <awaitility.version>4.2.0</awaitility.version>
+        <awaitility.version>4.2.1</awaitility.version>
 
         <testcontainers.version>1.19.7</testcontainers.version>
         <!-- must be same as server version bundled in org.testcontainers.mockserver -->
