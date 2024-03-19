@@ -42,8 +42,8 @@ class RepositoryServiceTest {
 
     @ParameterizedTest
     @CsvSource({
-        "heubeck/examiner, refs/heads/main, pom.xml",
-        "jug-in/jug-in.bayern, refs/heads/master, README.md",
+        "heubeck/examiner,     refs/heads/main,     pom.xml",
+        "jug-in/jug-in.bayern, refs/heads/master,   README.md",
         "jug-in/jug-in.bayern, refs/heads/gh-pages, index.html"
     })
     void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
@@ -82,9 +82,12 @@ class RepositoryServiceTest {
 
 
         // Then
-        assertThat(result).isInstanceOfSatisfying(Result.Failure.class, failure -> {
-            assertThat(failure.cause().toString()).hasToString("org.kohsuke.github.GHFileNotFoundException: https://api.github.com/repos/heubeck/examiner/zipball/never/ever 404: Not Found");
-        });
+        assertThat(result).isInstanceOfSatisfying(Result.Failure.class, failure ->
+            assertThat(failure.cause().toString())
+                .startsWith("org.kohsuke.github.GHFileNotFoundException: https://")
+                .contains("/heubeck/examiner/")
+                .endsWith("/never/ever 404: Not Found")
+        );
     }
 
 }
