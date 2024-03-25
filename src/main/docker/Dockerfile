@@ -13,6 +13,7 @@ ARG DEPSCAN_VERSION
 # sdkman provided jdks
 ARG JAVA_17_VERSION='17.0.10-tem'
 ARG JAVA_21_VERSION='21.0.2-tem'
+ARG JAVA_22_VERSION='22-tem'
 ARG NODE_VERSION='21'
 
 # location of application binaries and configuration
@@ -104,8 +105,9 @@ COPY --chown=root:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/co
 RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     sdk install java $JAVA_17_VERSION && \
     sdk install java $JAVA_21_VERSION && \
+    sdk install java $JAVA_22_VERSION && \
     sdk install maven && \
-    sdk install gradle 7.6 && \
+    sdk install gradle && \
     sdk install sbt && \
     mv /root/.sdkman/candidates $SDK_DIR && \
     chown root:root -R $SDK_DIR && \
@@ -115,7 +117,8 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
 # app & tools env
 ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     JAVA21_HOME="$SDK_DIR/java/$JAVA_21_VERSION" \
-    JAVA_HOME="$SDK_DIR/java/$JAVA_21_VERSION" \
+    JAVA22_HOME="$SDK_DIR/java/$JAVA_22_VERSION" \
+    JAVA_HOME="$SDK_DIR/java/$JAVA_22_VERSION" \
     MAVEN_HOME="$SDK_DIR/maven/current" \
     GRADLE_HOME="$SDK_DIR/gradle/current" \
     MVN_CMD=mvn \
