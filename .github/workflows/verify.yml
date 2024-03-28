@@ -15,7 +15,7 @@ env:
   SBOMQS_VERSION: 'v0.0.30'
   DEPSCAN_VERSION: 'v5.2.12'
   NYDUS_VERSION: '2.2.4'
-  java_version: '21'
+  java_version: '22'
   node_version: '21'
   mvn_parameter: '-B -ntp'
   cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
