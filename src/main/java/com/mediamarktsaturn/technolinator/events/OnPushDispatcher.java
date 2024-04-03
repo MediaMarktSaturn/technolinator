@@ -35,8 +35,8 @@ public class OnPushDispatcher extends DispatcherBase {
      * Called by the quarkus-github-ap extension on any push event of repositories having the app installed.
      * Repo-specific configuration is shipped optionally if available at `.github/technolinator.yml`
      */
-    @SuppressWarnings("unused")
     // called by the quarkus-github-app extension
+    @SuppressWarnings("unused")
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
         var traceId = createTraceId();
         var pushRef = pushPayload.getRef();

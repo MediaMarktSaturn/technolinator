@@ -22,7 +22,7 @@ public record PushEvent(
 
     @Override
     public URL repoUrl() {
-        return payload.getRepository().getUrl();
+        return repository().getUrl();
     }
 
     @Override
@@ -32,7 +32,7 @@ public record PushEvent(
 
     @Override
     public String defaultBranch() {
-        return payload.getRepository().getDefaultBranch();
+        return repository().getDefaultBranch();
     }
 
     @Override

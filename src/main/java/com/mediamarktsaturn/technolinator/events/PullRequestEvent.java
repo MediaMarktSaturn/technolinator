@@ -27,12 +27,12 @@ public record PullRequestEvent(
 
     @Override
     public URL repoUrl() {
-        return payload.getRepository().getHtmlUrl();
+        return repository().getHtmlUrl();
     }
 
     @Override
     public String defaultBranch() {
-        return payload.getRepository().getDefaultBranch();
+        return repository().getDefaultBranch();
     }
 
     @Override

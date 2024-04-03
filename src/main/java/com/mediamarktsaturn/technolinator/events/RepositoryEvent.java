@@ -10,14 +10,14 @@ import java.util.Optional;
 /**
  * Data type used to transport push event notifications along the process
  */
-public record ReleaseEvent(
-    GHEventPayload.Release payload,
+public record RepositoryEvent(
+    GHEventPayload.Repository payload,
     Optional<TechnolinatorConfig> config
-) implements Event<GHEventPayload.Release> {
+) implements Event<GHEventPayload.Repository> {
 
     @Override
     public String branch() {
-        return payload.getRelease().getTargetCommitish();
+        return defaultBranch();
     }
 
     @Override
@@ -27,7 +27,7 @@ public record ReleaseEvent(
 
     @Override
     public String ref() {
-        return payload.getRelease().getTagName();
+        return "";
     }
 
     @Override

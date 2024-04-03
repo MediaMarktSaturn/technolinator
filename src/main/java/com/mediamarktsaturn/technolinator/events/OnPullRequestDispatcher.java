@@ -31,6 +31,7 @@ public class OnPullRequestDispatcher extends DispatcherBase {
     @ConfigProperty(name = "app.pull_requests.enabled")
     boolean enabled;
 
+    // called by the quarkus-github-app extension
     @SuppressWarnings("unused")
     void onPullRequest(@PullRequest GHEventPayload.PullRequest prPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
         if (!enabled) {

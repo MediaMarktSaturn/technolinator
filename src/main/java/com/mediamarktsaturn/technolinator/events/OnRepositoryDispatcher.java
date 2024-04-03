@@ -6,28 +6,28 @@ import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Actions;
-import io.quarkiverse.githubapp.event.Release;
+import io.quarkiverse.githubapp.event.Repository;
 import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.kohsuke.github.GHEventPayload;
-import org.kohsuke.github.GHRepository;
 
-import java.io.IOException;
+import java.util.List;
 import java.util.Optional;
-import java.util.stream.StreamSupport;
 
 @ApplicationScoped
-public class OnReleaseDispatcher extends DispatcherBase {
+public class OnRepositoryDispatcher extends DispatcherBase {
+
+    private static final List<String> RELEVANT_ACTIONS = List.of(Actions.ARCHIVED, Actions.UNARCHIVED, Actions.DELETED);
 
     // called by the quarkus-github-app extension
     @SuppressWarnings("unused")
-    void onPush(@Release GHEventPayload.Release releasePayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
-        if (!Actions.RELEASED.equals(releasePayload.getAction())) {
-            // we're only interested in the actual release of a release
+    void onPush(@Repository GHEventPayload.Repository repoPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
+        if (!RELEVANT_ACTIONS.contains(repoPayload.getAction())) {
+            // we're only interested in actions that result in a state change in dtrack
             return;
         }
 
-        var repo = releasePayload.getRepository();
+        var repo = repoPayload.getRepository();
         final var repoUrl = repo.getHtmlUrl();
         final var repoName = repo.getName();
 
@@ -37,25 +37,14 @@ public class OnReleaseDispatcher extends DispatcherBase {
             Log.debugf("Disabled for repo %s by repository config", repoUrl);
         } else {
             var traceId = createTraceId();
-            var release = releasePayload.getRelease();
-            var releaseTag = release.getTagName();
-            var commitSha = getTaggedCommit(releaseTag, repo);
+            var action = repoPayload.getAction();
 
-            if (commitSha.isEmpty()) {
-                return;
-            }
+            Log.infof("Repository %s was %s", repoUrl, action);
 
-            Log.infof("Repository %s released '%s' from tag '%s' targeting commit '%s'",
-                releasePayload.getRepository().getUrl(),
-                release.getName(),
-                release.getTagName(),
-                commitSha.get()
-            );
-
-            final var metadata = new Command.Metadata(releaseTag, repo.getFullName(), traceId, commitSha);
+            final var metadata = new Command.Metadata(null, repo.getFullName(), traceId, Optional.empty());
             metadata.writeToMDC();
 
-            handler.onRelease(new ReleaseEvent(releasePayload, config), metadata)
+            ChangeProcessHandler.onRelease(new RepositoryEvent(repoPayload, config), metadata)
                 .ifNoItem().after(analysisTimeout).fail()
                 .subscribe().with(
                     /* onItem */
@@ -76,14 +65,4 @@ public class OnReleaseDispatcher extends DispatcherBase {
         }
     }
 
-    private Optional<String> getTaggedCommit(String tagName, GHRepository repo) {
-        try {
-            return StreamSupport.stream(repo.listTags().spliterator(), false)
-                .filter(t -> t.getName().equals(tagName)).findFirst()
-                .map(t -> t.getCommit().getSHA1());
-        } catch (IOException e) {
-            Log.errorf(e, "Failed to fetch commit referenced by tag %s in repo %s", tagName, repo.getUrl());
-            return Optional.empty();
-        }
-    }
 }
