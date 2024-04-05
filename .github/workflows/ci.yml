@@ -62,6 +62,16 @@ jobs:
     needs: preparation
     if: needs.preparation.outputs.has_changes == 'true'
     steps:
+      - name: Free disk space
+        run: |
+          df -h
+          echo "----------------------------------------"
+
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          docker rmi $(docker image ls -aq)
+          df -h
 
       - name: Checkout Code
         uses: actions/checkout@v4
