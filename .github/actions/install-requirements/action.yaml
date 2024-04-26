@@ -130,8 +130,8 @@ runs:
         echo "Install nydus"
         NYDUS_VERSION="${NYDUS_VERSION#v}"
         NYDUS_URL="https://github.com/dragonflyoss/nydus/releases/download/v${NYDUS_VERSION}"
-        curl -Ls "$NYDUS_URL/nydus-static-v2.2.4-linux-amd64.tgz" -o nydus.tgz
-        curl -Ls "$NYDUS_URL/nydus-static-v2.2.4-linux-amd64.tgz.sha256sum" -o nydus.tgz.sha256sum
+        curl -Ls "$NYDUS_URL/nydus-static-v${NYDUS_VERSION}-linux-amd64.tgz" -o nydus.tgz
+        curl -Ls "$NYDUS_URL/nydus-static-v${NYDUS_VERSION}-linux-amd64.tgz.sha256sum" -o nydus.tgz.sha256sum
         if ! grep -q "$(sha256sum nydus.tgz | cut -d' ' -f1)" nydus.tgz.sha256sum; then
              echo "::error title=Invalid checksum::nydus.tgz ${NYDUS_VERSION}"
              exit 1
