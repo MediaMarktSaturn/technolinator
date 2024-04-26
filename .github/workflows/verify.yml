@@ -14,7 +14,7 @@ env:
   GRYPE_VERSION: 'v0.77.0'
   SBOMQS_VERSION: 'v0.1.2'
   DEPSCAN_VERSION: 'v5.3.3'
-  NYDUS_VERSION: '2.2.4'
+  NYDUS_VERSION: '2.2.5'
   java_version: '21'
   node_version: '21'
   mvn_parameter: '-B -ntp'
