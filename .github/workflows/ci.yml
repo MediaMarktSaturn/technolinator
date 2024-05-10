@@ -88,7 +88,7 @@ jobs:
           distribution: 'temurin'
 
       - name: Install dependencies for semantic-release-action
-        run: npm install -D conventional-changelog-conventionalcommits
+        run: npm install -D conventional-changelog-conventionalcommits@7.0.2
 
       - name: Getting next release version
         id: semantic
