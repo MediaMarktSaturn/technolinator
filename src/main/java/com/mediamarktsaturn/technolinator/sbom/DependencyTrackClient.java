@@ -10,7 +10,8 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.cyclonedx.generators.json.BomJsonGenerator15;
+import org.cyclonedx.Version;
+import org.cyclonedx.generators.json.BomJsonGenerator;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.ExternalReference;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -49,7 +50,7 @@ public class DependencyTrackClient {
      */
     public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject, Optional<String> commitSha) {
         var projectVersion = repoDetails.version();
-        var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator15(sbom).toJsonString().getBytes(StandardCharsets.UTF_8));
+        var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
             "projectVersion", projectVersion,
