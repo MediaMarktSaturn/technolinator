@@ -151,7 +151,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Docker build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: src/main/docker/Dockerfile
@@ -176,7 +176,7 @@ jobs:
           docker tag ${{ env.image_name }}:${{ env.VERSION }} technolinator:regular
 
       - name: Docker fat image build
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: src/main/docker/Dockerfile.fat
