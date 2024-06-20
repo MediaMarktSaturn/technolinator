@@ -33,7 +33,7 @@
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.3.0</surefire-plugin.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
-        <clean-plugin.version>3.3.2</clean-plugin.version>
+        <clean-plugin.version>3.4.0</clean-plugin.version>
         <dependency-plugin.version>3.7.0</dependency-plugin.version>
         <maven-license-plugin.version>2.4.0</maven-license-plugin.version>
     </properties>
