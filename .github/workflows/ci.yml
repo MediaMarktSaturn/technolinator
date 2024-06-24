@@ -8,7 +8,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  CDXGEN_VERSION: '10.7.0'
+  CDXGEN_VERSION: '10.7.1'
   CDXGEN_PLUGINS_VERSION: '1.6.0'
   GRYPE_VERSION: 'v0.79.1'
   SBOMQS_VERSION: 'v0.1.4'
