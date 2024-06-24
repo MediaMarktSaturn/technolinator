@@ -40,7 +40,7 @@ env:
     THIS_IS: just another value
 jdk:
     # select JDK version used by cdxgen on JVM based projects (see below)
-    version: 20
+    version: 21
 
 # to split up repositories in multiple dependency-track projects, you can recursively configure subprojects.
 # structure is the same like for the single-project config, each distinct project will result in one dependency-track project.
@@ -64,4 +64,4 @@ Please see the [adoption documentation](Adoption.md) for details.
 ### `jdk.version`
 
 The JDK versions available for selection need to be provided and configured to the Technolinator runtime.
-Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 20 (default) and JDK 17 built in.
+Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 21 (default) and JDK 17 built in.
