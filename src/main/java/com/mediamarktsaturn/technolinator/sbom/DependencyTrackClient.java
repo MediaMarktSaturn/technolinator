@@ -50,7 +50,7 @@ public class DependencyTrackClient {
      */
     public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject, Optional<String> commitSha) {
         var projectVersion = repoDetails.version();
-        var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator(sbom, Version.VERSION_16).toJsonString().getBytes(StandardCharsets.UTF_8));
+        var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString().getBytes(StandardCharsets.UTF_8));
         var payload = new JsonObject(Map.of(
             "projectName", projectName,
             "projectVersion", projectVersion,
