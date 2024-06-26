@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GitHub;
 import org.mockito.ArgumentCaptor;
-import org.testcontainers.shaded.org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Optional;
