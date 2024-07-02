@@ -25,6 +25,16 @@ jobs:
     name: Verify cdxgen pre-release from branch
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        run: |
+          df -h
+          echo "----------------------------------------"
+
+          sudo swapoff -a
+          sudo rm -f /swapfile
+          sudo apt clean
+          docker rmi $(docker image ls -aq)
+          df -h
 
       - name: Checkout Code
         uses: actions/checkout@v4
