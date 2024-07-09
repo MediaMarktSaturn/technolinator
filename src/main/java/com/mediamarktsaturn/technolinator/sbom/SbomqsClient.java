@@ -21,11 +21,12 @@ public class SbomqsClient {
 
     /**
      * Pattern of a valid score output. Examples:
-     * * 8.6     src/test/resources/sbom/vulnerable.json
-     * * 6.4     src/test/resources/sbom/not-vulnerable.json
-     * * 4       awesome-sbom.json
+     * * 8.2     cdx     1.4     json    /var/home/heubeck/w/technolinator/src/test/resources/sbom/vulnerable.json
+     * * 6.1     cdx     1.4     json    /var/home/heubeck/w/technolinator/src/test/resources/sbom/not-vulnerable.json
+     * * failed to parse /var/home/heubeck/w/technolinator/src/test/resources/sbom/unkown.json : unsupported sbom format
      */
-    private static final String SCORE_RESULT_PATTERN = "^\\d+(\\.?\\d+){0,1}\\s+%s$";
+    private static final String SCORE_RESULT_SUFFIX_PATTERN = "\\s+cdx\\s+\\d+(\\.?\\d+){0,1}\\s+json\\s+%s";
+    private static final String SCORE_RESULT_PATTERN = "^\\d+(\\.?\\d+){0,1}" + SCORE_RESULT_SUFFIX_PATTERN + "$";
 
     /**
      * Calculates a quality score for the given sbomFile using the 'sbomqs' tool.
@@ -47,11 +48,12 @@ public class SbomqsClient {
     }
 
     Result<QualityScore> parseScore(ProcessHandler.ProcessResult.Success result, String filename) {
+        var regexEscapedFilename = escapeFilenameAsRegexPattern(filename);
         return result.outputLines().stream()
-            .filter(l -> l.matches(SCORE_RESULT_PATTERN.formatted(escapeFilenameAsRegexPattern(filename))))
+            .filter(l -> l.matches(SCORE_RESULT_PATTERN.formatted(regexEscapedFilename)))
             .findFirst()
             .map(scoreLine -> {
-                var score = scoreLine.replace(filename, "").trim();
+                var score = scoreLine.replaceFirst(SCORE_RESULT_SUFFIX_PATTERN.formatted(regexEscapedFilename), "").trim();
                 Log.infof("Quality score for %s: %s", filename, score);
                 return Result.success(new QualityScore(score));
             }).orElseGet(() -> Result.failure(
