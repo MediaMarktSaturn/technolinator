@@ -31,7 +31,7 @@
         <mockserver.version>5.13.2</mockserver.version>
 
         <skipITs>true</skipITs>
-        <surefire-plugin.version>3.3.0</surefire-plugin.version>
+        <surefire-plugin.version>3.3.1</surefire-plugin.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <clean-plugin.version>3.4.0</clean-plugin.version>
         <dependency-plugin.version>3.7.1</dependency-plugin.version>
