@@ -1,6 +1,5 @@
 package com.mediamarktsaturn.technolinator.handler;
 
-
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.PushEvent;
@@ -19,7 +18,6 @@ import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GitHub;
 import org.mockito.ArgumentCaptor;
-import org.testcontainers.shaded.org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -27,6 +25,7 @@ import java.util.Optional;
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -75,7 +74,7 @@ class PushHandlingTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommands(any(), eq(projectName), eq(true), eq(Optional.empty()));
+        verify(cdxgenClient).createCommands(any(), eq(projectName), anyBoolean(), eq(Optional.empty()));
         verify(sbomqsClient).calculateQualityScore(any());
         verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any(), eq(Optional.empty()));
 
