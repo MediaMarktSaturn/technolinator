@@ -1,10 +1,10 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
-import com.mediamarktsaturn.technolinator.DependencyTrackMockServer;
-import com.mediamarktsaturn.technolinator.MockServerResource;
+import com.github.tomakehurst.wiremock.client.WireMock;
+import com.github.tomakehurst.wiremock.http.Fault;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
-import io.quarkus.test.common.QuarkusTestResource;
+import io.quarkiverse.wiremock.devservice.ConnectWireMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
@@ -15,37 +15,31 @@ import org.cyclonedx.model.Metadata;
 import org.cyclonedx.parsers.JsonParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockserver.client.MockServerClient;
-import org.mockserver.model.HttpRequest;
-import org.mockserver.model.MediaType;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
-import static com.mediamarktsaturn.technolinator.MockServerResource.API_KEY;
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockserver.model.HttpError.error;
-import static org.mockserver.model.HttpRequest.request;
-import static org.mockserver.model.HttpResponse.response;
 
 @QuarkusTest
-@QuarkusTestResource(value = MockServerResource.class, restrictToAnnotatedClass = true)
+@ConnectWireMock
 class DependencyTrackClientTest {
-
-    @DependencyTrackMockServer
-    MockServerClient dtrackMock;
 
     @Inject
     DependencyTrackClient cut;
 
+    // Injected because of @ConnectWireMock
+    WireMock wiremock;
+
+    private static final String API_KEY = "test-dtrack-api-key";
+
     @BeforeEach
-    void setup() {
-        dtrackMock.reset();
+    void reset() {
+        wiremock.resetRequests();
     }
 
     @Test
@@ -54,82 +48,80 @@ class DependencyTrackClientTest {
         var name = "test-project";
         var version = "1.2.3";
 
-        var putBom = request()
-            .withPath("/api/v1/bom")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PUT");
-        dtrackMock.when(putBom).respond(
-            response()
-                .withStatusCode(200)
-                .withContentType(MediaType.APPLICATION_JSON)
-                .withBody("""
-                    {"token":"test-upload"}
-                    """)
+        wiremock.register(
+            put(urlEqualTo("/api/v1/bom"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                            {"token":"test-upload"}
+                            """))
         );
 
-        var getProjects = request()
-            .withPath("/api/v1/project")
-            .withQueryStringParameter("name", "test-project")
-            .withQueryStringParameter("excludeInactive", "true")
-            .withHeader("Accept", "application/json")
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("GET");
-        dtrackMock.when(getProjects).respond(
-            response()
-                .withStatusCode(200)
-                .withContentType(MediaType.APPLICATION_JSON)
-                .withBody("""
-                    [
-                         {
-                             "name": "test-project",
-                             "version": "1.2.1",
-                             "uuid": "uuid-1"
-                         },
-                         {
-                             "name": "test-project",
-                             "version": "1.2.2",
-                             "uuid": "uuid-2"
-                         },
-                         {
-                             "name": "test-project",
-                             "version": "1.2.3",
-                             "uuid": "uuid-3"
-                         }
-                    ]
-                     """)
+        wiremock.register(
+            get(urlMatching("/api/v1/project\\?.*"))
+                .withHeader("Accept", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("name", equalTo("test-project"))
+                .withQueryParam("excludeInactive", equalTo("true"))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                            [
+                                 {
+                                     "name": "test-project",
+                                     "version": "1.2.1",
+                                     "uuid": "uuid-1"
+                                 },
+                                 {
+                                     "name": "test-project",
+                                     "version": "1.2.2",
+                                     "uuid": "uuid-2"
+                                 },
+                                 {
+                                     "name": "test-project",
+                                     "version": "1.2.3",
+                                     "uuid": "uuid-3"
+                                 }
+                            ]
+                            """)
+                )
         );
 
-        var patchProject = request()
-            .withPath("/api/v1/project/.+")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PATCH");
-        dtrackMock.when(patchProject).respond(
-            response()
-                .withStatusCode(200)
-                .withContentType(MediaType.APPLICATION_JSON)
-                .withBody("{}")
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/.+"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{}")
+                )
         );
 
-        var lookupProject = request()
-            .withPath("/api/v1/project/lookup")
-            .withQueryStringParameter("name", name)
-            .withQueryStringParameter("version", version)
-            .withHeader("Accept", "application/json")
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("GET");
-        dtrackMock.when(lookupProject).respond(
-            response()
-                .withStatusCode(200)
-                .withContentType(MediaType.APPLICATION_JSON)
-                .withBody("""
-                    {
-                        "name": "test-project",
-                        "version": "1.2.3",
-                        "uuid": "uuid-3"
-                    }
-                    """)
+        wiremock.register(
+            get(urlMatching("/api/v1/project/lookup\\?.*"))
+                .withHeader("Accept", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("name", equalTo(name))
+                .withQueryParam("version", equalTo(version))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                            {
+                              "name": "test-project",
+                              "version": "1.2.3",
+                              "uuid": "uuid-3"
+                            }
+                            """)
+                )
         );
 
         var sbom = new Bom();
@@ -155,22 +147,21 @@ class DependencyTrackClientTest {
             assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, s -> assertThat(s.url()).endsWith("/projects/uuid-3"));
         });
 
-        var patchedProjects = dtrackMock.retrieveRecordedRequests(patchProject);
-        Arrays.sort(patchedProjects, Comparator.comparing(HttpRequest::getPath).reversed());
+        var patchedProjects = wiremock.find(patchRequestedFor(urlMatching(".*")));
 
         assertThat(patchedProjects).hasSize(3);
-        assertThat(patchedProjects[0]).satisfies(disabled -> {
-            assertThat(disabled.getPath()).hasToString("/api/v1/project/uuid-1");
+        assertThat(patchedProjects.get(0)).satisfies(disabled -> {
+            assertThat(disabled.getUrl()).hasToString("/api/v1/project/uuid-1");
             var json = new JsonObject(disabled.getBodyAsString());
             assertThat(json.getBoolean("active")).isFalse();
         });
-        assertThat(patchedProjects[1]).satisfies(disabled -> {
-            assertThat(disabled.getPath()).hasToString("/api/v1/project/uuid-2");
+        assertThat(patchedProjects.get(1)).satisfies(disabled -> {
+            assertThat(disabled.getUrl()).hasToString("/api/v1/project/uuid-2");
             var json = new JsonObject(disabled.getBodyAsString());
             assertThat(json.getBoolean("active")).isFalse();
         });
-        assertThat(patchedProjects[2]).satisfies(described -> {
-            assertThat(described.getPath()).hasToString("/api/v1/project/uuid-3");
+        assertThat(patchedProjects.get(2)).satisfies(described -> {
+            assertThat(described.getUrl()).hasToString("/api/v1/project/uuid-3");
             var json = new JsonObject(described.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("description")).hasToString("#1234567# " + description);
@@ -195,7 +186,10 @@ class DependencyTrackClientTest {
             );
         });
 
-        var uploadedValue = dtrackMock.retrieveRecordedRequests(putBom)[0].getBodyAsString();
+        var putBoms = wiremock.find(putRequestedFor(urlMatching(".*")));
+        assertThat(putBoms).hasSize(1);
+
+        var uploadedValue = putBoms.get(0).getBodyAsString();
         var uploadedJson = new JsonObject(uploadedValue);
         var uploadedName = uploadedJson.getString("projectName");
         var uploadedVersion = uploadedJson.getString("projectVersion");
@@ -215,13 +209,13 @@ class DependencyTrackClientTest {
     @Test
     void testFailingUpload() {
         // Given
-        var putBom = request()
-            .withPath("/api/v1/bom")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PUT");
-        dtrackMock.when(putBom).error(
-            error().withDropConnection(true)
+        wiremock.register(
+            put(urlEqualTo("/api/v1/bom"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)
+                )
         );
         var sbom = new Bom();
 
@@ -230,29 +224,35 @@ class DependencyTrackClientTest {
 
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);
-        assertThat(dtrackMock.retrieveRecordedRequests(putBom)).hasSize(4);
+
+        var putRequests = wiremock.find(putRequestedFor(urlMatching(".*")));
+        // client retries 3 times
+        assertThat(putRequests).hasSize(4);
     }
 
     @Test
     void testParentProjectCreation() {
         // Given
-        var putProject = request()
-            .withPath("/api/v1/project")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PUT");
-        dtrackMock.when(putProject).respond(response()
-            .withStatusCode(201)
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withBody("""
-                {
-                  "name": "my-test-parent-project",
-                  "description": "my sample parent project",
-                  "version": "test",
-                  "uuid": "3a50f759-c69f-48d1-a412-9f01e189e4b2",
-                  "active": true
-                }
-                """));
+        wiremock.register(
+            put(urlEqualTo("/api/v1/project"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse()
+                        .withStatus(201)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                            {
+                              "name": "my-test-parent-project",
+                              "description": "my sample parent project",
+                              "version": "test",
+                              "uuid": "3a50f759-c69f-48d1-a412-9f01e189e4b2",
+                              "active": true
+                            }
+                            """)
+                )
+        );
+
         var repoDetails = new RepositoryDetails("my-test-parent-project", "test", "my sample parent project", "link://to.nowhere", "nope", List.of());
         var commitSha = "4321";
 
@@ -266,10 +266,11 @@ class DependencyTrackClientTest {
             });
         });
 
-        var puttedProject = dtrackMock.retrieveRecordedRequests(putProject);
-        assertThat(puttedProject).hasSize(1);
-        assertThat(puttedProject[0]).satisfies(put -> {
-            assertThat(put.getPath()).hasToString("/api/v1/project");
+        var puttedProjects = wiremock.find(putRequestedFor(urlMatching(".*")));
+
+        assertThat(puttedProjects).hasSize(1);
+        assertThat(puttedProjects.get(0)).satisfies(put -> {
+            assertThat(put.getUrl()).hasToString("/api/v1/project");
             var json = new JsonObject(put.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("name")).hasToString("my-test-parent-project");
@@ -281,44 +282,50 @@ class DependencyTrackClientTest {
     @Test
     void testParentProjectUpdate() {
         // Given
-        var putProject = request()
-            .withPath("/api/v1/project")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PUT");
-        dtrackMock.when(putProject).respond(response()
-            .withStatusCode(409)
-            .withContentType(MediaType.APPLICATION_JSON)
-            // yes, that's what dtrack actually returns, even with content-type json
-            .withBody("A project with the specified name already exists."));
+        wiremock.register(
+            put(urlEqualTo("/api/v1/project"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse()
+                        .withStatus(409)
+                        .withHeader("Content-Type", "application/json")
+                        // yes, that's what dtrack actually returns, even with content-type json
+                        .withBody("A project with the specified name already exists.")
+                )
+        );
 
-        var lookupProject = request()
-            .withPath("/api/v1/project/lookup")
-            .withQueryStringParameter("name", "my-updated-parent-project")
-            .withQueryStringParameter("version", "test")
-            .withHeader("Accept", MediaType.APPLICATION_JSON.toString())
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("GET");
-        dtrackMock.when(lookupProject).respond(response()
-            .withStatusCode(200)
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withBody("""
-                {
-                  "name": "my-updated-parent-project",
-                  "version": "test",
-                  "uuid": "9a50f759-c69f-48d1-a412-9f01e189e4b2"
-                }
-                """));
+        wiremock.register(
+            get(urlMatching("/api/v1/project/lookup\\?.*"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("name", equalTo("my-updated-parent-project"))
+                .withQueryParam("version", equalTo("test"))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                            {
+                              "name": "my-updated-parent-project",
+                              "version": "test",
+                              "uuid": "9a50f759-c69f-48d1-a412-9f01e189e4b2"
+                            }
+                            """)
+                )
+        );
 
-        var patchProject = request()
-            .withPath("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PATCH");
-        dtrackMock.when(patchProject).respond(response()
-            .withStatusCode(200)
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withBody("{}"));
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{}")
+                )
+        );
+
         var repoDetails = new RepositoryDetails("my-updated-parent-project", "test",
             /*description longer than 255 chars*/ "that's a really long description because we need to test whether our dependency-track client correctly trims really long (but of cause always valuable) description information for a project to a maximum of 255 characters what's the longest value allowed to be submitted to dependency-track, indeed",
             "link://to.nowhere", "nope", List.of());
@@ -333,10 +340,10 @@ class DependencyTrackClientTest {
             });
         });
 
-        var puttedProject = dtrackMock.retrieveRecordedRequests(putProject);
-        assertThat(puttedProject).hasSize(1);
-        assertThat(puttedProject[0]).satisfies(put -> {
-            assertThat(put.getPath()).hasToString("/api/v1/project");
+        var puttedProjects = wiremock.find(putRequestedFor(urlMatching(".*")));
+        assertThat(puttedProjects).hasSize(1);
+        assertThat(puttedProjects.get(0)).satisfies(put -> {
+            assertThat(put.getUrl()).hasToString("/api/v1/project");
             var json = new JsonObject(put.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("name")).hasToString("my-updated-parent-project");
@@ -344,16 +351,16 @@ class DependencyTrackClientTest {
             assertThat(json.getString("description")).hasSizeLessThan(255).startsWith("#myhash# that's a really long desc").endsWith("...");
         });
 
-        var lookedupProject = dtrackMock.retrieveRecordedRequests(lookupProject);
-        assertThat(lookedupProject).hasSize(1);
-        assertThat(lookedupProject[0]).satisfies(put -> {
-            assertThat(put.getPath()).hasToString("/api/v1/project/lookup");
+        var lookedupProjects = wiremock.find(getRequestedFor(urlMatching(".*")));
+        assertThat(lookedupProjects).hasSize(1);
+        assertThat(lookedupProjects.get(0)).satisfies(put -> {
+            assertThat(put.getUrl()).matches("/api/v1/project/lookup\\?.+");
         });
 
-        var patchedProject = dtrackMock.retrieveRecordedRequests(patchProject);
-        assertThat(patchedProject).hasSize(1);
-        assertThat(patchedProject[0]).satisfies(patch -> {
-            assertThat(patch.getPath()).hasToString("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2");
+        var patchedProjects = wiremock.find(patchRequestedFor(urlMatching(".*")));
+        assertThat(patchedProjects).hasSize(1);
+        assertThat(patchedProjects.get(0)).satisfies(patch -> {
+            assertThat(patch.getUrl()).hasToString("/api/v1/project/9a50f759-c69f-48d1-a412-9f01e189e4b2");
             var json = new JsonObject(patch.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("description")).hasSizeLessThan(255).startsWith("#myhash# that's a really long desc").endsWith("...");
@@ -363,34 +370,39 @@ class DependencyTrackClientTest {
     @Test
     void testAppendVersionInformation() {
         // Given
-        var lookupProject = request()
-            .withPath("/api/v1/project/lookup")
-            .withQueryStringParameter("name", "to-be-versioned")
-            .withQueryStringParameter("version", "test")
-            .withHeader("Accept", MediaType.APPLICATION_JSON.toString())
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("GET");
-        dtrackMock.when(lookupProject).respond(response()
-            .withStatusCode(200)
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withBody("""
-                {
-                  "name": "to-be-versioned",
-                  "version": "test",
-                  "uuid": "ea50f759-c69f-48d1-a412-9f01e189e4b2",
-                  "description": "#7654321# This doesn't has a version yet"
-                }
-                """));
+        wiremock.register(
+            get(urlMatching("/api/v1/project/lookup\\?.*"))
+                .withHeader("Accept", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("name", equalTo("to-be-versioned"))
+                .withQueryParam("version", equalTo("test"))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("""
+                            {
+                              "name": "to-be-versioned",
+                              "version": "test",
+                              "uuid": "ea50f759-c69f-48d1-a412-9f01e189e4b2",
+                              "description": "#7654321# This doesn't has a version yet"
+                            }
+                            """)
+                )
+        );
 
-        var patchProject = request()
-            .withPath("/api/v1/project/ea50f759-c69f-48d1-a412-9f01e189e4b2")
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withHeader("X-API-Key", API_KEY)
-            .withMethod("PATCH");
-        dtrackMock.when(patchProject).respond(response()
-            .withStatusCode(200)
-            .withContentType(MediaType.APPLICATION_JSON)
-            .withBody("{}"));
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/ea50f759-c69f-48d1-a412-9f01e189e4b2"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody("{}")
+                )
+        );
+
         var repoDetails = new RepositoryDetails("to-be-versioned", "test", "Version me, plenty", "link://to.nowhere", "nope", List.of());
 
         // When
@@ -403,16 +415,16 @@ class DependencyTrackClientTest {
             });
         });
 
-        var lookedupProject = dtrackMock.retrieveRecordedRequests(lookupProject);
-        assertThat(lookedupProject).hasSize(1);
-        assertThat(lookedupProject[0]).satisfies(put -> {
-            assertThat(put.getPath()).hasToString("/api/v1/project/lookup");
+        var lookedupProjects = wiremock.find(getRequestedFor(urlMatching(".*")));
+        assertThat(lookedupProjects).hasSize(1);
+        assertThat(lookedupProjects.get(0)).satisfies(put -> {
+            assertThat(put.getUrl()).matches("/api/v1/project/lookup\\?.*");
         });
 
-        var patchedProject = dtrackMock.retrieveRecordedRequests(patchProject);
-        assertThat(patchedProject).hasSize(1);
-        assertThat(patchedProject[0]).satisfies(patch -> {
-            assertThat(patch.getPath()).hasToString("/api/v1/project/ea50f759-c69f-48d1-a412-9f01e189e4b2");
+        var patchedProjects = wiremock.find(patchRequestedFor(urlMatching(".*")));
+        assertThat(patchedProjects).hasSize(1);
+        assertThat(patchedProjects.get(0)).satisfies(patch -> {
+            assertThat(patch.getUrl()).hasToString("/api/v1/project/ea50f759-c69f-48d1-a412-9f01e189e4b2");
             var json = new JsonObject(patch.getBodyAsString());
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("description")).hasToString("#7654321# v23.5 | Version me, plenty");

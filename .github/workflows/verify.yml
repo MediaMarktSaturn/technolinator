@@ -67,5 +67,4 @@ jobs:
           QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
           QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DTRACK_APIKEY: theres-nothing-to-see-here
         run: mvn ${{ env.mvn_parameter }} clean verify
