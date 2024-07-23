@@ -124,7 +124,8 @@ public class CdxgenClient {
             "GITHUB_TOKEN", config.getValue("github.token", String.class).trim(),
             "USE_GOSUM", config.getValue("cdxgen.use_gosum", Boolean.class).toString(),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
-            "CDX_MAVEN_INCLUDE_TEST_SCOPE", Boolean.valueOf(!requiredScopeOnlyDefault).toString(),
+            "PREFER_MAVEN_DEPS_TREE", config.getValue("cdxgen.prefer_mvn_deps_tree", Boolean.TYPE).toString(),
+            "CDX_MAVEN_INCLUDE_TEST_SCOPE", String.valueOf(!requiredScopeOnlyDefault),
             "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
         );
 
@@ -204,7 +205,7 @@ public class CdxgenClient {
             failOnError ? FAIL_ON_ERROR_FLAG : "",
             requiredOnly ? REQUIRED_ONLY_FLAG : "",
             evidence ? EVIDENCE_FLAG : "",
-            formulation ? FORMULATION_FLAG: "",
+            formulation ? FORMULATION_FLAG : "",
             projectName
         );
     }
