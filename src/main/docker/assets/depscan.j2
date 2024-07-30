@@ -1,11 +1,20 @@
 {% if vulnerabilities %}
+{%- for vuln in vulnerabilities -%}
+{%- set ns = namespace(sort_score=0) -%}
+{%- for rating in vuln.ratings -%}
+{%- if 'CVSSv3' in rating.method -%}
+{%- set ns.sort_score = rating.score -%}
+{%- endif -%}
+{%- endfor -%}
+{%- set x=vuln.__setitem__("sort_score", ns.sort_score) -%}
+{%- endfor -%}
 ⚠ **Vulnerability Report**
 
 _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPENDENCY_TRACK_URL) for reliable results._
 
 | Artifact | Vulnerability | Severity (CVSS v3) | Recommendation |
 |----------|---------------|--------------------|----------------|
-{% for vuln in vulnerabilities %}
+{% for vuln in vulnerabilities | sort(attribute='sort_score',reverse=True) %}
 {%- set ns = namespace(score='', severity='unspecified') -%}
 
 {%- set vuln_desc = vuln.description | replace('|', '&vert;') | replace('\n', '<br />') | replace('\r', '') | replace('"', "'") -%}
