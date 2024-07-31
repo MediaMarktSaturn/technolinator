@@ -149,6 +149,12 @@ commandTests:
       expectedOutput:
           - '.*openjdk 21.*'
 
+    - name: "Go 1.22 available"
+      command: "go"
+      args: ["version"]
+      expectedOutput:
+          - 'go version go1.22.*'
+
     - name: "Running as non-root"
       command: 'whoami'
       expectedOutput:
@@ -180,11 +186,11 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/21.0.3-tem'
+          value: '/app/sdks/java/21.0.4-tem'
         - key: JAVA17_HOME
-          value: '/app/sdks/java/17.0.11-tem'
+          value: '/app/sdks/java/17.0.12-tem'
         - key: JAVA21_HOME
-          value: '/app/sdks/java/21.0.3-tem'
+          value: '/app/sdks/java/21.0.4-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
