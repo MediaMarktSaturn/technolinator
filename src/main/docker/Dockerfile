@@ -11,9 +11,10 @@ ARG NYDUS_VERSION
 ARG DEPSCAN_VERSION
 
 # sdkman provided jdks
-ARG JAVA_17_VERSION='17.0.11-tem'
-ARG JAVA_21_VERSION='21.0.3-tem'
+ARG JAVA_17_VERSION='17.0.12-tem'
+ARG JAVA_21_VERSION='21.0.4-tem'
 ARG NODE_VERSION='21'
+ARG GO_VERSION='1.22.5'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
@@ -46,7 +47,7 @@ RUN \
     microdnf update --nodocs -y && \
     microdnf reinstall --nodocs -y tzdata && \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git golang python3 pip php php-cli php-zip php-json && \
+    microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git python3 pip php php-cli php-zip php-json && \
     curl -s https://raw.githubusercontent.com/composer/getcomposer.org/main/web/installer | php -- --filename=composer --install-dir=/usr/bin --quiet && \
     microdnf clean all -y
 
@@ -59,6 +60,15 @@ RUN \
     nvm install 21 && \
     mv /root/.nvm/versions/node/* $NODE_HOME && \
     rm -rf /root/.nvm
+
+ENV GO_HOME="$APP_DIR/go"
+
+# install golang
+RUN \
+    cd $APP_DIR && \
+    curl -Ls https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz -o go.tar.gz && \
+    tar xf go.tar.gz && rm -rf go.tar.gz && \
+    rm -rf $GO_HOME/src $GO_HOME/test
 
 # locale options
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
@@ -128,7 +138,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \
     ALLOWED_ENV_SUBSTITUTIONS=""
 
-ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin"
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin:$GO_HOME/bin"
 
 ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"
