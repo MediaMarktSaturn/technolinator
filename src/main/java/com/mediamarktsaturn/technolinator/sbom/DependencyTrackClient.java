@@ -11,6 +11,7 @@ import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.cyclonedx.Version;
+import org.cyclonedx.exception.GeneratorException;
 import org.cyclonedx.generators.json.BomJsonGenerator;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.ExternalReference;
@@ -50,39 +51,48 @@ public class DependencyTrackClient {
      */
     public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject, Optional<String> commitSha) {
         var projectVersion = repoDetails.version();
-        var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString().getBytes(StandardCharsets.UTF_8));
-        var payload = new JsonObject(Map.of(
-            "projectName", projectName,
-            "projectVersion", projectVersion,
-            "autoCreate", true,
-            "bom", sbomBase64
-        ));
 
-        return client.putAbs(dtrackApiUrl + "/bom")
-            .putHeader(API_KEY, dtrackApikey)
-            .sendJsonObject(payload)
-            .map(Unchecked.function(result -> {
-                if (result.statusCode() == 200) {
-                    return result;
-                } else {
-                    throw new Exception("Status " + result.statusCode());
-                }
-            }))
-            .onFailure().retry().atMost(3)
-            .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s", projectName, projectVersion))
-            .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
-            .call(() -> deactivatePreviousVersion(projectName, projectVersion))
-            .chain(i -> lookupProject(projectName, projectVersion))
-            .call(r -> {
-                if (r instanceof Result.Success<Project>(Project project) && project instanceof Project.Available p) {
-                    Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
-                    return updateProjectMetaData(p.projectId(), repoDetails, parentProject, commitSha, Optional.empty());
-                } else {
-                    Log.infof("Cannot describe and tag project %s: %s", projectName, r);
-                    return Uni.createFrom().voidItem();
+        return Uni.createFrom().item(() -> {
+                try {
+                    var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString().getBytes(StandardCharsets.UTF_8));
+                    return new JsonObject(Map.of(
+                        "projectName", projectName,
+                        "projectVersion", projectVersion,
+                        "autoCreate", true,
+                        "bom", sbomBase64
+                    ));
+                } catch (GeneratorException e) {
+                    throw new RuntimeException(e);
                 }
             })
-            .onFailure().recoverWithItem(Result.Failure::new);
+            .chain(payload ->
+                client.putAbs(dtrackApiUrl + "/bom")
+                    .putHeader(API_KEY, dtrackApikey)
+                    .sendJsonObject(payload)
+                    .map(Unchecked.function(result -> {
+                        if (result.statusCode() == 200) {
+                            return result;
+                        } else {
+                            throw new Exception("Status " + result.statusCode());
+                        }
+                    }))
+                    .onFailure().retry().atMost(3)
+                    .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s", projectName, projectVersion))
+                    .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
+                    .call(() -> deactivatePreviousVersion(projectName, projectVersion))
+                    .chain(i -> lookupProject(projectName, projectVersion))
+                    .call(r -> {
+                        if (r instanceof Result.Success<Project>(
+                            Project project
+                        ) && project instanceof Project.Available p) {
+                            Log.infof("Describe and tag project %s for %s", p.projectId(), projectName);
+                            return updateProjectMetaData(p.projectId(), repoDetails, parentProject, commitSha, Optional.empty());
+                        } else {
+                            Log.infof("Cannot describe and tag project %s: %s", projectName, r);
+                            return Uni.createFrom().voidItem();
+                        }
+                    }))
+            .onFailure().recoverWithItem(Result::failure);
     }
 
     public Uni<Result<Project>> createOrUpdateParentProject(RepositoryDetails repoDetails, Optional<String> commitSha) {
