@@ -70,6 +70,7 @@ public class CdxgenClient {
     private static final String CDXGEN_MAVEN_ARGS = "MVN_ARGS";
     private static final String CDXGEN_FETCH_LICENSE = "FETCH_LICENSE";
     private static final String JAVA_HOME = System.getenv("JAVA_HOME");
+    private static final String CDXGEN_DEBUG = "CDXGEN_DEBUG_MODE";
 
     /**
      * Default arguments for a maven call, suppressing download progress output
@@ -102,7 +103,7 @@ public class CdxgenClient {
      * Configurable, supported jdk versions.
      */
     private final Map<String, String> jdkHomes;
-    private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError;
+    private final boolean cleanWrapperScripts, excludeGithubFolder, recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError, cdxgenDebug;
 
     public CdxgenClient() {
         var config = ConfigProvider.getConfig();
@@ -113,6 +114,7 @@ public class CdxgenClient {
         this.evidenceDefault = config.getValue("cdxgen.evidence", Boolean.TYPE);
         this.formulationDefault = config.getValue("cdxgen.formulation", Boolean.TYPE);
         this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
+        this.cdxgenDebug = config.getValue("cdxgen.debug", Boolean.TYPE);
 
         this.allowedEnvSubstitutions = config.getOptionalValue("app.allowed_env_substitutions", String.class)
             .filter(str -> !str.isBlank())
@@ -126,6 +128,7 @@ public class CdxgenClient {
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
             "PREFER_MAVEN_DEPS_TREE", config.getValue("cdxgen.prefer_mvn_deps_tree", Boolean.TYPE).toString(),
             "CDX_MAVEN_INCLUDE_TEST_SCOPE", String.valueOf(!requiredScopeOnlyDefault),
+            "GRADLE_MULTI_THREADED", "true",
             "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
         );
 
@@ -288,6 +291,10 @@ public class CdxgenClient {
     Map<String, String> buildEnv(List<TechnolinatorConfig> configPath, boolean fetchLicenses) {
         var context = new HashMap<>(cdxgenEnv);
         context.put(CDXGEN_FETCH_LICENSE, Boolean.toString(fetchLicenses));
+
+        if (cdxgenDebug) {
+            context.put(CDXGEN_DEBUG, "debug");
+        }
 
         String gradleEnv = sliceConfig(configPath, TechnolinatorConfig::gradle, TechnolinatorConfig.GradleConfig::args)
             .stream().reduce(new ArrayList<>(), CdxgenClient::reduceList).stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));

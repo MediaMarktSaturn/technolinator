@@ -38,6 +38,7 @@ Technolinator is configured via the following parameter which can either be prov
 | GRYPE_CONFIG                            |                                               | Path to a [grype configuration](https://github.com/anchore/grype#configuration) file used in PR analysis           |
 | APP_USE_PENDING_COMMIT_STATUS           | false                                         | Wehther a PENDING commit status should be announced when analysing the default branch                              |
 | APP_COMMIT_STATUS_WRITE_ENABLED         | true                                          | Whether commit status in the repository should be updated (the app requires commit writes permission in this case) |
+| CDXGEN_DEBUG                            | false                                         | Set to `true` for debug output of cdxgen command                                                                   |
 
 ## Observability
 

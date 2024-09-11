@@ -13,6 +13,7 @@ ARG DEPSCAN_VERSION
 # sdkman provided jdks
 ARG JAVA_17_VERSION='17.0.12-tem'
 ARG JAVA_21_VERSION='21.0.4-tem'
+ARG GRADLE_VERSION='8.10.1'
 ARG NODE_VERSION='21'
 ARG GO_VERSION='1.22.5'
 
@@ -115,7 +116,7 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     sdk install java $JAVA_17_VERSION && \
     sdk install java $JAVA_21_VERSION && \
     sdk install maven && \
-    sdk install gradle 7.6 && \
+    sdk install gradle $GRADLE_VERSION && \
     sdk install sbt && \
     mv /root/.sdkman/candidates $SDK_DIR && \
     chown root:root -R $SDK_DIR && \
