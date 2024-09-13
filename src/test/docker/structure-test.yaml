@@ -106,7 +106,7 @@ commandTests:
       command: 'gradle'
       args: ["--version"]
       expectedOutput:
-          - '.*Gradle 7.*'
+          - '.*Gradle 8.*'
     - name: "Git ask pass runs"
       command: '/app/git_askpass.sh'
       expectedOutput:
