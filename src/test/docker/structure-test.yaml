@@ -149,11 +149,17 @@ commandTests:
       expectedOutput:
           - '.*openjdk 21.*'
 
-    - name: "Go 1.22 available"
+    - name: "Java 23 available"
+      command: '$JAVA23_HOME/bin/java'
+      args: ["--version"]
+      expectedOutput:
+          - '.*openjdk 23.*'
+
+    - name: "Go 1.23 available"
       command: "go"
       args: ["version"]
       expectedOutput:
-          - 'go version go1.22.*'
+          - 'go version go1.23.*'
 
     - name: "Running as non-root"
       command: 'whoami'
@@ -191,6 +197,8 @@ metadataTest:
           value: '/app/sdks/java/17.0.12-tem'
         - key: JAVA21_HOME
           value: '/app/sdks/java/21.0.4-tem'
+        - key: JAVA23_HOME
+          value: '/app/sdks/java/23-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
