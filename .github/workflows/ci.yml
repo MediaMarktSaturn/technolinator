@@ -14,7 +14,7 @@ env:
   SBOMQS_VERSION: 'v0.2.0'
   DEPSCAN_VERSION: 'v5.4.7'
   NYDUS_VERSION: '2.3.0'
-  SWIFT_VERSION: '5.10.1'
+  SWIFT_VERSION: '6.0.1'
   semantic_version: '19.0.5'
   java_version: '21'
   node_version: '21'
