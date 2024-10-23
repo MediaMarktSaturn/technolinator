@@ -17,6 +17,7 @@ ARG JAVA_23_VERSION='23-tem'
 ARG GRADLE_VERSION='8.10.1'
 ARG NODE_VERSION='21'
 ARG GO_VERSION='1.23.1'
+ARG MAVEN_VERSION='3.9.9'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
@@ -117,7 +118,7 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     sdk install java $JAVA_17_VERSION && \
     sdk install java $JAVA_23_VERSION && \
     sdk install java $JAVA_21_VERSION && \
-    sdk install maven && \
+    sdk install maven $MAVEN_VERSION && \
     sdk install gradle $GRADLE_VERSION && \
     sdk install sbt && \
     mv /root/.sdkman/candidates $SDK_DIR && \
