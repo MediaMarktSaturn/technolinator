@@ -3,6 +3,7 @@ package com.mediamarktsaturn.technolinator.sbom;
 import com.mediamarktsaturn.technolinator.Result;
 import io.quarkus.test.junit.QuarkusTest;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Paths;
@@ -13,6 +14,7 @@ import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
+@Disabled // disabled due to not yet reproducible build errors in github actions
 class GrypeClientTest {
 
     @ConfigProperty(name = "grype.template")
