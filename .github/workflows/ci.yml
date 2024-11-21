@@ -125,6 +125,14 @@ jobs:
           VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
           echo VERSION="$VERSION" >> $GITHUB_ENV
 
+      - name: Publish Test Report
+        if: ${{ failure() }}
+        uses: scacap/action-surefire-report@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail_if_no_tests: false
+          create_check: false
+
       - name: Static code analysis
         if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
         env:
