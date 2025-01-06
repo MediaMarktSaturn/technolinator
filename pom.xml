@@ -23,7 +23,7 @@
         <jruby.joni.version>2.2.1</jruby.joni.version>
 
         <!-- test -->
-        <assertj.version>3.27.1</assertj.version>
+        <assertj.version>3.27.2</assertj.version>
         <awaitility.version>4.2.2</awaitility.version>
         <quarkus-wiremock.version>1.4.1</quarkus-wiremock.version>
 
