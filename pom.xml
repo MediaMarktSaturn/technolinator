@@ -28,7 +28,7 @@
         <quarkus-wiremock.version>1.4.1</quarkus-wiremock.version>
 
         <!-- provided -->
-        <jetbrains-annotations.version>26.0.1</jetbrains-annotations.version>
+        <jetbrains-annotations.version>26.0.2</jetbrains-annotations.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
