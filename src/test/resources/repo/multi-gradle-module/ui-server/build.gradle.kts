@@ -6,7 +6,6 @@ plugins {
     id("com.jfrog.artifactory")
     id("com.github.johnrengelman.shadow")
     id("io.gitlab.arturbosch.detekt")
-    id("com.palantir.docker")
     id("org.openapi.generator")
     id("org.sonarqube") version "4.0.0.2929"
     id("com.google.protobuf")

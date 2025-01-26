@@ -109,6 +109,11 @@ jobs:
           cdxgen_version: ${{ env.CDXGEN_VERSION }}
           cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
 
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.12.1"
+
       - name: Application Build and Test
         env:
           sem_ver: ${{ steps.semantic.outputs.new_release_version }}
