@@ -14,21 +14,21 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.17.5</quarkus.platform.version>
+        <quarkus.platform.version>3.17.8</quarkus.platform.version>
 
         <quarkus-github-app.version>2.8.2</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>10.1.0</cyclonedx-core-java.version>
-        <jruby.jcodings.version>1.0.58</jruby.jcodings.version>
-        <jruby.joni.version>2.2.1</jruby.joni.version>
+        <jruby.jcodings.version>1.0.61</jruby.jcodings.version>
+        <jruby.joni.version>2.2.3</jruby.joni.version>
 
         <!-- test -->
-        <assertj.version>3.27.2</assertj.version>
+        <assertj.version>3.27.3</assertj.version>
         <awaitility.version>4.2.2</awaitility.version>
         <quarkus-wiremock.version>1.4.1</quarkus-wiremock.version>
 
         <!-- provided -->
-        <jetbrains-annotations.version>26.0.1</jetbrains-annotations.version>
+        <jetbrains-annotations.version>26.0.2</jetbrains-annotations.version>
 
         <skipITs>true</skipITs>
         <surefire-plugin.version>3.5.2</surefire-plugin.version>
