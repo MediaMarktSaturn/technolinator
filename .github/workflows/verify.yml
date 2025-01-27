@@ -11,8 +11,8 @@ on:
         description: Branch of cdxgen_repo to run tests with
 env:
   CDXGEN_PLUGINS_VERSION: '1.6.9'
-  GRYPE_VERSION: 'v0.86.1'
-  SBOMQS_VERSION: 'v0.2.3'
+  GRYPE_VERSION: 'v0.87.0'
+  SBOMQS_VERSION: 'v1.0.0'
   DEPSCAN_VERSION: 'v5.5.0'
   NYDUS_VERSION: '2.3.0'
   java_version: '21'
@@ -33,7 +33,7 @@ jobs:
           sudo swapoff -a
           sudo rm -f /swapfile
           sudo apt clean
-          docker rmi $(docker image ls -aq)
+          # docker rmi $(docker image ls -aq)
           df -h
 
       - name: Checkout Code
@@ -60,6 +60,11 @@ jobs:
           nydus_version: ${{ env.NYDUS_VERSION }}
           cdxgen_repo: ${{ env.cdxgen_repo }}
           cdxgen_branch: ${{ env.cdxgen_branch }}
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.12.1"
 
       - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
         env:
