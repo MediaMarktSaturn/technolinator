@@ -24,7 +24,7 @@
 
         <!-- test -->
         <assertj.version>3.27.3</assertj.version>
-        <awaitility.version>4.2.2</awaitility.version>
+        <awaitility.version>4.3.0</awaitility.version>
         <quarkus-wiremock.version>1.4.1</quarkus-wiremock.version>
 
         <!-- provided -->
