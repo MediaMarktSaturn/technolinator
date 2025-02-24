@@ -21,6 +21,8 @@ import org.kohsuke.github.GHRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Handles GitHub push notifications
@@ -152,7 +154,7 @@ public class OnPushDispatcher extends DispatcherBase {
                     }
                 }
                 case Result.Failure<Project> f -> {
-                    desc = "SBOM creation failed";
+                    desc = getDescriptionFromFailure(f);
                     state = GHCommitState.ERROR;
                     metricStatus = MetricStatusAnalysis.ERROR;
                     url = null;
@@ -183,6 +185,20 @@ public class OnPushDispatcher extends DispatcherBase {
 
     static boolean isBranchEligibleForAnalysis(GHEventPayload.Push pushPayload) {
         return pushPayload.getRef().equals("refs/heads/" + pushPayload.getRepository().getDefaultBranch());
+    }
+
+    static String getDescriptionFromFailure(Result.Failure<Project> failure) {
+        if (failure.toString().matches(".*Dependency Track Server Http Status \\d{3}.*")) {
+            Pattern pattern = Pattern.compile("Dependency Track Server Http Status \\d{3}");
+            Matcher matcher = pattern.matcher(failure.toString());
+            if (matcher.find()) {
+                return "SBOM creation failed: " + matcher.group();
+            } else {
+                return "SBOM creation failed";
+            }
+        } else {
+            return "SBOM creation failed";
+        }
     }
 
     record PushResult(

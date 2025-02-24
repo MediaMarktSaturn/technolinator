@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.technolinator.events;
 
+import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
@@ -14,7 +15,11 @@ import io.smallrye.mutiny.Uni;
 import org.hamcrest.CoreMatchers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.kohsuke.github.GHCommitState;
+import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEvent;
+import org.kohsuke.github.GHRepository;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Mockito;
 
@@ -129,6 +134,22 @@ class OnPushDispatcherTest {
         // When && Then
         assertThat(cur.isEnabledByConfig("technolinator")).isTrue();
         assertThat(cur.isEnabledByConfig("fluggegecheimen")).isFalse();
+    }
+
+    @Test
+    void testOnPush_errorDuringDtrackScan() {
+        OnPushDispatcher onPushDispatcher = Mockito.spy(OnPushDispatcher.class);
+        Mockito.doReturn(Uni.createFrom().item(GHCommitStatus::new)).when(onPushDispatcher).createGHCommitStatus(any(), any(), any(), any(), any(), any());
+        Result.Failure<Project> failure = new Result.Failure<>(new RuntimeException(new Exception("Dependency Track Server Http Status 503")));
+        Command.Metadata metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("commit-sha-1"));
+
+        onPushDispatcher.reportAnalysisResult(failure, new GHRepository(), Optional.of("sha-1"), metadata);
+
+        ArgumentCaptor<String> descriptionArgumentMatcher = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<GHCommitState> statusArgumentMatcher = ArgumentCaptor.forClass(GHCommitState.class);
+        Mockito.verify(onPushDispatcher).createGHCommitStatus(any(), any(), statusArgumentMatcher.capture(), any(), descriptionArgumentMatcher.capture(), any());
+        assertThat(descriptionArgumentMatcher.getValue()).isEqualTo("SBOM creation failed: Dependency Track Server Http Status 503");
+        assertThat(statusArgumentMatcher.getValue()).isEqualTo(GHCommitState.ERROR);
     }
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {
