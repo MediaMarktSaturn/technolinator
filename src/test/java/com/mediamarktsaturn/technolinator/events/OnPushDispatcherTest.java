@@ -5,6 +5,7 @@ import com.mediamarktsaturn.technolinator.ConfigBuilder;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
+import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
@@ -140,7 +141,7 @@ class OnPushDispatcherTest {
     void testOnPush_errorDuringDtrackScan() {
         OnPushDispatcher onPushDispatcher = Mockito.spy(OnPushDispatcher.class);
         Mockito.doReturn(Uni.createFrom().item(GHCommitStatus::new)).when(onPushDispatcher).createGHCommitStatus(any(), any(), any(), any(), any(), any());
-        Result.Failure<Project> failure = new Result.Failure<>(new RuntimeException(new Exception("Dependency Track Server Http Status 503")));
+        Result.Failure<Project> failure = new Result.Failure<>(new DependencyTrackClientHttpException(503));
         Command.Metadata metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("commit-sha-1"));
 
         onPushDispatcher.reportAnalysisResult(failure, new GHRepository(), Optional.of("sha-1"), metadata);

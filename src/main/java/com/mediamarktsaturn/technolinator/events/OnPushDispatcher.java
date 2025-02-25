@@ -4,6 +4,7 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -21,8 +22,6 @@ import org.kohsuke.github.GHRepository;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Handles GitHub push notifications
@@ -188,14 +187,8 @@ public class OnPushDispatcher extends DispatcherBase {
     }
 
     static String getDescriptionFromFailure(Result.Failure<Project> failure) {
-        if (failure.toString().matches(".*Dependency Track Server Http Status \\d{3}.*")) {
-            Pattern pattern = Pattern.compile("Dependency Track Server Http Status \\d{3}");
-            Matcher matcher = pattern.matcher(failure.toString());
-            if (matcher.find()) {
-                return "SBOM creation failed: " + matcher.group();
-            } else {
-                return "SBOM creation failed";
-            }
+        if (failure.cause() instanceof DependencyTrackClientHttpException) {
+            return "SBOM creation failed: " + failure.cause().getMessage();
         } else {
             return "SBOM creation failed";
         }

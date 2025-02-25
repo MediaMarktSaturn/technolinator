@@ -249,7 +249,9 @@ class DependencyTrackClientTest {
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);
         Result.Failure<Project> failure = (Result.Failure<Project>) result;
-        assertThat(failure.toString()).contains("Dependency Track Server Http Status 503");
+        assertThat(failure.cause()).isInstanceOf(DependencyTrackClientHttpException.class);
+        DependencyTrackClientHttpException httpException = (DependencyTrackClientHttpException) failure.cause();
+        assertThat(httpException.getHttpStatus()).isEqualTo(503);
 
         var putRequests = wiremock.find(putRequestedFor(urlMatching(".*")));
         // client retries 3 times
