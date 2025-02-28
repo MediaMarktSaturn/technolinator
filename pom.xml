@@ -19,7 +19,7 @@
         <quarkus-github-app.version>2.8.4</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>10.1.0</cyclonedx-core-java.version>
-        <jruby.jcodings.version>1.0.61</jruby.jcodings.version>
+        <jruby.jcodings.version>1.0.62</jruby.jcodings.version>
         <jruby.joni.version>2.2.3</jruby.joni.version>
 
         <!-- test -->
