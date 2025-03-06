@@ -231,6 +231,34 @@ class DependencyTrackClientTest {
     }
 
     @Test
+    void test503StatusFromDTrackServer() {
+        // Given
+        wiremock.register(
+            put(urlEqualTo("/api/v1/bom"))
+                .withHeader("Content-Type", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(
+                    aResponse().withStatus(503)
+                )
+        );
+        var sbom = new Bom();
+
+        // When
+        var result = await(cut.uploadSBOM(new RepositoryDetails("", "", "", "", "", List.of()), sbom, "", Project.none(), Optional.empty()));
+
+        // Then
+        assertThat(result).isInstanceOf(Result.Failure.class);
+        Result.Failure<Project> failure = (Result.Failure<Project>) result;
+        assertThat(failure.cause()).isInstanceOf(DependencyTrackClientHttpException.class);
+        DependencyTrackClientHttpException httpException = (DependencyTrackClientHttpException) failure.cause();
+        assertThat(httpException.getHttpStatus()).isEqualTo(503);
+
+        var putRequests = wiremock.find(putRequestedFor(urlMatching(".*")));
+        // client retries 3 times
+        assertThat(putRequests).hasSize(4);
+    }
+
+    @Test
     void testParentProjectCreation() {
         // Given
         wiremock.register(
