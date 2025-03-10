@@ -4,6 +4,7 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
@@ -152,7 +153,7 @@ public class OnPushDispatcher extends DispatcherBase {
                     }
                 }
                 case Result.Failure<Project> f -> {
-                    desc = "SBOM creation failed";
+                    desc = getDescriptionFromFailure(f);
                     state = GHCommitState.ERROR;
                     metricStatus = MetricStatusAnalysis.ERROR;
                     url = null;
@@ -183,6 +184,14 @@ public class OnPushDispatcher extends DispatcherBase {
 
     static boolean isBranchEligibleForAnalysis(GHEventPayload.Push pushPayload) {
         return pushPayload.getRef().equals("refs/heads/" + pushPayload.getRepository().getDefaultBranch());
+    }
+
+    static String getDescriptionFromFailure(Result.Failure<Project> failure) {
+        if (failure.cause() instanceof DependencyTrackClientHttpException) {
+            return "SBOM creation failed: " + failure.cause().getMessage();
+        } else {
+            return "SBOM creation failed";
+        }
     }
 
     record PushResult(
