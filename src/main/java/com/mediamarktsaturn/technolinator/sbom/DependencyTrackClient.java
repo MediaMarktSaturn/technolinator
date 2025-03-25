@@ -73,7 +73,7 @@ public class DependencyTrackClient {
                         if (result.statusCode() == 200) {
                             return result;
                         } else {
-                            throw new Exception("Status " + result.statusCode());
+                            throw new DependencyTrackClientHttpException(result.statusCode());
                         }
                     }))
                     .onFailure().retry().atMost(3)
