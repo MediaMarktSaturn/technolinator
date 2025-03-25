@@ -2,16 +2,25 @@
 name: Application build and test
 on:
   push:
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+    types:
+      - opened
+      - reopened
+      - synchronize
 
 concurrency:
   group: ${{ github.ref }}-${{ github.workflow }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  CDXGEN_VERSION: '11.1.10'
+  CDXGEN_VERSION: '11.2.2'
   CDXGEN_PLUGINS_VERSION: '1.6.9'
-  GRYPE_VERSION: 'v0.87.0'
-  SBOMQS_VERSION: 'v1.0.2'
+  GRYPE_VERSION: 'v0.90.0'
+  SBOMQS_VERSION: 'v1.0.3'
   DEPSCAN_VERSION: 'v5.5.0'
   NYDUS_VERSION: '2.3.0'
   SWIFT_VERSION: '5.10.1'
@@ -38,7 +47,7 @@ jobs:
 
       - name: Get relevant changes
         id: changed-files
-        uses: tj-actions/changed-files@v45
+        uses: tj-actions/changed-files@v46
         with:
           files_ignore: |
             **/*.md

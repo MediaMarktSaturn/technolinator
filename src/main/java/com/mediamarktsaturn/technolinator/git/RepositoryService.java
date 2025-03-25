@@ -10,6 +10,7 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHRepository;
 
 import java.io.IOException;
@@ -25,6 +26,9 @@ import java.util.zip.ZipInputStream;
  */
 @ApplicationScoped
 public class RepositoryService {
+
+    @ConfigProperty(name = "app.always_use_version_or_commit_hash")
+    boolean alwaysUseVersionOrCommitHash;
 
     public record CheckoutCommand(
         GHRepository repository,
@@ -112,10 +116,12 @@ public class RepositoryService {
         );
     }
 
-    static String buildProjectVersionFromEvent(Event<?> event) {
+    String buildProjectVersionFromEvent(Event<?> event) {
+        if (alwaysUseVersionOrCommitHash) {
+            return event.version();
+        }
         return event.branch();
     }
-
     static String getWebsiteUrl(Event<?> event) {
         return event.payload().getRepository().getHtmlUrl().toString();
     }
