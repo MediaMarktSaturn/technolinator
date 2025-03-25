@@ -21,6 +21,8 @@ public interface Event<P extends GHEventPayload> {
 
     GHRepository repository();
 
+    String version();
+
     Optional<TechnolinatorConfig> config();
 
     default boolean targetsDefaultBranch() {

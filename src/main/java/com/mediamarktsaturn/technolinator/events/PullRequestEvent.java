@@ -44,4 +44,7 @@ public record PullRequestEvent(
     public GHRepository repository() {
         return payload.getRepository();
     }
+
+    @Override
+    public String version() {return payload.getPullRequest().getHead().getSha();}
 }

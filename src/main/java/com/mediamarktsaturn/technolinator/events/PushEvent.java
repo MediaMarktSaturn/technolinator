@@ -39,4 +39,7 @@ public record PushEvent(
     public GHRepository repository() {
         return payload.getRepository();
     }
+
+    @Override
+    public String version() {return payload.getHead();}
 }
