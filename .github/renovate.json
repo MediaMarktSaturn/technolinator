@@ -1,114 +1,115 @@
 {
-    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-    "labels": [
-        "dependencies",
-        "renovate"
-    ],
-    "extends": [
-        "config:base"
-    ],
-    "dryRun": null,
-    "branchPrefix": "renovate/",
-    "username": "renovate[bot]",
-    "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
-    "onboarding": false,
-    "platform": "github",
-    "forkProcessing": "disabled",
-    "semanticCommits": "enabled",
-    "dependencyDashboard": false,
-    "suppressNotifications": [
-        "prIgnoreNotification"
-    ],
-    "rebaseWhen": "conflicted",
-    "branchConcurrentLimit": 0,
-    "prConcurrentLimit": 10,
-    "prHourlyLimit": 0,
-    "enabledManagers": [
-        "regex"
-    ],
-    "regexManagers": [
-        {
-            "description": "Update cdxgen version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$"
-            ],
-            "matchStrings": [
-                "CDXGEN_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "@cyclonedx/cdxgen",
-            "datasourceTemplate": "npm"
-        },
-        {
-            "description": "Update cdxgen-plugins-bin version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$",
-                ".*verify\\.yml$"
-            ],
-            "matchStrings": [
-                "CDXGEN_PLUGINS_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "@cyclonedx/cdxgen-plugins-bin",
-            "datasourceTemplate": "npm"
-        },
-        {
-            "description": "Update grype version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$",
-                ".*verify\\.yml$"
-            ],
-            "matchStrings": [
-                "GRYPE_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "anchore/grype",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Update sbomqs version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$",
-                ".*verify\\.yml$"
-            ],
-            "matchStrings": [
-                "SBOMQS_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "interlynk-io/sbomqs",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Update nydus version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$",
-                ".*verify\\.yml$"
-            ],
-            "matchStrings": [
-                "NYDUS_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "dragonflyoss/nydus",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Update depscan version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$",
-                ".*verify\\.yml$"
-            ],
-            "matchStrings": [
-                "DEPSCAN_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "owasp-dep-scan/dep-scan",
-            "datasourceTemplate": "github-releases"
-        },
-        {
-            "description": "Update swift version in GH action",
-            "fileMatch": [
-                ".*ci\\.yml$"
-            ],
-            "matchStrings": [
-                "SWIFT_VERSION: '(?<currentValue>.*?)'"
-            ],
-            "depNameTemplate": "apple/swift",
-            "datasourceTemplate": "github-releases",
-            "extractVersionTemplate": "swift-(?<version>.*)-RELEASE"
-        }
-    ]
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "labels": [
+    "dependencies",
+    "renovate"
+  ],
+  "extends": [
+    "config:base"
+  ],
+  "configMigration": true,
+  "dryRun": null,
+  "branchPrefix": "renovate/",
+  "username": "renovate[bot]",
+  "gitAuthor": "Renovate Bot <bot@renovateapp.com>",
+  "onboarding": false,
+  "platform": "github",
+  "forkProcessing": "disabled",
+  "semanticCommits": "enabled",
+  "dependencyDashboard": false,
+  "suppressNotifications": [
+    "prIgnoreNotification"
+  ],
+  "rebaseWhen": "conflicted",
+  "branchConcurrentLimit": 0,
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
+  "enabledManagers": [
+    "regex"
+  ],
+  "regexManagers": [
+    {
+      "description": "Update cdxgen version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$"
+      ],
+      "matchStrings": [
+        "CDXGEN_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "@cyclonedx/cdxgen",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "description": "Update cdxgen-plugins-bin version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$",
+        ".*verify\\.yml$"
+      ],
+      "matchStrings": [
+        "CDXGEN_PLUGINS_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "@cyclonedx/cdxgen-plugins-bin",
+      "datasourceTemplate": "npm"
+    },
+    {
+      "description": "Update grype version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$",
+        ".*verify\\.yml$"
+      ],
+      "matchStrings": [
+        "GRYPE_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "anchore/grype",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "Update sbomqs version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$",
+        ".*verify\\.yml$"
+      ],
+      "matchStrings": [
+        "SBOMQS_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "interlynk-io/sbomqs",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "Update nydus version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$",
+        ".*verify\\.yml$"
+      ],
+      "matchStrings": [
+        "NYDUS_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "dragonflyoss/nydus",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "Update depscan version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$",
+        ".*verify\\.yml$"
+      ],
+      "matchStrings": [
+        "DEPSCAN_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "owasp-dep-scan/dep-scan",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "description": "Update swift version in GH action",
+      "fileMatch": [
+        ".*ci\\.yml$"
+      ],
+      "matchStrings": [
+        "SWIFT_VERSION: '(?<currentValue>.*?)'"
+      ],
+      "depNameTemplate": "apple/swift",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "swift-(?<version>.*)-RELEASE"
+    }
+  ]
 }
