@@ -5,7 +5,7 @@
     "renovate"
   ],
   "extends": [
-    "config:base"
+    "config:recommended"
   ],
   "configMigration": true,
   "dryRun": null,
@@ -25,13 +25,14 @@
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "enabledManagers": [
-    "regex"
+    "custom.regex"
   ],
-  "regexManagers": [
+  "customManagers": [
     {
+      "customType": "regex",
       "description": "Update cdxgen version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/"
       ],
       "matchStrings": [
         "CDXGEN_VERSION: '(?<currentValue>.*?)'"
@@ -40,10 +41,11 @@
       "datasourceTemplate": "npm"
     },
     {
+      "customType": "regex",
       "description": "Update cdxgen-plugins-bin version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$",
-        ".*verify\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/",
+        "/.*verify\\.yml$/"
       ],
       "matchStrings": [
         "CDXGEN_PLUGINS_VERSION: '(?<currentValue>.*?)'"
@@ -52,10 +54,11 @@
       "datasourceTemplate": "npm"
     },
     {
+      "customType": "regex",
       "description": "Update grype version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$",
-        ".*verify\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/",
+        "/.*verify\\.yml$/"
       ],
       "matchStrings": [
         "GRYPE_VERSION: '(?<currentValue>.*?)'"
@@ -64,10 +67,11 @@
       "datasourceTemplate": "github-releases"
     },
     {
+      "customType": "regex",
       "description": "Update sbomqs version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$",
-        ".*verify\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/",
+        "/.*verify\\.yml$/"
       ],
       "matchStrings": [
         "SBOMQS_VERSION: '(?<currentValue>.*?)'"
@@ -76,10 +80,11 @@
       "datasourceTemplate": "github-releases"
     },
     {
+      "customType": "regex",
       "description": "Update nydus version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$",
-        ".*verify\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/",
+        "/.*verify\\.yml$/"
       ],
       "matchStrings": [
         "NYDUS_VERSION: '(?<currentValue>.*?)'"
@@ -88,10 +93,11 @@
       "datasourceTemplate": "github-releases"
     },
     {
+      "customType": "regex",
       "description": "Update depscan version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$",
-        ".*verify\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/",
+        "/.*verify\\.yml$/"
       ],
       "matchStrings": [
         "DEPSCAN_VERSION: '(?<currentValue>.*?)'"
@@ -100,9 +106,10 @@
       "datasourceTemplate": "github-releases"
     },
     {
+      "customType": "regex",
       "description": "Update swift version in GH action",
-      "fileMatch": [
-        ".*ci\\.yml$"
+      "managerFilePatterns": [
+        "/.*ci\\.yml$/"
       ],
       "matchStrings": [
         "SWIFT_VERSION: '(?<currentValue>.*?)'"
