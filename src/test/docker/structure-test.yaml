@@ -11,7 +11,7 @@ fileExistenceTests:
     - name: 'App runner jar exists and has the right permissions'
       path: /app/quarkus-run.jar
       shouldExist: true
-      permissions: '-rw-r--r--'
+      permissions: '-r--r--r--'
       uid: 0
       gid: 0
 
