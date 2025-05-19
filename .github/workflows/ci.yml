@@ -132,11 +132,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -n "$sem_ver" ]; then
-            ./mvnw ${{ env.mvn_parameter }} versions:set -DnewVersion="$sem_ver"
+            mvn ${{ env.mvn_parameter }} versions:set -DnewVersion="$sem_ver"
           fi
 
-          ./mvnw ${{ env.mvn_parameter }} clean install
-          VERSION=$(./mvnw org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
+          mvn ${{ env.mvn_parameter }} clean install
+          VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)
           echo VERSION="$VERSION" >> $GITHUB_ENV
 
       - name: Publish Test Report
@@ -154,7 +154,7 @@ jobs:
           SONAR_HOST: ${{ secrets.SONARQUBE_HOST_URL }}
           PROJECT_KEY: technolinator:main
         run: |
-          ./mvnw ${{ env.mvn_parameter }} org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
+          mvn ${{ env.mvn_parameter }} org.sonarsource.scanner.maven:sonar-maven-plugin:sonar \
             -Dsonar.host.url="$SONAR_HOST" \
             -Dsonar.login="$SONAR_TOKEN" \
             -Dsonar.projectKey="$PROJECT_KEY" \
