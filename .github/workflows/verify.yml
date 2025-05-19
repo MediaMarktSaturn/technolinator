@@ -13,7 +13,7 @@ on:
 env:
   CDXGEN_PLUGINS_VERSION: '1.6.11'
   GRYPE_VERSION: 'v0.91.2'
-  SBOMQS_VERSION: 'v1.0.5'
+  SBOMQS_VERSION: 'v1.0.6'
   DEPSCAN_VERSION: 'v5.5.0'
   NYDUS_VERSION: '2.3.1'
   java_version: '21'
