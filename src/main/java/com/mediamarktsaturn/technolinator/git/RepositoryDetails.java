@@ -1,6 +1,7 @@
 package com.mediamarktsaturn.technolinator.git;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 public record RepositoryDetails(
@@ -11,7 +12,7 @@ public record RepositoryDetails(
     String vcsUrl,
     List<String> topics
 ) {
-    public RepositoryDetails withAdditionalTopic(String addTopic) {
+    public RepositoryDetails withAdditionalTopics(String... addTopics) {
         return new RepositoryDetails(
             name,
             version,
@@ -19,7 +20,7 @@ public record RepositoryDetails(
             websiteUrl,
             vcsUrl,
             new ArrayList<>(topics) {{
-                add(addTopic);
+                this.addAll(Arrays.asList(addTopics));
             }}
         );
     }
