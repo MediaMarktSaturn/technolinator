@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.technolinator.handler;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.events.Event;
@@ -14,6 +15,7 @@ import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import com.mediamarktsaturn.technolinator.sbom.SbomqsClient;
 import com.mediamarktsaturn.technolinator.sbom.VulnerabilityReporting;
+import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.tuples.Tuple2;
@@ -25,13 +27,16 @@ import org.kohsuke.github.GHIssueState;
 import org.kohsuke.github.GHPullRequest;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -42,6 +47,7 @@ public class AnalysisProcessHandler {
     private static final String COMMENT_MARKER = "[//]: # (Technolinator)";
     private static final String DTRACK_PLACEHOLDER = "DEPENDENCY_TRACK_URL";
     private static final String DTRACK_PROJECT_SEARCH_TMPL = "%s/projects?searchText=%s";
+    private static final String BACKSTAGE_CATALOG_INFO = "catalog-info.yaml";
 
     private static final ConcurrentHashMap<String, Instant> TASKS = new ConcurrentHashMap<>();
 
@@ -52,9 +58,10 @@ public class AnalysisProcessHandler {
     private final RepositoryService repoService;
     private final CdxgenClient cdxgenClient;
     private final String dtrackUrl;
-    private final boolean pushFetchLicenses, pullRequestFetchLicenses;
+    private final boolean pushFetchLicenses, pullRequestFetchLicenses, pullRequestReportsEnabled;
+    private Pattern backstageCatalogPattern;
 
-    private final boolean pullRequestReportsEnabled;
+    private final ObjectMapper yamlMapper;
 
     public AnalysisProcessHandler(
         RepositoryService repoService,
@@ -62,6 +69,8 @@ public class AnalysisProcessHandler {
         DependencyTrackClient dtrackClient,
         SbomqsClient sbomqsClient,
         VulnerabilityReporting reporter,
+        @UtilsProducer.Yaml
+        ObjectMapper yamlMapper,
         @ConfigProperty(name = "app.analysis.cdxgen.fetch_licenses")
         boolean pushFetchLicenses,
         @ConfigProperty(name = "app.pull_requests.cdxgen.fetch_licenses")
@@ -69,16 +78,24 @@ public class AnalysisProcessHandler {
         @ConfigProperty(name = "dtrack.url")
         String dtrackUrl,
         @ConfigProperty(name = "app.pull_requests.enabled")
-        boolean pullRequestReportsEnabled) {
+        boolean pullRequestReportsEnabled,
+        @ConfigProperty(name = "app.repo.backstage_annotation_regex")
+        String backstageAnnotationRegex) {
         this.repoService = repoService;
         this.cdxgenClient = cdxgenClient;
         this.dtrackClient = dtrackClient;
         this.sbomqsClient = sbomqsClient;
+        this.yamlMapper = yamlMapper;
         this.reporter = reporter;
         this.pushFetchLicenses = pushFetchLicenses;
         this.pullRequestFetchLicenses = pullRequestFetchLicenses;
         this.dtrackUrl = dtrackUrl;
         this.pullRequestReportsEnabled = pullRequestReportsEnabled;
+        try {
+            this.backstageCatalogPattern = Pattern.compile(backstageAnnotationRegex);
+        } catch (Exception e) {
+            Log.errorf(e, "Failed to compile backstage annotation regex '%s'", backstageAnnotationRegex);
+        }
     }
 
     public Uni<Result<Project>> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
@@ -108,9 +125,35 @@ public class AnalysisProcessHandler {
         var repoDetails = repoService.getRepositoryDetails(event);
         return checkoutAndGenerateSBOMs(event, metadata, fetchLicenses)
             .call(result -> handlePullRequests(event, result.getItem1(), metadata))
-            .chain(result -> handleDependencyTrack(event, repoDetails, result.getItem1(), metadata)
+            .chain(result -> handleDependencyTrack(event, addBackstageManifestTags(repoDetails, result.getItem2()), result.getItem1(), metadata)
                 .onTermination().invoke(() -> result.getItem2().close())
             );
+    }
+
+    RepositoryDetails addBackstageManifestTags(RepositoryDetails repoDetails, LocalRepository repo) {
+        if (backstageCatalogPattern == null) {
+            return repoDetails;
+        }
+
+        try {
+            var catalogInfo = repo.dir().resolve(BACKSTAGE_CATALOG_INFO);
+            if (Files.isReadable(catalogInfo)) {
+                var ciNode = yamlMapper.readTree(catalogInfo.toFile());
+                var ciAnnotations = ciNode.get("metadata").get("annotations");
+                if (ciAnnotations.isObject()) {
+                    var backstageTopics = new ArrayList<String>();
+                    ciAnnotations.fieldNames().forEachRemaining(f -> {
+                        if (backstageCatalogPattern.matcher(f).matches()) {
+                            backstageTopics.add("%s=%s".formatted(f, ciAnnotations.get(f).asText()));
+                        }
+                    });
+                    return repoDetails.withAdditionalTopics(backstageTopics.toArray(String[]::new));
+                }
+            }
+        } catch (Exception e) {
+            Log.warnf(e, "Failed to read backstage manifest of repo %s", repoDetails.name());
+        }
+        return repoDetails;
     }
 
     Uni<Result<Project>> handleDependencyTrack(Event<?> event, RepositoryDetails repoDetails, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
@@ -342,7 +385,7 @@ public class AnalysisProcessHandler {
 
     static RepositoryDetails addQualityScore(RepositoryDetails repoDetails, Optional<SbomqsClient.QualityScore> score) {
         return score.map(qualityScore ->
-            repoDetails.withAdditionalTopic(SBOM_QUALITY_TAG.formatted(qualityScore.score()))
+            repoDetails.withAdditionalTopics(SBOM_QUALITY_TAG.formatted(qualityScore.score()))
         ).orElse(repoDetails);
     }
 

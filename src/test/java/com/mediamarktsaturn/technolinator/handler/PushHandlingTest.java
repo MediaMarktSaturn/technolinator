@@ -85,8 +85,9 @@ class PushHandlingTest {
             assertThat(repoDetails.vcsUrl()).hasToString("git://github.com/heubeck/examiner.git");
             assertThat(repoDetails.description()).isNotBlank();
             assertThat(repoDetails.topics())
-                .hasSizeGreaterThan(1)
-                .anyMatch(t -> t.startsWith("sbom-quality-score="));
+                .hasSizeGreaterThan(2)
+                .anyMatch(t -> t.startsWith("sbom-quality-score="))
+                .anyMatch(t -> t.equals("github.com/project-slug=heubeck/examiner"));
         });
     }
 }
