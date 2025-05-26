@@ -25,7 +25,7 @@
         <!-- test -->
         <assertj.version>3.27.3</assertj.version>
         <awaitility.version>4.3.0</awaitility.version>
-        <quarkus-wiremock.version>1.4.1</quarkus-wiremock.version>
+        <quarkus-wiremock.version>1.5.0</quarkus-wiremock.version>
 
         <!-- provided -->
         <jetbrains-annotations.version>26.0.2</jetbrains-annotations.version>
