@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  CDXGEN_VERSION: '11.2.6'
+  CDXGEN_VERSION: '11.4.4'
   CDXGEN_PLUGINS_VERSION: '1.6.12'
   GRYPE_VERSION: 'v0.95.0'
   SBOMQS_VERSION: 'v1.0.9'
