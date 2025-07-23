@@ -101,7 +101,7 @@ class DepscanClientTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Failure.class, failure -> {
-            assertThat(failure.cause()).hasMessageEndingWith("exited with 1");
+            assertThat(failure.cause()).hasMessageEndingWith("doesn't exist");
         });
     }
 }
