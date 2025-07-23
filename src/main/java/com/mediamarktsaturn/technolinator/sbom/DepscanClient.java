@@ -5,6 +5,7 @@ import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.smallrye.mutiny.Uni;
 
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
@@ -49,6 +50,9 @@ public class DepscanClient extends VulnerabilityReporting {
     public Uni<Result<VulnerabilityReport>> createVulnerabilityReport(Path sbomFile, String projectName) {
         if (templateFile.isEmpty()) {
             return noReport;
+        }
+        if (!Files.isReadable(sbomFile)) {
+            return Uni.createFrom().item(Result.failure(new NoSuchFileException(sbomFile.toString() + " doesn't exist")));
         }
 
         var command = DEPSCAN_COMMAND.formatted(
