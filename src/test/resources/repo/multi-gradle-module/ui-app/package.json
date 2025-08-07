@@ -45,7 +45,7 @@
   "proxy": "http://localhost:8001",
   "devDependencies": {
     "@testing-library/react": "^13.3.0",
-    "msw": "^0.44.2",
+    "msw": "^2.10.4",
     "sonarqube-scanner": "^3.0.1"
   }
 }
