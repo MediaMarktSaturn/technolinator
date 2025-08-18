@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Renovate
-        uses: renovatebot/github-action@a889a8abcb11ef7feaafaf5e483ea01d4bf7774e # v43.0.5
+        uses: renovatebot/github-action@b11417b9eaac3145fe9a8544cee66503724e32b6 # v43.0.8
         with:
           token: ${{ secrets.RENOVATE_TOKEN }}
         env:
