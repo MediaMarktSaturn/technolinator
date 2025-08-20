@@ -11,10 +11,11 @@ on:
         description: Branch of cdxgen_repo to run tests with
 env:
   CDXGEN_PLUGINS_VERSION: '1.6.12'
-  GRYPE_VERSION: 'v0.97.1'
+  GRYPE_VERSION: 'v0.98.0'
   SBOMQS_VERSION: 'v1.1.0'
   DEPSCAN_VERSION: 'v5.5.0'
   NYDUS_VERSION: '2.3.4'
+  gradle_version: '8.14'
   java_version: '21'
   node_version: '21'
   mvn_parameter: '-B -ntp'
@@ -64,7 +65,7 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
         with:
-          gradle-version: "8.12.1"
+          gradle-version: '${{ env.gradle_version }}'
 
       - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
         env:

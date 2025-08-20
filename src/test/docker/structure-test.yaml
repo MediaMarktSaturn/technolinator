@@ -155,11 +155,11 @@ commandTests:
       expectedOutput:
           - '.*openjdk 23.*'
 
-    - name: "Go 1.23 available"
+    - name: "Go 1.24 available"
       command: "go"
       args: ["version"]
       expectedOutput:
-          - 'go version go1.23.*'
+          - 'go version go1.24.*'
 
     - name: "Running as non-root"
       command: 'whoami'
