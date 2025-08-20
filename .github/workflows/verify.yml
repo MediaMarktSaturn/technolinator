@@ -11,7 +11,7 @@ on:
         description: Branch of cdxgen_repo to run tests with
 env:
   CDXGEN_PLUGINS_VERSION: '1.6.12'
-  GRYPE_VERSION: 'v0.97.1'
+  GRYPE_VERSION: 'v0.98.0'
   SBOMQS_VERSION: 'v1.1.0'
   DEPSCAN_VERSION: 'v5.5.0'
   NYDUS_VERSION: '2.3.4'
@@ -37,7 +37,7 @@ jobs:
           df -h
 
       - name: Checkout Code
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Setup Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -60,11 +60,6 @@ jobs:
           nydus_version: ${{ env.NYDUS_VERSION }}
           cdxgen_repo: ${{ env.cdxgen_repo }}
           cdxgen_branch: ${{ env.cdxgen_branch }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
-        with:
-          gradle-version: "8.12.1"
 
       - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
         env:
