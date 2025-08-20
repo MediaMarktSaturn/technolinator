@@ -25,7 +25,6 @@ env:
   NYDUS_VERSION: '2.3.4'
   SWIFT_VERSION: '6.1.2'
   semantic_version: '19.0.5'
-  gradle_version: '8.14'
   java_version: '21'
   node_version: '21'
   mvn_parameter: '-B -ntp'
@@ -119,11 +118,6 @@ jobs:
           cdxgen_version: ${{ env.CDXGEN_VERSION }}
           cdxgen_plugins_version: ${{ env.CDXGEN_PLUGINS_VERSION }}
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
-        with:
-          gradle-version: '${{ env.gradle_version }}'
-
       - name: Application Build and Test
         env:
           sem_ver: ${{ steps.semantic.outputs.new_release_version }}
@@ -131,16 +125,10 @@ jobs:
           QUARKUS_GITHUB_APP_WEBHOOK_SECRET: for-my-eyes-only
           QUARKUS_GITHUB_APP_PRIVATE_KEY: ''
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CDXGEN_DEBUG: 'true'
-          APP_PROCESS_LOGLEVEL: 'DEBUG'
         run: |
           if [ -n "$sem_ver" ]; then
             mvn ${{ env.mvn_parameter }} versions:set -DnewVersion="$sem_ver"
           fi
-
-          echo "================ Gradle Version ================"
-          gradle -version
-          echo "================================================"
 
           mvn ${{ env.mvn_parameter }} clean install
           VERSION=$(mvn org.apache.maven.plugins:maven-help-plugin:3.3.0:evaluate -Dexpression=project.version -q -DforceStdout)

@@ -15,7 +15,6 @@ env:
   SBOMQS_VERSION: 'v1.1.0'
   DEPSCAN_VERSION: 'v5.5.0'
   NYDUS_VERSION: '2.3.4'
-  gradle_version: '8.14'
   java_version: '21'
   node_version: '21'
   mvn_parameter: '-B -ntp'
@@ -61,11 +60,6 @@ jobs:
           nydus_version: ${{ env.NYDUS_VERSION }}
           cdxgen_repo: ${{ env.cdxgen_repo }}
           cdxgen_branch: ${{ env.cdxgen_branch }}
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3 # v4.4.2
-        with:
-          gradle-version: '${{ env.gradle_version }}'
 
       - name: Application Build and Test with cdxgen branch ${{ env.cdxgen_branch }}
         env:

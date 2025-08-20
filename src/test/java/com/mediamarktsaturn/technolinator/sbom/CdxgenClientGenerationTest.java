@@ -169,7 +169,7 @@ class CdxgenClientGenerationTest {
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
             assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
-                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("ktor-client-serialization", "mimic-fn")
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("spring-boot-autoconfigure", "mimic-fn")
             );
         });
     }
@@ -213,7 +213,7 @@ class CdxgenClientGenerationTest {
         // Then
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, s -> {
             assertThat(s.result()).isInstanceOfSatisfying(CdxgenClient.SBOMGenerationResult.Yield.class, yield ->
-                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("spring-graphql-test", "micrometer-registry-prometheus")
+                assertThat(yield.sbom().getComponents()).flatExtracting(Component::getName).contains("spring-boot-starter-logging", "micrometer-commons")
             );
         });
     }

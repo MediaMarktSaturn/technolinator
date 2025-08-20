@@ -66,7 +66,7 @@ commandTests:
       command: 'cdxgen'
       args: ['-h']
       expectedOutput:
-          - '.*SBOM.*'
+          - '.*CycloneDX Generator.*'
     - name: "Atom installed"
       command: 'atom'
       args: ['--help']
@@ -106,7 +106,7 @@ commandTests:
       command: 'gradle'
       args: ["--version"]
       expectedOutput:
-          - '.*Gradle 8.*'
+          - '.*Gradle 9.*'
     - name: "Git ask pass runs"
       command: '/app/git_askpass.sh'
       expectedOutput:
