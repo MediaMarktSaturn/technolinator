@@ -75,11 +75,11 @@ public class DependencyTrackClient {
                         if (result.statusCode() == 200) {
                             return result;
                         } else {
-                            throw new DependencyTrackClientHttpException(result.statusCode());
+                            throw new DependencyTrackClientHttpException(result.statusCode(), result.bodyAsString());
                         }
                     }))
                     .onFailure().retry().atMost(3)
-                    .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s", projectName, projectVersion))
+                    .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s: %s", projectName, projectVersion, e.getMessage()))
                     .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
                     .call(() -> deactivatePreviousVersion(projectName, projectVersion))
                     .chain(i -> lookupProject(projectName, projectVersion))

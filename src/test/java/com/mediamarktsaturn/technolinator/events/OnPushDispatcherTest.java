@@ -141,7 +141,7 @@ class OnPushDispatcherTest {
     void testOnPush_errorDuringDtrackScan() {
         OnPushDispatcher onPushDispatcher = Mockito.spy(OnPushDispatcher.class);
         Mockito.doReturn(Uni.createFrom().item(GHCommitStatus::new)).when(onPushDispatcher).createGHCommitStatus(any(), any(), any(), any(), any(), any());
-        Result.Failure<Project> failure = new Result.Failure<>(new DependencyTrackClientHttpException(503));
+        Result.Failure<Project> failure = new Result.Failure<>(new DependencyTrackClientHttpException(503, "this is just a test"));
         Command.Metadata metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("commit-sha-1"));
 
         onPushDispatcher.reportAnalysisResult(failure, new GHRepository(), Optional.of("sha-1"), metadata);
@@ -149,7 +149,7 @@ class OnPushDispatcherTest {
         ArgumentCaptor<String> descriptionArgumentMatcher = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<GHCommitState> statusArgumentMatcher = ArgumentCaptor.forClass(GHCommitState.class);
         Mockito.verify(onPushDispatcher).createGHCommitStatus(any(), any(), statusArgumentMatcher.capture(), any(), descriptionArgumentMatcher.capture(), any());
-        assertThat(descriptionArgumentMatcher.getValue()).isEqualTo("SBOM creation failed: Dependency Track Server Http Status 503");
+        assertThat(descriptionArgumentMatcher.getValue()).isEqualTo("SBOM creation failed: Dependency Track Server Http Status 503: this is just a test");
         assertThat(statusArgumentMatcher.getValue()).isEqualTo(GHCommitState.ERROR);
     }
 
