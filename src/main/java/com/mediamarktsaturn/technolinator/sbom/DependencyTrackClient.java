@@ -28,7 +28,7 @@ import java.util.Optional;
 @ApplicationScoped
 public class DependencyTrackClient {
 
-    private static final String API_PATH = "/api/v1", API_KEY = "X-API-Key";
+    private static final String API_KEY = "X-API-Key";
 
     private final WebClient client;
     private final String dtrackBaseUrl, dtrackApiUrl, dtrackApikey;
@@ -38,12 +38,14 @@ public class DependencyTrackClient {
         @ConfigProperty(name = "dtrack.apikey")
         String dtrackApikey,
         @ConfigProperty(name = "dtrack.url")
-        String dtrackUrl
+        String dtrackUrl,
+        @ConfigProperty(name = "dtrack.api_url")
+        String dtrackApiUrl
     ) {
         this.client = WebClient.create(vertx);
         this.dtrackApikey = dtrackApikey.trim();
         this.dtrackBaseUrl = dtrackUrl.trim();
-        this.dtrackApiUrl = dtrackBaseUrl + API_PATH;
+        this.dtrackApiUrl = dtrackApiUrl;
     }
 
     /**
