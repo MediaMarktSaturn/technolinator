@@ -12,12 +12,9 @@ import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.Component;
 import org.cyclonedx.model.Metadata;
-import org.cyclonedx.parsers.JsonParser;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
 
@@ -49,9 +46,16 @@ class DependencyTrackClientTest {
         var version = "1.2.3";
 
         wiremock.register(
-            put(urlEqualTo("/api/v1/bom"))
-                .withHeader("Content-Type", equalTo("application/json"))
+            post(urlEqualTo("/api/v1/bom"))
+                .withHeader("Content-Type", matching("multipart/form-data.*"))
                 .withHeader("X-API-Key", equalTo(API_KEY))
+                .withMultipartRequestBody(aMultipart("projectName").withHeader("Content-Type", containing("text/plain")).withBody(equalTo(name)))
+                .withMultipartRequestBody(aMultipart("projectVersion").withHeader("Content-Type", containing("text/plain")).withBody(equalTo(version)))
+                .withMultipartRequestBody(aMultipart("autoCreate").withHeader("Content-Type", containing("text/plain")).withBody(equalTo("true")))
+                .withMultipartRequestBody(aMultipart("isLatest").withHeader("Content-Type", containing("text/plain")).withBody(equalTo("true")))
+                .withMultipartRequestBody(aMultipart("bom").withHeader("Content-Type", containing("text/plain")).withBody(and(
+                    containing("test-component-name"), containing("test-component-version")
+                )))
                 .willReturn(
                     aResponse()
                         .withStatus(200)
@@ -127,8 +131,8 @@ class DependencyTrackClientTest {
         var sbom = new Bom();
         var metadata = new Metadata();
         var component = new Component();
-        component.setName(name);
-        component.setVersion(version);
+        component.setName("test-component-name");
+        component.setVersion("test-component-version");
         metadata.setComponent(component);
         sbom.setMetadata(metadata);
 
@@ -186,32 +190,16 @@ class DependencyTrackClientTest {
             );
         });
 
-        var putBoms = wiremock.find(putRequestedFor(urlMatching(".*")));
-        assertThat(putBoms).hasSize(1);
-
-        var uploadedValue = putBoms.get(0).getBodyAsString();
-        var uploadedJson = new JsonObject(uploadedValue);
-        var uploadedName = uploadedJson.getString("projectName");
-        var uploadedVersion = uploadedJson.getString("projectVersion");
-        var uploadedAutoCreate = uploadedJson.getBoolean("autoCreate");
-
-        assertThat(uploadedName).isEqualTo(name);
-        assertThat(uploadedVersion).isEqualTo(version);
-        assertThat(uploadedAutoCreate).isTrue();
-
-        var uploadedBom = uploadedJson.getString("bom");
-        var clearTextBom = new String(Base64.getDecoder().decode(uploadedBom), StandardCharsets.UTF_8);
-        var bom = new JsonParser().parse(clearTextBom.getBytes(StandardCharsets.UTF_8));
-        assertThat(bom.getMetadata().getComponent().getName()).isEqualTo(name);
-        assertThat(bom.getMetadata().getComponent().getVersion()).isEqualTo(version);
+        var postBoms = wiremock.find(postRequestedFor(urlMatching(".*")));
+        assertThat(postBoms).hasSize(1);
     }
 
     @Test
     void testFailingUpload() {
         // Given
         wiremock.register(
-            put(urlEqualTo("/api/v1/bom"))
-                .withHeader("Content-Type", equalTo("application/json"))
+            post(urlEqualTo("/api/v1/bom"))
+                .withHeader("Content-Type", matching("multipart/form-data.*"))
                 .withHeader("X-API-Key", equalTo(API_KEY))
                 .willReturn(
                     aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER)
@@ -225,7 +213,7 @@ class DependencyTrackClientTest {
         // Then
         assertThat(result).isInstanceOf(Result.Failure.class);
 
-        var putRequests = wiremock.find(putRequestedFor(urlMatching(".*")));
+        var putRequests = wiremock.find(postRequestedFor(urlMatching(".*")));
         // client retries 3 times
         assertThat(putRequests).hasSize(4);
     }
@@ -234,8 +222,8 @@ class DependencyTrackClientTest {
     void test503StatusFromDTrackServer() {
         // Given
         wiremock.register(
-            put(urlEqualTo("/api/v1/bom"))
-                .withHeader("Content-Type", equalTo("application/json"))
+            post(urlEqualTo("/api/v1/bom"))
+                .withHeader("Content-Type", matching("multipart/form-data.*"))
                 .withHeader("X-API-Key", equalTo(API_KEY))
                 .willReturn(
                     aResponse().withStatus(503)
@@ -253,7 +241,7 @@ class DependencyTrackClientTest {
         DependencyTrackClientHttpException httpException = (DependencyTrackClientHttpException) failure.cause();
         assertThat(httpException.getHttpStatus()).isEqualTo(503);
 
-        var putRequests = wiremock.find(putRequestedFor(urlMatching(".*")));
+        var putRequests = wiremock.find(postRequestedFor(urlMatching(".*")));
         // client retries 3 times
         assertThat(putRequests).hasSize(4);
     }

@@ -9,6 +9,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
 import io.vertx.mutiny.ext.web.client.WebClient;
+import io.vertx.mutiny.ext.web.multipart.MultipartForm;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.cyclonedx.Version;
 import org.cyclonedx.exception.GeneratorException;
@@ -17,9 +18,6 @@ import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.ExternalReference;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -53,24 +51,23 @@ public class DependencyTrackClient {
      */
     public Uni<Result<Project>> uploadSBOM(RepositoryDetails repoDetails, Bom sbom, String projectName, Project parentProject, Optional<String> commitSha) {
         var projectVersion = repoDetails.version();
-
         return Uni.createFrom().item(() -> {
                 try {
-                    var sbomBase64 = Base64.getEncoder().encodeToString(new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString().getBytes(StandardCharsets.UTF_8));
-                    return new JsonObject(Map.of(
-                        "projectName", projectName,
-                        "projectVersion", projectVersion,
-                        "autoCreate", true,
-                        "bom", sbomBase64
-                    ));
+                    return new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString();
                 } catch (GeneratorException e) {
                     throw new RuntimeException(e);
                 }
             })
             .chain(payload ->
-                client.putAbs(dtrackApiUrl + "/bom")
+                client.postAbs(dtrackApiUrl + "/bom")
                     .putHeader(API_KEY, dtrackApikey)
-                    .sendJsonObject(payload)
+                    .sendMultipartForm(MultipartForm.create()
+                        .attribute("projectName", projectName)
+                        .attribute("projectVersion", projectVersion)
+                        .attribute("autoCreate", "true")
+                        .attribute("isLatest", "true")
+                        .attribute("bom", payload)
+                    )
                     .map(Unchecked.function(result -> {
                         if (result.statusCode() == 200) {
                             return result;
