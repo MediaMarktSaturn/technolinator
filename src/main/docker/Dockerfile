@@ -16,7 +16,7 @@ ARG JAVA_21_VERSION='21.0.8-tem'
 ARG JAVA_23_VERSION='23.0.2-tem'
 ARG GRADLE_VERSION='9.0.0'
 ARG NODE_VERSION='21'
-ARG GO_VERSION='1.24.6'
+ARG GO_VERSION='1.25.1'
 ARG MAVEN_VERSION='3.9.11'
 
 # location of application binaries and configuration
@@ -70,8 +70,7 @@ ENV GO_HOME="$APP_DIR/go"
 RUN \
     cd $APP_DIR && \
     curl -Ls https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz -o go.tar.gz && \
-    tar xf go.tar.gz && rm -rf go.tar.gz && \
-    rm -rf $GO_HOME/src $GO_HOME/test
+    tar xf go.tar.gz && rm -rf go.tar.gz
 
 # locale options
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
