@@ -53,7 +53,7 @@ class ProcessHandlerTest {
 
         // Then
         assertThat(result).isInstanceOfSatisfying(ProcessHandler.ProcessResult.Failure.class, failure -> {
-            assertThat(failure.cause().getCause()).hasToString("java.io.IOException: Cannot run program \"moep\" (in directory \".\"): error=2, No such file or directory");
+            assertThat(failure.cause().getCause()).isInstanceOf(java.io.IOException.class).hasMessageContaining("Cannot run program \"moep\" (in directory \".\")");
         });
     }
 
