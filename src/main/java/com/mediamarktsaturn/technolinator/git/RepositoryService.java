@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.zip.ZipInputStream;
@@ -26,6 +27,8 @@ import java.util.zip.ZipInputStream;
  */
 @ApplicationScoped
 public class RepositoryService {
+
+    private static final String OWNER_TAG = "owner=%s";
 
     @ConfigProperty(name = "app.always_use_version_or_commit_hash")
     boolean alwaysUseVersionOrCommitHash;
@@ -131,12 +134,14 @@ public class RepositoryService {
     }
 
     static List<String> getProjectTopics(Event<?> event) {
+        List<String> topics = new ArrayList<>();
+        topics.add(OWNER_TAG.formatted(event.payload().getRepository().getOwnerName()));
         try {
-            return event.payload().getRepository().listTopics();
+            topics.addAll(event.payload().getRepository().listTopics());
         } catch (IOException e) {
             Log.warnf(e, "Could not fetch topics of repo %s", event.repoUrl());
-            return List.of();
         }
+        return topics;
     }
 
     static String getProjectDescription(Event<?> event) {

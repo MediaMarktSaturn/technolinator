@@ -25,7 +25,7 @@ env:
   NYDUS_VERSION: '2.3.7'
   SWIFT_VERSION: '6.2'
   semantic_version: '19.0.5'
-  java_version: '21'
+  java_version: '25'
   node_version: '21'
   mvn_parameter: '-B -ntp'
   image_name: 'ghcr.io/mediamarktsaturn/technolinator'

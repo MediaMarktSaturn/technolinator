@@ -8,7 +8,7 @@
     <description>The MMS GitHub Bot</description>
     <version>0.0.0-SNAPSHOT</version>
     <properties>
-        <maven.compiler.release>21</maven.compiler.release>
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -203,6 +203,9 @@
                         <JAVA17_HOME>/path/to/jdk17</JAVA17_HOME>
                         <JAVA20_HOME>/path/to/jdk20</JAVA20_HOME>
                     </environmentVariables>
+                    <argLine>
+                        --add-opens java.base/java.lang=ALL-UNNAMED
+                    </argLine>
                 </configuration>
             </plugin>
             <plugin>
@@ -221,6 +224,9 @@
                                 <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                 <maven.home>${maven.home}</maven.home>
                             </systemPropertyVariables>
+                            <argLine>
+                                --add-opens java.base/java.lang=ALL-UNNAMED
+                            </argLine>
                         </configuration>
                     </execution>
                 </executions>
@@ -307,6 +313,9 @@
                                     <includeArtifactIds>cyclonedx-core-java</includeArtifactIds>
                                     <includes>**/*.xsd,**/*.json,**/*.proto,**/*.txt</includes>
                                     <outputDirectory>${project.build.directory}/generated-resources</outputDirectory>
+                                    <argLine>
+                                        --add-opens java.base/java.lang=ALL-UNNAMED
+                                    </argLine>
                                 </configuration>
                             </execution>
                         </executions>

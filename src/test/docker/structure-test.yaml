@@ -119,17 +119,17 @@ commandTests:
           - '.*Missing values for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
-    - name: "Nodejs 21 available"
+    - name: "Nodejs 24 available"
       command: 'node'
       args: ["-v"]
       expectedOutput:
-          - 'v21.*'
+          - 'v24.*'
 
-    - name: "NPM 10 available"
+    - name: "NPM 11 available"
       command: 'npm'
       args: ["-v"]
       expectedOutput:
-          - '10.*'
+          - '11.*'
 
     - name: "Composer installed"
       command: 'composer'
@@ -149,11 +149,11 @@ commandTests:
       expectedOutput:
           - '.*openjdk 21.*'
 
-    - name: "Java 23 available"
-      command: '$JAVA23_HOME/bin/java'
+    - name: "Java 25 available"
+      command: '$JAVA25_HOME/bin/java'
       args: ["--version"]
       expectedOutput:
-          - '.*openjdk 23.*'
+          - '.*openjdk 25.*'
 
     - name: "Go 1.25 available"
       command: "go"
@@ -192,19 +192,19 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/21.0.8-tem'
+          value: '/app/sdks/java/25-tem'
         - key: JAVA17_HOME
           value: '/app/sdks/java/17.0.16-tem'
         - key: JAVA21_HOME
           value: '/app/sdks/java/21.0.8-tem'
-        - key: JAVA23_HOME
-          value: '/app/sdks/java/23.0.2-tem'
+        - key: JAVA25_HOME
+          value: '/app/sdks/java/25-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
           value: '/app/sdks/gradle/current'
         - key: NODE_HOME
-          value: '/app/node21'
+          value: '/app/node24'
         - key: MVN_CMD
           value: 'mvn'
         - key: GRADLE_CMD
