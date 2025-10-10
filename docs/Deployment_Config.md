@@ -16,7 +16,7 @@ If Kubernetes doesn't fit your use case or you'd like something simpler, there's
 
 ```yaml
 ---
-apiVersion: source.toolkit.fluxcd.io/v1beta2
+apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
     name: chart-repo
@@ -32,7 +32,7 @@ We're providing a Helm chart for common application deployments [here](https://g
 
 ```yaml
 ---
-apiVersion: helm.toolkit.fluxcd.io/v2beta2
+apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: technolinator

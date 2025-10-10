@@ -13,9 +13,9 @@ ARG DEPSCAN_VERSION
 # sdkman provided jdks
 ARG JAVA_17_VERSION='17.0.16-tem'
 ARG JAVA_21_VERSION='21.0.8-tem'
-ARG JAVA_23_VERSION='23.0.2-tem'
-ARG GRADLE_VERSION='9.0.0'
-ARG NODE_VERSION='21'
+ARG JAVA_25_VERSION='25-tem'
+ARG GRADLE_VERSION='9.1.0'
+ARG NODE_VERSION='24'
 ARG GO_VERSION='1.25.1'
 ARG MAVEN_VERSION='3.9.11'
 
@@ -60,7 +60,7 @@ ENV NODE_HOME="$APP_DIR/node$NODE_VERSION"
 RUN \
     curl -sf https://raw.githubusercontent.com/creationix/nvm/master/install.sh | bash && \
     . /root/.nvm/nvm.sh && \
-    nvm install 21 && \
+    nvm install $NODE_VERSION && \
     mv /root/.nvm/versions/node/* $NODE_HOME && \
     rm -rf /root/.nvm
 
@@ -115,7 +115,7 @@ ENV SDK_DIR="$APP_DIR/sdks"
 COPY --chown=root:root src/main/docker/assets/sdkman.config /root/.sdkman/etc/config
 RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     sdk install java $JAVA_17_VERSION && \
-    sdk install java $JAVA_23_VERSION && \
+    sdk install java $JAVA_25_VERSION && \
     sdk install java $JAVA_21_VERSION && \
     sdk install maven $MAVEN_VERSION && \
     sdk install gradle $GRADLE_VERSION && \
@@ -127,9 +127,9 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
 
 # app & tools env
 ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
-    JAVA23_HOME="$SDK_DIR/java/$JAVA_23_VERSION" \
+    JAVA25_HOME="$SDK_DIR/java/$JAVA_25_VERSION" \
     JAVA21_HOME="$SDK_DIR/java/$JAVA_21_VERSION" \
-    JAVA_HOME="$SDK_DIR/java/$JAVA_21_VERSION" \
+    JAVA_HOME="$SDK_DIR/java/$JAVA_25_VERSION" \
     MAVEN_HOME="$SDK_DIR/maven/current" \
     GRADLE_HOME="$SDK_DIR/gradle/current" \
     MVN_CMD=mvn \
@@ -144,7 +144,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
 
 ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin:$GO_HOME/bin"
 
-ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager"
+ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager --add-opens java.base/java.lang=ALL-UNNAMED"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"
 
 CMD ["/app/run-java.sh"]
