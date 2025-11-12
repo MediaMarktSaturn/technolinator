@@ -64,4 +64,4 @@ Please see the [adoption documentation](Adoption.md) for details.
 ### `jdk.version`
 
 The JDK versions available for selection need to be provided and configured to the Technolinator runtime.
-Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 21 (default), JDK 23 and JDK 17 built in.
+Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 25 (default), JDK 21 and JDK 17 built in.
