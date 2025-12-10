@@ -91,7 +91,8 @@ RUN \
 
 # install sbomqs
 RUN \
-    curl -Ls https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}/sbomqs-linux-amd64 -o sbomqs && \
+    curl -Ls https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}/sbomqs_${SBOMQS_VERSION}_Linux_x86_64.tar.gz -o sbomqs.tgz && \
+    tar -xzf sbomqs.tgz && \
     chmod a+x sbomqs && \
     mv sbomqs /usr/bin/sbomqs
 

@@ -91,7 +91,7 @@ commandTests:
       command: 'sbomqs'
       args: ['-h']
       expectedOutput:
-          - '.*SBOM Quality Score.*'
+          - '.*SBOM quality.*'
     - name: "Java installed"
       command: 'java'
       args: ["-version"]

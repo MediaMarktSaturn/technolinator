@@ -1,12 +1,18 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.nio.file.Path;
+import java.util.List;
 
 @ApplicationScoped
 public class SbomqsClient {
@@ -17,16 +23,9 @@ public class SbomqsClient {
      * * -b # short output: no detailed scoring, just overall score in form '8.5     path/to/the/sbom.json'
      * * %s # sbom file path
      */
-    private static final String SBOMQS_COMMAND = "sbomqs score -b %s";
+    private static final String SBOMQS_COMMAND = "sbomqs score --profile bsi --json %s";
 
-    /**
-     * Pattern of a valid score output. Examples:
-     * * 8.2     cdx     1.4     json    /var/home/heubeck/w/technolinator/src/test/resources/sbom/vulnerable.json
-     * * 6.1     cdx     1.4     json    /var/home/heubeck/w/technolinator/src/test/resources/sbom/not-vulnerable.json
-     * * failed to parse /var/home/heubeck/w/technolinator/src/test/resources/sbom/unkown.json : unsupported sbom format
-     */
-    private static final String SCORE_RESULT_SUFFIX_PATTERN = "\\s+cdx\\s+\\d+(\\.?\\d+){0,1}\\s+json\\s+%s";
-    private static final String SCORE_RESULT_PATTERN = "^\\d+(\\.?\\d+){0,1}" + SCORE_RESULT_SUFFIX_PATTERN + "$";
+    private final ObjectMapper objectMapper = new ObjectMapper().disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
 
     /**
      * Calculates a quality score for the given sbomFile using the 'sbomqs' tool.
@@ -49,16 +48,23 @@ public class SbomqsClient {
 
     Result<QualityScore> parseScore(ProcessHandler.ProcessResult.Success result, String filename) {
         var regexEscapedFilename = escapeFilenameAsRegexPattern(filename);
-        return result.outputLines().stream()
-            .filter(l -> l.matches(SCORE_RESULT_PATTERN.formatted(regexEscapedFilename)))
-            .findFirst()
-            .map(scoreLine -> {
-                var score = scoreLine.replaceFirst(SCORE_RESULT_SUFFIX_PATTERN.formatted(regexEscapedFilename), "").trim();
-                Log.infof("Quality score for %s: %s", filename, score);
-                return Result.success(new QualityScore(score));
-            }).orElseGet(() -> Result.failure(
+        var sbomqsOutput = String.join("", result.outputLines());
+
+        try {
+            return objectMapper.readValue(sbomqsOutput, SbomqsJsonResult.class).files().stream().findFirst().map(sbomqsFileResult -> {
+                    var score = sbomqsFileResult.score().setScale(1, RoundingMode.HALF_UP).toString();
+                    Log.infof("Quality score for %s: %s", filename, score);
+                    return Result.success(new QualityScore(score));
+                }
+            ).orElseGet(() -> Result.failure(
                 new IllegalStateException("'sbomqs' did not output a score for " + filename)
             ));
+        } catch (Exception e) {
+            Log.errorv(e, "Failed to calculate score for %s", filename);
+            return Result.failure(
+                new IllegalStateException("'sbomqs' did not output a score for " + filename, e)
+            );
+        }
     }
 
     private static String escapeFilenameAsRegexPattern(String filename) {
@@ -71,4 +77,16 @@ public class SbomqsClient {
     public record QualityScore(String score) {
     }
 
+}
+
+record SbomqsJsonResult(
+    List<SbomqsJsonResultFile> files
+) {
+}
+
+record SbomqsJsonResultFile(
+    @JsonProperty("sbom_quality_score")
+    BigDecimal score,
+    String grade
+) {
 }
