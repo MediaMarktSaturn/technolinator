@@ -114,12 +114,14 @@ runs:
         echo "Install sbomqs"
         SBOMQS_VERSION="${SBOMQS_VERSION#v}"
         SBOMQS_URL="https://github.com/interlynk-io/sbomqs/releases/download/v${SBOMQS_VERSION}"
-        curl -Ls "$SBOMQS_URL/sbomqs-linux-amd64" -o sbomqs
-        curl -Ls "$SBOMQS_URL/sbomqs_${SBOMQS_VERSION}_checksums.txt" -o sbomqs_checksums.txt
-        if ! grep -q "$(sha256sum sbomqs | cut -d' ' -f1)" sbomqs_checksums.txt; then
-             echo "::error title=Invalid checksum::sbomqs ${SBOMQS_VERSION}"
+        curl -Ls "$SBOMQS_URL/sbomqs_${SBOMQS_VERSION}_Linux_x86_64.tar.gz" -o sbomqs.tgz
+        curl -Ls "$SBOMQS_URL/checksums.txt" -o sbomqs_checksums.txt
+        if ! grep -q "$(sha256sum sbomqs.tgz | cut -d' ' -f1)" sbomqs_checksums.txt; then
+             echo "::error title=Invalid checksum::sbomqs.tgz ${SBOMQS_VERSION}"
              exit 1
         fi
+        tar -xzf sbomqs.tgz
+
         mv sbomqs "${{ steps.location.outputs.dir }}"/sbomqs
         chmod a+x "${{ steps.location.outputs.dir }}"/sbomqs
 

@@ -33,6 +33,7 @@ class SbomqsClientTest {
         assertThat(result).isInstanceOfSatisfying(Result.Success.class, success -> {
             assertThat(success.result()).isInstanceOfSatisfying(SbomqsClient.QualityScore.class, qualityScore -> {
                 assertThat(qualityScore.score()).isNotBlank().satisfies(score -> {
+                    assertThat(score).matches("\\d\\.\\d");
                     var parsed = Double.parseDouble(score);
                     assertThat(parsed).isBetween(0.1, 9.9);
                 });
