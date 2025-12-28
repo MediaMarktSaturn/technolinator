@@ -104,7 +104,7 @@ RUN \
     rm -rf nydus.tgz nydus-static
 
 # install depscan
-RUN pip install -q owasp-depscan==${DEPSCAN_VERSION}
+RUN pip install -q owasp-depscan==${DEPSCAN_VERSION#v}
 
 # install sdkman
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/curlrc /root/.curlrc
