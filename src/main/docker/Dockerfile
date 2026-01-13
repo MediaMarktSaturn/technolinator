@@ -78,9 +78,11 @@ ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 # install cdxgen and relatives
 RUN \
     export PATH="$PATH:$NODE_HOME/bin" && \
-    npm install -g @appthreat/atom && \
+    npm install @appthreat/atom-parsetools && \
     npm install -g @cyclonedx/cdxgen@"$CDXGEN_VERSION" && \
-    npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION"
+    npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION" && \
+    curl -sLO https://github.com/AppThreat/atom/releases/latest/download/atom-amd64 && \
+    chmod a+x atom-amd64 && mv atom-amd64 /usr/bin/atom
 
 # install grype
 RUN \
