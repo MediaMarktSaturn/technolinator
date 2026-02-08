@@ -47,7 +47,6 @@ public class SbomqsClient {
     }
 
     Result<QualityScore> parseScore(ProcessHandler.ProcessResult.Success result, String filename) {
-        var regexEscapedFilename = escapeFilenameAsRegexPattern(filename);
         var sbomqsOutput = String.join("", result.outputLines());
 
         try {
@@ -65,13 +64,6 @@ public class SbomqsClient {
                 new IllegalStateException("'sbomqs' did not output a score for " + filename, e)
             );
         }
-    }
-
-    private static String escapeFilenameAsRegexPattern(String filename) {
-        return filename
-            .replace("\\", "\\\\")
-            .replace("/", "\\/")
-            .replace(".", "\\.");
     }
 
     public record QualityScore(String score) {
