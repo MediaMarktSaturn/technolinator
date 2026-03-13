@@ -16,7 +16,7 @@ ARG JAVA_21_VERSION='21.0.9-tem'
 ARG JAVA_25_VERSION='25.0.2-tem'
 ARG GRADLE_VERSION='9.3.1'
 ARG NODE_VERSION='24'
-ARG GO_VERSION='1.25.7'
+ARG GO_VERSION='1.26.1'
 ARG MAVEN_VERSION='3.9.12'
 
 # location of application binaries and configuration
