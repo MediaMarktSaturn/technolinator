@@ -46,6 +46,6 @@
   "devDependencies": {
     "@testing-library/react": "^13.3.0",
     "msw": "^0.44.2",
-    "sonarqube-scanner": "^3.0.1"
+    "sonarqube-scanner": "^3.5.0"
   }
 }
