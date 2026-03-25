@@ -196,7 +196,7 @@ metadataTest:
         - key: JAVA17_HOME
           value: '/app/sdks/java/17.0.18-tem'
         - key: JAVA21_HOME
-          value: '/app/sdks/java/21.0.9-tem'
+          value: '/app/sdks/java/21.0.10-tem'
         - key: JAVA25_HOME
           value: '/app/sdks/java/25.0.2-tem'
         - key: MAVEN_HOME
