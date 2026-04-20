@@ -209,6 +209,7 @@ jobs:
 
       - name: Create and upload container SBOM
         if: github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: |
           cdxgen -t container \
               --server-url ${{ secrets.DTRACK_URL }} \
