@@ -7,13 +7,10 @@ metadata:
   annotations:
     github.com/project-slug: MediaMarktSaturn/technolinator # https://backstage.io/docs/features/software-catalog/well-known-annotations/#githubcomproject-slug
     github.com/team-slug: MediaMarktSaturn/software-supply-chain-security
-    mms.tech/ref_uuid: 08822476-8bac-4531-a4c6-887a269f555d # LeanIX refUUID
+    mms.tech/ref_uuid: 35a48a61-645b-4250-aad6-9b24bb4ef0b6 # LeanIX refUUID
     mms.tech/product_id: '6239' # Deprecated: retained temporarily for backward compatibility with legacy tooling; remove once all consumers are migrated.
     mms.tech/app_id: 0000 # Deprecated: retained temporarily for backward compatibility with legacy tooling; remove once all consumers are migrated.
 spec:
   type: service  # alternatives: website, library
   lifecycle: production # alternative: experimental, deprecated
   owner: Cyber Security
-
-# Errors found during processing:
-#  mms.tech/ref_uuid: Invalid mms.tech/ref_uuid field in repo: technolinator, no entity found in LeanIX for ref_uuid: 08822476-8bac-4531-a4c6-887a269f555d
