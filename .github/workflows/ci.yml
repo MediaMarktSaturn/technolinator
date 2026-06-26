@@ -18,11 +18,11 @@ concurrency:
 env:
   CDXGEN_VERSION: '12.4.0'
   CDXGEN_PLUGINS_VERSION: '1.8.0'
-  GRYPE_VERSION: 'v0.112.0'
-  SBOMQS_VERSION: 'v2.0.7'
+  GRYPE_VERSION: 'v0.114.0'
+  SBOMQS_VERSION: 'v2.0.10'
   DEPSCAN_VERSION: 'v5.5.0'
-  NYDUS_VERSION: '2.4.3'
-  SWIFT_VERSION: '6.3.1'
+  NYDUS_VERSION: '2.4.4'
+  SWIFT_VERSION: '6.3.2'
   semantic_version: '19.0.5'
   java_version: '25'
   node_version: '21'
@@ -40,7 +40,7 @@ jobs:
       has_changes: ${{ steps.changed-files.outputs.any_changed }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
 
@@ -82,7 +82,7 @@ jobs:
           df -h
 
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Setup Nodejs
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -90,7 +90,7 @@ jobs:
           node-version: '${{ env.node_version }}'
 
       - name: Setup Java
-        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
+        uses: actions/setup-java@ad2b38190b15e4d6bdf0c97fb4fca8412226d287 # v5.3.0
         with:
           java-version: '${{ env.java_version }}'
           distribution: 'temurin'
@@ -153,7 +153,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Docker build
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: src/main/docker/Dockerfile
@@ -178,7 +178,7 @@ jobs:
           docker tag ${{ env.image_name }}:${{ env.VERSION }} technolinator:regular
 
       - name: Docker fat image build
-        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           file: src/main/docker/Dockerfile.fat
@@ -193,7 +193,7 @@ jobs:
           container-structure-test test --config src/test/docker/structure-test.fat.yaml --image ${{ env.image_name }}:fat-${{ env.VERSION }}
 
       - name: Login to GHCR
-        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
         with:
           registry: ghcr.io
