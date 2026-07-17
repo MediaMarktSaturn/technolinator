@@ -16,7 +16,7 @@
   "platform": "github",
   "forkProcessing": "disabled",
   "semanticCommits": "enabled",
-  "dependencyDashboard": false,
+  "dependencyDashboard": true,
   "suppressNotifications": [
     "prIgnoreNotification"
   ],
