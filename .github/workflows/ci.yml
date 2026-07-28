@@ -135,7 +135,7 @@ jobs:
 
       - name: Publish Test Report
         if: ${{ failure() }}
-        uses: scacap/action-surefire-report@3dacff26879cd2a7f2160d101254032a3707fe6f # v1.12.0
+        uses: scacap/action-surefire-report@c38a2d74b9840ae8950a4387ae02b637421d0f39 # v1.13.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           fail_if_no_tests: false
