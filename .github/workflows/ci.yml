@@ -193,7 +193,7 @@ jobs:
           container-structure-test test --config src/test/docker/structure-test.fat.yaml --image ${{ env.image_name }}:fat-${{ env.VERSION }}
 
       - name: Login to GHCR
-        uses: docker/login-action@371161bbe7024a29a25c5e19bfcbc0804fe9ad2c # v4.5.2
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
         if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
         with:
           registry: ghcr.io
