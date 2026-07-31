@@ -21,7 +21,7 @@ env:
   GRYPE_VERSION: 'v0.116.1'
   SBOMQS_VERSION: 'v2.0.11'
   DEPSCAN_VERSION: 'v5.5.0'
-  NYDUS_VERSION: '2.4.4'
+  NYDUS_VERSION: '2.4.5'
   SWIFT_VERSION: '6.3.3'
   semantic_version: '19.0.5'
   java_version: '25'
