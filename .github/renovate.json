@@ -25,7 +25,10 @@
   "prConcurrentLimit": 10,
   "prHourlyLimit": 0,
   "enabledManagers": [
-    "custom.regex"
+    "ci.github-actions",
+    "custom.regex",
+    "docker.dockerfile",
+    "java.maven"
   ],
   "customManagers": [
     {
