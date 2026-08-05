@@ -51,8 +51,13 @@ jobs:
           files_ignore: |
             **/*.md
             docs/
-            .github/dependabot.yml
+            _dashboards/
+            .github/CODEOWNERS
+            .github/ISSUE_TEMPLATE
+            .github/renovate.json
             .github/technolinator.yml
+            .github/workflows/close_dependabot_pr.yaml
+            .github/workflows/assign_issue.yml
 
   skip_ci:
     # Use the same name as CI build as workaround for required status checks for pull requests
