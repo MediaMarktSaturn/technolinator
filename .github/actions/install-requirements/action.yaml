@@ -90,7 +90,7 @@ runs:
         CDXGEN_PLUGINS_VERSION: ${{ inputs.cdxgen_plugins_version }}
       run: |
         echo "Install cdxgen plugins"
-        npm install -g @cyclonedx/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
+        npm install -g @cdxgen/cdxgen-plugins-bin@${CDXGEN_PLUGINS_VERSION}
 
     - shell: bash
       env:

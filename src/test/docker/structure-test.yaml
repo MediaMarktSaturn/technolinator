@@ -82,11 +82,11 @@ commandTests:
       args: ['-h']
       expectedOutput:
           - '.*Build, analyze, inspect or validate RAFS filesystems/Nydus accelerated container images.*'
-    - name: "Depscan installed"
+    - name: "Depscan 6 installed"
       command: 'depscan'
-      args: ['-h']
+      args: ['-v']
       expectedOutput:
-          - '.*Examine using the given Software Bill-of-Materials.*'
+          - 'depscan 6.*'
     - name: "Sbomqs installed"
       command: 'sbomqs'
       args: ['-h']
@@ -155,11 +155,11 @@ commandTests:
       expectedOutput:
           - '.*openjdk 25.*'
 
-    - name: "Go 1.26 available"
+    - name: "Go 1.27 available"
       command: "go"
       args: ["version"]
       expectedOutput:
-          - 'go version go1.26.*'
+          - 'go version go1.27.*'
 
     - name: "Running as non-root"
       command: 'whoami'
@@ -192,13 +192,13 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/25.0.2-tem'
+          value: '/app/sdks/java/25.0.4-tem'
         - key: JAVA17_HOME
-          value: '/app/sdks/java/17.0.18-tem'
+          value: '/app/sdks/java/17.0.20-tem'
         - key: JAVA21_HOME
-          value: '/app/sdks/java/21.0.10-tem'
+          value: '/app/sdks/java/21.0.12+1.1-tem'
         - key: JAVA25_HOME
-          value: '/app/sdks/java/25.0.2-tem'
+          value: '/app/sdks/java/25.0.4-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME

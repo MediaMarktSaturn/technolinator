@@ -12,11 +12,11 @@ on:
 env:
   CDXGEN_PLUGINS_VERSION: '1.8.0'
   GRYPE_VERSION: 'v0.118.0'
-  SBOMQS_VERSION: 'v2.0.12'
-  DEPSCAN_VERSION: 'v5.5.0'
+  SBOMQS_VERSION: 'v2.1.0'
+  DEPSCAN_VERSION: 'v6.3.0'
   NYDUS_VERSION: '2.4.5'
   java_version: '25'
-  node_version: '21'
+  node_version: '24'
   mvn_parameter: '-B -ntp'
   cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
   cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}

@@ -53,7 +53,7 @@
       "matchStrings": [
         "CDXGEN_PLUGINS_VERSION: '(?<currentValue>.*?)'"
       ],
-      "depNameTemplate": "@cyclonedx/cdxgen-plugins-bin",
+      "depNameTemplate": "@cdxgen/cdxgen-plugins-bin",
       "datasourceTemplate": "npm"
     },
     {
