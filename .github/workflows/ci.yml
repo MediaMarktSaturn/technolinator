@@ -16,16 +16,16 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
-  CDXGEN_VERSION: '12.3.3'
-  CDXGEN_PLUGINS_VERSION: '1.8.0'
+  CDXGEN_VERSION: '12.8.4'
+  CDXGEN_PLUGINS_VERSION: '3.0.5'
   GRYPE_VERSION: 'v0.118.0'
-  SBOMQS_VERSION: 'v2.0.12'
-  DEPSCAN_VERSION: 'v5.5.0'
+  SBOMQS_VERSION: 'v2.1.0'
+  DEPSCAN_VERSION: 'v6.3.0'
   NYDUS_VERSION: '2.4.5'
   SWIFT_VERSION: '6.3.3'
   semantic_version: '19.0.5'
   java_version: '25'
-  node_version: '21'
+  node_version: '24'
   mvn_parameter: '-B -ntp'
   image_name: 'ghcr.io/mediamarktsaturn/technolinator'
 

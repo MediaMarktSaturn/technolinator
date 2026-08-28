@@ -1,4 +1,4 @@
-FROM redhat/ubi9-minimal:latest
+FROM redhat/ubi10-minimal:latest
 LABEL maintainer="MediaMarktSaturn Technology" \
       home="https://github.com/MediaMarktSaturn/technolinator" \
       license="Apache-2.0"
@@ -11,13 +11,13 @@ ARG NYDUS_VERSION
 ARG DEPSCAN_VERSION
 
 # sdkman provided jdks
-ARG JAVA_17_VERSION='17.0.18-tem'
-ARG JAVA_21_VERSION='21.0.10-tem'
-ARG JAVA_25_VERSION='25.0.2-tem'
-ARG GRADLE_VERSION='9.4.1'
+ARG JAVA_17_VERSION='17.0.20-tem'
+ARG JAVA_21_VERSION='21.0.12+1.1-tem'
+ARG JAVA_25_VERSION='25.0.4-tem'
+ARG GRADLE_VERSION='9.7.0'
 ARG NODE_VERSION='24'
-ARG GO_VERSION='1.26.1'
-ARG MAVEN_VERSION='3.9.14'
+ARG GO_VERSION='1.27.0'
+ARG MAVEN_VERSION='3.9.16'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
@@ -48,7 +48,7 @@ ENV GIT_ASKPASS="$APP_DIR/git_askpass.sh"
 # update system and install requirements
 RUN \
     microdnf update --nodocs -y && \
-    microdnf reinstall --nodocs -y tzdata && \
+    microdnf install --nodocs -y tzdata && \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git python3 pip php php-cli php-zip php-json && \
     curl -s https://raw.githubusercontent.com/composer/getcomposer.org/main/web/installer | php -- --filename=composer --install-dir=/usr/bin --quiet && \
@@ -80,7 +80,7 @@ RUN \
     export PATH="$PATH:$NODE_HOME/bin" && \
     npm install @appthreat/atom-parsetools && \
     npm install -g @cyclonedx/cdxgen@"$CDXGEN_VERSION" && \
-    npm install -g @cyclonedx/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION" && \
+    npm install -g @cdxgen/cdxgen-plugins-bin@"$CDXGEN_PLUGINS_VERSION" && \
     curl -sLO https://github.com/AppThreat/atom/releases/latest/download/atom-amd64 && \
     chmod a+x atom-amd64 && mv atom-amd64 /usr/bin/atom
 
@@ -106,7 +106,7 @@ RUN \
     rm -rf nydus.tgz nydus-static
 
 # install depscan
-RUN pip install -q owasp-depscan==${DEPSCAN_VERSION}
+RUN pip install -q owasp-depscan==${DEPSCAN_VERSION#v}
 
 # install sdkman
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/curlrc /root/.curlrc

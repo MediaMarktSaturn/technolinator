@@ -53,7 +53,7 @@ public class DependencyTrackClient {
         var projectVersion = repoDetails.version();
         return Uni.createFrom().item(() -> {
                 try {
-                    return new BomJsonGenerator(sbom, Version.VERSION_15).toJsonString();
+                    return new BomJsonGenerator(sbom, Version.VERSION_17).toJsonString();
                 } catch (GeneratorException e) {
                     throw new RuntimeException(e);
                 }
