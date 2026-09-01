@@ -10,7 +10,7 @@ on:
         required: true
         description: Branch of cdxgen_repo to run tests with
 env:
-  CDXGEN_PLUGINS_VERSION: '1.8.0'
+  CDXGEN_PLUGINS_VERSION: '3.1.0'
   GRYPE_VERSION: 'v0.118.0'
   SBOMQS_VERSION: 'v2.1.0'
   DEPSCAN_VERSION: 'v6.3.0'
