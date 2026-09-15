@@ -22,7 +22,7 @@ env:
   SBOMQS_VERSION: 'v2.1.0'
   DEPSCAN_VERSION: 'v6.3.0'
   NYDUS_VERSION: '2.4.5'
-  SWIFT_VERSION: '6.3.3'
+  SWIFT_VERSION: '6.4.0'
   semantic_version: '19.0.5'
   java_version: '25'
   node_version: '24'
