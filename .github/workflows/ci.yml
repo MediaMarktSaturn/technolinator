@@ -104,7 +104,7 @@ jobs:
 
       - name: Getting next release version
         id: semantic
-        uses: cycjimmy/semantic-release-action@2a8f1fb80c292f4b71a808d78655ee474fc6e725 # v8.0.2
+        uses: cycjimmy/semantic-release-action@9e1f8a3ef91f1097285028e799a5fb8bb90e8899 # v8.1.0
         with:
           dry_run: true
         env:
@@ -223,6 +223,6 @@ jobs:
 
       - name: Create Release
         if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-        uses: cycjimmy/semantic-release-action@2a8f1fb80c292f4b71a808d78655ee474fc6e725 # v8.0.2
+        uses: cycjimmy/semantic-release-action@9e1f8a3ef91f1097285028e799a5fb8bb90e8899 # v8.1.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
