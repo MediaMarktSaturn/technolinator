@@ -130,6 +130,30 @@ public class AnalysisProcessHandler {
             repo.getName(), repo.getGitTransportUrl(), repo.getHtmlUrl().toString());
     }
 
+    /**
+     * Renames all Dependency-Track projects of the repository's former name to the current name.
+     * Projects which can't be renamed are archived instead.
+     */
+    public Uni<DependencyTrackClient.RenameResult> onRepositoryRenamed(GHRepository repo, String oldName) {
+        final var newName = repo.getName();
+        final var newVcsUrl = repo.getGitTransportUrl();
+        final var newWebsiteUrl = repo.getHtmlUrl().toString();
+        return dtrackClient.renameProjectsOfRepository(
+            oldName, newName,
+            replaceLastSegment(newVcsUrl, newName, oldName),
+            replaceLastSegment(newWebsiteUrl, newName, oldName),
+            newVcsUrl, newWebsiteUrl);
+    }
+
+    private static String replaceLastSegment(String url, String newName, String oldName) {
+        final var needle = "/" + newName;
+        final var idx = url.lastIndexOf(needle);
+        if (idx < 0) {
+            return url;
+        }
+        return url.substring(0, idx) + "/" + oldName + url.substring(idx + needle.length());
+    }
+
     Uni<Result<Project>> handleAnalysis(Event<?> event, Command.Metadata metadata, boolean fetchLicenses) {
         var repoDetails = repoService.getRepositoryDetails(event);
         return checkoutAndGenerateSBOMs(event, metadata, fetchLicenses)

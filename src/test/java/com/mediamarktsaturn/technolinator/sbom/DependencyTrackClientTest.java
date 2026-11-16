@@ -103,6 +103,12 @@ class DependencyTrackClientTest {
         );
 
         wiremock.register(
+            get(urlEqualTo("/api/v1/event/token/test-upload"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"processing\":false}"))
+        );
+
+        wiremock.register(
             patch(urlMatching("/api/v1/project/.+"))
                 .withHeader("X-API-Key", equalTo(API_KEY))
                 .willReturn(
@@ -180,8 +186,110 @@ class DependencyTrackClientTest {
 
         // project uuid is taken from the upload response, no lookup needed
         var getRequests = wiremock.find(getRequestedFor(urlMatching(".*")));
-        assertThat(getRequests).hasSize(1);
-        assertThat(getRequests.get(0).getUrl()).startsWith("/api/v1/project/concise?");
+        assertThat(getRequests).hasSize(2);
+        assertThat(getRequests.stream().map(LoggedRequest::getUrl)).anySatisfy(url -> assertThat(url).isEqualTo("/api/v1/event/token/test-upload"))
+            .anySatisfy(url -> assertThat(url).startsWith("/api/v1/project/concise?"));
+    }
+
+    @Test
+    void testMetadataIsUpdatedAfterBomProcessingFinished() {
+        // Given
+        var name = "processing-project";
+        var version = "3.0.0";
+        var token = "processing-token";
+        var scenario = "bom-processing";
+
+        wiremock.register(
+            post(urlEqualTo("/api/v1/bom"))
+                .withMultipartRequestBody(aMultipart("projectName").withBody(equalTo(name)))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(JsonObject.of("token", token, "projectUuid", "processing-uuid").encode()))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project/concise"))
+                .withQueryParam("name", equalTo(name))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("[]"))
+        );
+        wiremock.register(
+            get(urlEqualTo("/api/v1/event/token/" + token))
+                .inScenario(scenario).whenScenarioStateIs(com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED)
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"processing\":true}"))
+                .willSetStateTo("still-processing")
+        );
+        wiremock.register(
+            get(urlEqualTo("/api/v1/event/token/" + token))
+                .inScenario(scenario).whenScenarioStateIs("still-processing")
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"processing\":true}"))
+                .willSetStateTo("done")
+        );
+        wiremock.register(
+            get(urlEqualTo("/api/v1/event/token/" + token))
+                .inScenario(scenario).whenScenarioStateIs("done")
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"processing\":false}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/processing-uuid"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        var projectDetails = new RepositoryDetails(name, version, "processing", "https://github.com/x/processing", "git://github.com/x/processing.git", List.of("topic"));
+
+        // When
+        var result = await(cut.uploadSBOM(projectDetails, new Bom(), name, Project.none(), Optional.empty()));
+
+        // Then
+        assertThat(result).isInstanceOf(Result.Success.class);
+        var polls = wiremock.find(getRequestedFor(urlEqualTo("/api/v1/event/token/" + token)));
+        var patches = wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/processing-uuid")));
+        assertThat(polls).hasSize(3);
+        assertThat(patches).hasSize(1);
+        // the first two polls report 'processing', the metadata update must not happen before the last one reports 'done'
+        var lastPoll = polls.stream().map(LoggedRequest::getLoggedDate).max(java.util.Date::compareTo).orElseThrow();
+        assertThat(patches.get(0).getLoggedDate()).isAfterOrEqualTo(lastPoll);
+    }
+
+    @Test
+    void testMetadataUpdateIsRetriedOnUnsuccessfulResponse() {
+        // Given
+        var name = "retry-project";
+        var version = "4.0.0";
+        var scenario = "patch-retry";
+
+        wiremock.register(
+            post(urlEqualTo("/api/v1/bom"))
+                .withMultipartRequestBody(aMultipart("projectName").withBody(equalTo(name)))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(JsonObject.of("token", "retry-token", "projectUuid", "retry-uuid").encode()))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project/concise"))
+                .withQueryParam("name", equalTo(name))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("[]"))
+        );
+        wiremock.register(
+            get(urlEqualTo("/api/v1/event/token/retry-token"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"processing\":false}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/retry-uuid"))
+                .inScenario(scenario).whenScenarioStateIs(com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED)
+                .willReturn(aResponse().withStatus(409).withBody("conflict"))
+                .willSetStateTo("conflicted")
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/retry-uuid"))
+                .inScenario(scenario).whenScenarioStateIs("conflicted")
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        var projectDetails = new RepositoryDetails(name, version, "retry", "https://github.com/x/retry", "git://github.com/x/retry.git", List.of());
+
+        // When
+        var result = await(cut.uploadSBOM(projectDetails, new Bom(), name, Project.none(), Optional.empty()));
+
+        // Then
+        assertThat(result).isInstanceOf(Result.Success.class);
+        assertThat(wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/retry-uuid")))).hasSize(2);
     }
 
     @Test
@@ -624,6 +732,203 @@ class DependencyTrackClientTest {
         // Then
         subscriber.awaitFailure().assertFailedWith(DependencyTrackClientHttpException.class);
         assertThat(wiremock.find(patchRequestedFor(urlMatching(".*")))).isEmpty();
+    }
+
+    @Test
+    void testArchiveProjectsOfRepositoryWithoutExternalReferences() {
+        // Given
+        var repo = "bare-test";
+        var vcs = "git://github.com/heubeck/bare-test.git";
+        var website = "https://github.com/heubeck/bare-test";
+        var otherVcs = "git://github.com/someone-else/bare-test.git";
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(repo))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(JsonArray.of(
+                        // no external references at all, matched by exact name
+                        archiveProject("bare-uuid-plain", repo, null, null, null).put("externalReferences", null),
+                        // empty external references, child of a matched project
+                        archiveProject("bare-uuid-child", repo + "-module", null, null, "bare-uuid-plain").put("externalReferences", JsonArray.of()),
+                        // nested child without references
+                        archiveProject("bare-uuid-grandchild", repo + "-module-sub", null, null, "bare-uuid-child").put("externalReferences", JsonArray.of()),
+                        // no references, but no relation to matched projects
+                        archiveProject("bare-uuid-orphan", repo + "-orphan", null, null, null).put("externalReferences", JsonArray.of()),
+                        // other repository with the same name
+                        archiveProject("bare-uuid-foreign", repo, otherVcs, "https://github.com/someone-else/bare-test", null),
+                        // child of the foreign project without own references
+                        archiveProject("bare-uuid-foreign-child", repo + "-module", null, null, "bare-uuid-foreign").put("externalReferences", JsonArray.of())
+                    ).encode()))
+        );
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/bare-uuid-.+"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        // When
+        var archived = await(cut.archiveProjectsOfRepository(repo, vcs, website));
+
+        // Then
+        // the foreign project and its child (only distinguishable via the parent) as well as the orphan must not be archived
+        assertThat(archived).isEqualTo(3);
+        var patched = wiremock.find(patchRequestedFor(urlMatching(".*"))).stream().map(LoggedRequest::getUrl).toList();
+        assertThat(patched).containsExactlyInAnyOrder(
+            "/api/v1/project/bare-uuid-plain", "/api/v1/project/bare-uuid-child", "/api/v1/project/bare-uuid-grandchild");
+    }
+
+    @Test
+    void testRenameProjectsOfRepository() {
+        // Given
+        var oldName = "rename-old";
+        var newName = "rename-new";
+        var oldVcs = "git://github.com/heubeck/rename-old.git";
+        var oldWebsite = "https://github.com/heubeck/rename-old";
+        var newVcs = "git://github.com/heubeck/rename-new.git";
+        var newWebsite = "https://github.com/heubeck/rename-new";
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("searchText", equalTo(oldName))
+                .withQueryParam("excludeInactive", equalTo("false"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "4")
+                    .withBody(JsonArray.of(
+                        archiveProject("rename-uuid-parent", oldName, oldVcs, oldWebsite, null),
+                        archiveProject("rename-uuid-child", oldName + "-module", oldVcs, oldWebsite, "rename-uuid-parent"),
+                        // no references at all, matched by exact name
+                        archiveProject("rename-uuid-bare", oldName, null, null, null).put("externalReferences", null),
+                        // other repository
+                        archiveProject("rename-uuid-foreign", oldName, "git://github.com/someone-else/rename-old.git", "https://github.com/someone-else/rename-old", null)
+                    ).encode()))
+        );
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/rename-uuid-.+"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        // When
+        var result = await(cut.renameProjectsOfRepository(oldName, newName, oldVcs, oldWebsite, newVcs, newWebsite));
+
+        // Then
+        assertThat(result).isEqualTo(new DependencyTrackClient.RenameResult(3, 0, 0));
+
+        var patched = wiremock.find(patchRequestedFor(urlMatching(".*")));
+        assertThat(patched.stream().map(LoggedRequest::getUrl)).containsExactlyInAnyOrder(
+            "/api/v1/project/rename-uuid-parent", "/api/v1/project/rename-uuid-child", "/api/v1/project/rename-uuid-bare");
+
+        var parentBody = new JsonObject(patched.stream().filter(r -> r.getUrl().endsWith("rename-uuid-parent")).findFirst().orElseThrow().getBodyAsString());
+        assertThat(parentBody.getString("name")).isEqualTo(newName);
+        assertThat(parentBody.getJsonArray("externalReferences")).isEqualTo(JsonArray.of(
+            JsonObject.of("type", "vcs", "url", newVcs),
+            JsonObject.of("type", "website", "url", newWebsite),
+            JsonObject.of("type", "release-notes", "url", newWebsite + "/releases")
+        ));
+
+        var childBody = new JsonObject(patched.stream().filter(r -> r.getUrl().endsWith("rename-uuid-child")).findFirst().orElseThrow().getBodyAsString());
+        assertThat(childBody.getString("name")).isEqualTo(newName + "-module");
+        assertThat(childBody.getJsonArray("externalReferences").getJsonObject(0).getString("url")).isEqualTo(newVcs);
+
+        var bareBody = new JsonObject(patched.stream().filter(r -> r.getUrl().endsWith("rename-uuid-bare")).findFirst().orElseThrow().getBodyAsString());
+        assertThat(bareBody).isEqualTo(JsonObject.of("name", newName));
+    }
+
+    @Test
+    void testRenameProjectsOfRepositoryArchivesConflictingProjects() {
+        // Given
+        var oldName = "conflict-old";
+        var newName = "conflict-new";
+        var oldVcs = "git://github.com/heubeck/conflict-old.git";
+        var oldWebsite = "https://github.com/heubeck/conflict-old";
+        var newVcs = "git://github.com/heubeck/conflict-new.git";
+        var newWebsite = "https://github.com/heubeck/conflict-new";
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(oldName))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(JsonArray.of(
+                        archiveProject("conflict-uuid-ok", oldName, oldVcs, oldWebsite, null),
+                        archiveProject("conflict-uuid-taken", oldName + "-module", oldVcs, oldWebsite, "conflict-uuid-ok"),
+                        archiveProject("conflict-uuid-inactive", oldName + "-other", oldVcs, oldWebsite, null).put("active", false)
+                    ).encode()))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/conflict-uuid-ok"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+        // rename of the conflicting projects is rejected, deactivation is fine
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/conflict-uuid-(taken|inactive)"))
+                .withRequestBody(matchingJsonPath("$.name"))
+                .willReturn(aResponse().withStatus(409).withBody("conflict"))
+        );
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/conflict-uuid-(taken|inactive)"))
+                .withRequestBody(equalToJson("{\"active\":false}"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        // When
+        var result = await(cut.renameProjectsOfRepository(oldName, newName, oldVcs, oldWebsite, newVcs, newWebsite));
+
+        // Then
+        // the inactive project is archived already and not touched again
+        assertThat(result).isEqualTo(new DependencyTrackClient.RenameResult(1, 1, 1));
+        wiremock.verifyThat(1, patchRequestedFor(urlEqualTo("/api/v1/project/conflict-uuid-taken"))
+            .withRequestBody(equalToJson("{\"active\":false}")));
+        wiremock.verifyThat(0, patchRequestedFor(urlEqualTo("/api/v1/project/conflict-uuid-inactive"))
+            .withRequestBody(equalToJson("{\"active\":false}")));
+    }
+
+    @Test
+    void testRenameProjectsOfRepositoryWithoutMatches() {
+        // Given
+        var oldName = "nomatch-old";
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(oldName))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(JsonArray.of(
+                        archiveProject("nomatch-uuid-foreign", oldName, "git://github.com/someone-else/nomatch-old.git", "https://github.com/someone-else/nomatch-old", null)
+                    ).encode()))
+        );
+
+        // When
+        var result = await(cut.renameProjectsOfRepository(oldName, "nomatch-new",
+            "git://github.com/heubeck/nomatch-old.git", "https://github.com/heubeck/nomatch-old",
+            "git://github.com/heubeck/nomatch-new.git", "https://github.com/heubeck/nomatch-new"));
+
+        // Then
+        assertThat(result).isEqualTo(new DependencyTrackClient.RenameResult(0, 0, 0));
+        assertThat(wiremock.find(patchRequestedFor(urlMatching(".*")))).isEmpty();
+    }
+
+    @Test
+    void testRenameExternalReferences() {
+        var refs = JsonArray.of(
+            JsonObject.of("type", "vcs", "url", "git://github.com/o/old.git"),
+            JsonObject.of("type", "website", "url", "https://github.com/o/old"),
+            JsonObject.of("type", "release-notes", "url", "https://github.com/o/old/releases"),
+            JsonObject.of("type", "documentation", "url", "https://github.com/o/old-docs"),
+            JsonObject.of("type", "issue-tracker", "url", "https://example.com/other")
+        );
+
+        var result = cut.renameExternalReferences(refs, "git://github.com/o/old.git", "https://github.com/o/old",
+            "git://github.com/o/new.git", "https://github.com/o/new");
+
+        assertThat(result).isEqualTo(JsonArray.of(
+            JsonObject.of("type", "vcs", "url", "git://github.com/o/new.git"),
+            JsonObject.of("type", "website", "url", "https://github.com/o/new"),
+            JsonObject.of("type", "release-notes", "url", "https://github.com/o/new/releases"),
+            // only whole path segments are replaced
+            JsonObject.of("type", "documentation", "url", "https://github.com/o/old-docs"),
+            JsonObject.of("type", "issue-tracker", "url", "https://example.com/other")
+        ));
+        assertThat(cut.renameExternalReferences(null, "a", "b", "c", "d")).isNull();
+        assertThat(cut.renameExternalReferences(JsonArray.of(), "a", "b", "c", "d")).isNull();
     }
 
     private static JsonObject archiveProject(String uuid, String name, String vcsUrl, String websiteUrl, String parentUuid) {
