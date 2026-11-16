@@ -71,6 +71,18 @@ class StatusReportRendererTest {
     }
 
     @Test
+    void otherContentIsKeptIntactAsLongAsTheCommentFits() {
+        var other = "vulnerability\n".repeat(3_000);
+        var report = report(T0, "abc", failure("shop", "error", "short log"));
+
+        var comment = StatusReportRenderer.pullRequestFailureComment(report, true, other, MARKER);
+
+        assertThat(other.length()).isGreaterThan(StatusReportRenderer.MAX_OTHER_CONTENT_LENGTH);
+        assertThat(comment).contains(other.strip()).doesNotContain("The report is truncated").endsWith(MARKER);
+        assertThat(comment.length()).isLessThan(65_536);
+    }
+
+    @Test
     void hugeOtherContentCannotExceedTheLimitOfGitHub() {
         var other = "vulnerability\n".repeat(100_000);
         var report = report(T0, "abc", failure("shop", "error", "x".repeat(200_000)));

@@ -18,7 +18,7 @@ public final class StatusReportRenderer {
     /**
      * GitHub rejects texts longer than 65536 characters, stay well below.
      */
-    public static final int MAX_BODY_LENGTH = 60_000;
+    public static final int MAX_BODY_LENGTH = Commons.MAX_COMMENT_LENGTH;
 
     static final int MAX_EXCERPT_LENGTH = 30_000;
     static final int MIN_EXCERPT_LENGTH = 2_000;
@@ -27,7 +27,8 @@ public final class StatusReportRenderer {
     static final int MAX_INLINE_LENGTH = 500;
     static final int MAX_TITLE_LENGTH = 256;
     /**
-     * Space of a failure comment left for the other content, which is the vulnerability report.
+     * Space of a failure comment which is guaranteed for the other content, which is the vulnerability report.
+     * It can use more, as far as the failure details leave space.
      */
     static final int MAX_OTHER_CONTENT_LENGTH = 25_000;
     /**
@@ -148,14 +149,24 @@ public final class StatusReportRenderer {
 
         var footer = new StringBuilder();
         footer.append("\n");
-        if (otherContent != null && !otherContent.isBlank()) {
-            footer.append("\n---\n\n").append(limit(otherContent.strip(), MAX_OTHER_CONTENT_LENGTH)).append("\n");
-        }
-        footer.append("\n").append(commentMarker);
+        var other = otherContent != null && !otherContent.isBlank() ? otherContent.strip() : null;
+        var separator = "\n---\n\n";
+        var closing = "\n" + commentMarker;
+        var fixedLength = body.length() + footer.length() + closing.length();
 
-        var budget = Math.max(MIN_EXCERPT_LENGTH * 2, MAX_BODY_LENGTH - body.length() - footer.length());
-        body.append(failureDetails(report, includeLogs, "###", budget));
+        // The failure details get what the other content, up to its guaranteed share, leaves of the comment,
+        // and the other content then everything which the details didn't use.
+        var otherReserve = other == null ? 0 : Math.min(other.length() + separator.length() + 1, MAX_OTHER_CONTENT_LENGTH);
+        var budget = Math.max(MIN_EXCERPT_LENGTH * 2, MAX_BODY_LENGTH - fixedLength - otherReserve);
+        var details = failureDetails(report, includeLogs, "###", budget);
+
+        body.append(details);
         body.append(footer);
+        if (other != null) {
+            var space = MAX_BODY_LENGTH - body.length() - separator.length() - 1 - closing.length();
+            body.append(separator).append(limit(other, Math.max(0, space))).append("\n");
+        }
+        body.append(closing);
         return body.toString();
     }
 

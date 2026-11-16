@@ -14,6 +14,11 @@ public final class Commons {
     }
 
     /**
+     * GitHub rejects comments and issue bodies longer than 65536 characters, stay well below.
+     */
+    public static final int MAX_COMMENT_LENGTH = 60_000;
+
+    /**
      * Cuts the [content] to at most [maxLength] characters if it is longer, preferably at a line end, and appends the [note] then.
      */
     public static String truncate(String content, int maxLength, String note) {
