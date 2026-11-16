@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.report;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 /**
@@ -31,11 +32,19 @@ public final class LogExcerpter {
      * progress bar rewrites resolved, over-long lines cut, consecutive duplicates and surrounding blank lines removed.
      */
     public static List<String> cleanLines(List<String> rawLines) {
+        return cleanLines(rawLines, UnaryOperator.identity());
+    }
+
+    /**
+     * Like {@link #cleanLines(List)}, but applies the given redaction to the printable lines before they are cut,
+     * as a secret must not be left half visible by cutting a line in the middle of it.
+     */
+    public static List<String> cleanLines(List<String> rawLines, UnaryOperator<List<String>> redaction) {
         var cleaned = new ArrayList<String>(rawLines.size());
         String previous = null;
         int repeated = 0;
-        for (var raw : rawLines) {
-            var line = cleanLine(raw);
+        for (var raw : redaction.apply(rawLines.stream().map(LogExcerpter::printable).toList())) {
+            var line = truncate(raw);
             if (previous != null && !line.isBlank() && line.equals(previous)) {
                 repeated++;
                 continue;
@@ -61,7 +70,7 @@ public final class LogExcerpter {
         }
     }
 
-    static String cleanLine(String raw) {
+    private static String printable(String raw) {
         var line = raw == null ? "" : raw;
         if (line.indexOf('\r') >= 0) {
             // progress output rewrites the line, only what's left in the end is visible
@@ -76,18 +85,31 @@ public final class LogExcerpter {
         }
         line = ANSI.matcher(line).replaceAll("");
         line = CONTROL_CHARS.matcher(line).replaceAll("");
-        line = line.stripTrailing();
-        if (line.length() > MAX_LINE_LENGTH) {
-            line = line.substring(0, MAX_LINE_LENGTH) + " [...]";
+        return line.stripTrailing();
+    }
+
+    private static String truncate(String line) {
+        return line.length() > MAX_LINE_LENGTH ? line.substring(0, MAX_LINE_LENGTH) + " [...]" : line;
+    }
+
+    /**
+     * @return the index of the first line looking like an error, or -1 if there is none
+     */
+    public static int firstErrorLineIndex(List<String> cleanedLines) {
+        for (var i = 0; i < cleanedLines.size(); i++) {
+            if (ERROR_LINE.matcher(cleanedLines.get(i)).find()) {
+                return i;
+            }
         }
-        return line;
+        return -1;
     }
 
     /**
      * @return the first line looking like an error, or empty if there is none
      */
     public static String firstErrorLine(List<String> cleanedLines) {
-        return cleanedLines.stream().filter(l -> ERROR_LINE.matcher(l).find()).findFirst().map(String::strip).orElse("");
+        var idx = firstErrorLineIndex(cleanedLines);
+        return idx < 0 ? "" : cleanedLines.get(idx).strip();
     }
 
     /**

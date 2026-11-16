@@ -15,9 +15,12 @@ public record PushEvent(
     Optional<TechnolinatorConfig> config
 ) implements Event<GHEventPayload.Push> {
 
+    private static final String BRANCH_REF_PREFIX = "refs/heads/";
+
     @Override
     public String branch() {
-        return ref().replaceFirst("refs/heads/", "");
+        var ref = ref();
+        return ref.startsWith(BRANCH_REF_PREFIX) ? ref.substring(BRANCH_REF_PREFIX.length()) : ref;
     }
 
     @Override

@@ -100,29 +100,55 @@ public class HousekeepingService {
      * Does nothing, if another run is still in progress or nothing is enabled. Nothing happens before the returned {@link Uni} is subscribed to.
      */
     public Uni<Void> run(HousekeepingSelection selection) {
-        return Uni.createFrom().deferred(() -> doRun(selection));
+        return Uni.createFrom().deferred(() -> claim() ? runClaimed(selection) : Uni.createFrom().voidItem());
     }
 
-    private Uni<Void> doRun(HousekeepingSelection selection) {
-        if (!running.compareAndSet(false, true)) {
-            Log.warn("Housekeeping run skipped, the previous one is still in progress");
-            return Uni.createFrom().voidItem();
+    /**
+     * Starts a housekeeping run for the [selection] in the background, unless another run is in progress.
+     * Claiming the run happens right away, so callers can tell reliably whether their run got started.
+     *
+     * @return {@code false}, if another run is still in progress
+     */
+    public boolean startInBackground(HousekeepingSelection selection) {
+        if (!claim()) {
+            return false;
         }
+        runClaimed(selection).subscribe().with(
+            ignored -> {
+            },
+            failure -> Log.error("Housekeeping run failed", failure)
+        );
+        return true;
+    }
 
-        final List<String> enabledActions;
+    private boolean claim() {
+        if (running.compareAndSet(false, true)) {
+            return true;
+        }
+        Log.warn("Housekeeping run skipped, the previous one is still in progress");
+        return false;
+    }
+
+    /**
+     * Requires the run to be {@link #claim() claimed}, releases it in any case.
+     */
+    private Uni<Void> runClaimed(HousekeepingSelection selection) {
         try {
-            enabledActions = worker.enabledActions();
+            var enabledActions = worker.enabledActions();
+            if (enabledActions.isEmpty()) {
+                running.set(false);
+                Log.info("Housekeeping run skipped, no action enabled");
+                return Uni.createFrom().voidItem();
+            }
+            return execute(selection, enabledActions);
         } catch (RuntimeException e) {
             running.set(false);
-            Log.error("Housekeeping run aborted, could not determine enabled actions", e);
+            Log.error("Housekeeping run aborted, could not be started", e);
             return Uni.createFrom().voidItem();
         }
-        if (enabledActions.isEmpty()) {
-            running.set(false);
-            Log.info("Housekeeping run skipped, no action enabled");
-            return Uni.createFrom().voidItem();
-        }
+    }
 
+    private Uni<Void> execute(HousekeepingSelection selection, List<String> enabledActions) {
         var run = new HousekeepingRun(UUID.randomUUID().toString().substring(0, 8), Instant.now(), dryRun);
         var sample = Timer.start(meterRegistry);
         run.writeToMDC();
@@ -133,9 +159,12 @@ public class HousekeepingService {
         return crawl(run, selection)
             .invoke(summary -> reportCompletion(run, summary, selection))
             .onTermination().invoke(() -> {
-                worker.end(run);
-                sample.stop(meterRegistry.timer("housekeeping_run_duration"));
-                running.set(false);
+                try {
+                    worker.end(run);
+                    sample.stop(meterRegistry.timer("housekeeping_run_duration"));
+                } finally {
+                    running.set(false);
+                }
             })
             // safety net only, all steps above handle their failures
             .onFailure().invoke(failure -> Log.errorf(failure, "Housekeeping run %s failed", run.id()))
@@ -145,10 +174,11 @@ public class HousekeepingService {
 
     private Uni<HousekeepingSummary> crawl(HousekeepingRun run, HousekeepingSelection selection) {
         var progress = new AtomicReference<Supplier<HousekeepingSummary>>(HousekeepingSummary::notStarted);
-        var listing = selection.isAll()
+        // deferred, so even a listing failing to get started releases the run via the handlers below
+        var listing = Uni.createFrom().deferred(() -> selection.isAll()
             ? Uni.combine().all().unis(indexer.build(run), dtrackClient.listProjects(false)).asTuple()
                 .map(listings -> new TargetedListing.Listing(listings.getItem1(), listings.getItem2()))
-            : targetedListing.load(run, selection);
+            : targetedListing.load(run, selection));
         return listing
             .chain(listings -> {
                 var index = listings.index();
@@ -244,6 +274,6 @@ public class HousekeepingService {
         }
         run.writeToMDC();
         Log.infof("Housekeeping run %s %s after %s: %s",
-            run.id(), summary.complete() ? "completed" : "completed incompletely", Duration.between(run.startedAt(), Instant.now()), summary);
+            run.id(), summary.aborted() ? "was aborted" : summary.complete() ? "completed" : "completed incompletely", Duration.between(run.startedAt(), Instant.now()), summary);
     }
 }

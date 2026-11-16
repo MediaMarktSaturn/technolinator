@@ -3,6 +3,7 @@ package com.mediamarktsaturn.technolinator.events;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.ConfigBuilder;
 import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.TestUtil;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
@@ -151,6 +152,31 @@ class OnPushDispatcherTest {
         Mockito.verify(onPushDispatcher).createGHCommitStatus(any(), any(), statusArgumentMatcher.capture(), any(), descriptionArgumentMatcher.capture(), any());
         assertThat(descriptionArgumentMatcher.getValue()).isEqualTo("SBOM creation failed: Dependency Track Server Http Status 503: this is just a test");
         assertThat(statusArgumentMatcher.getValue()).isEqualTo(GHCommitState.ERROR);
+    }
+
+    @Test
+    void testOnPush_withoutCommitStillProvidesMetricStatus() {
+        var dispatcher = new OnPushDispatcher();
+        var metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.empty());
+
+        var result = TestUtil.await(dispatcher.reportAnalysisResult(Result.success(Project.none()), new GHRepository(), Optional.empty(), metadata));
+
+        assertThat(result).isNotNull();
+        assertThat(result.commitStatus()).isNull();
+        assertThat(result.metricStatus()).isEqualTo(DispatcherBase.MetricStatusAnalysis.NONE);
+    }
+
+    @Test
+    void testDisabledCommitStatusWriteCompletes() {
+        var dispatcher = new OnPushDispatcher();
+        dispatcher.enabledCommitStatusWrite = false;
+        var metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("sha-1"));
+
+        var result = TestUtil.await(dispatcher.reportAnalysisResult(
+            Result.success(Project.available("http://dtrack/projects/1", "1", Optional.empty())), new GHRepository(), Optional.of("sha-1"), metadata));
+
+        assertThat(result.commitStatus()).isNull();
+        assertThat(result.metricStatus()).isEqualTo(DispatcherBase.MetricStatusAnalysis.OK);
     }
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {

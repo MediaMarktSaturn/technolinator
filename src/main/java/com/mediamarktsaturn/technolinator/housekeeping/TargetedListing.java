@@ -48,6 +48,7 @@ final class TargetedListing {
     }
 
     private static final Pattern UUID = Pattern.compile("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+    private static final Pattern NAME = Pattern.compile("[A-Za-z0-9_.-]+");
     /**
      * Guards against cyclic hierarchies, which Dependency-Track shouldn't allow, though
      */
@@ -63,14 +64,19 @@ final class TargetedListing {
     }
 
     /**
-     * @return the repository given as {@code owner/name}, or empty if it's not given including its owner
+     * @return the repository given as {@code owner/name}, or empty if it's not given including its owner or contains characters not allowed
+     * in names of GitHub accounts and repositories, as these end up in request paths and logs
      */
     static Optional<GitHubRepositoryIndexer.Target> parseRepository(String repository) {
         var parts = repository.trim().split("/");
-        if (parts.length != 2 || parts[0].isBlank() || parts[1].isBlank()) {
+        if (parts.length != 2 || !isValidName(parts[0].trim()) || !isValidName(parts[1].trim())) {
             return Optional.empty();
         }
         return Optional.of(new GitHubRepositoryIndexer.Target(parts[0].trim(), parts[1].trim()));
+    }
+
+    private static boolean isValidName(String name) {
+        return NAME.matcher(name).matches() && !name.chars().allMatch(c -> c == '.');
     }
 
     Uni<Listing> load(HousekeepingRun run, HousekeepingSelection selection) {
@@ -81,6 +87,8 @@ final class TargetedListing {
                 selection.repositories().stream().map(TargetedListing::parseRepository).forEach(target -> target.ifPresent(targets::add));
                 selected.stream()
                     .flatMap(project -> UnitMatcher.referencesOf(project).stream())
+                    // references come from data anyone with access to Dependency-Track can edit
+                    .filter(reference -> isValidName(reference.owner()) && isValidName(reference.name()))
                     .forEach(reference -> targets.add(new GitHubRepositoryIndexer.Target(reference.owner(), reference.name())));
                 run.writeToMDC();
                 Log.infof("Looking at %d repositories and %d projects of the selection", targets.size(), selected.size());

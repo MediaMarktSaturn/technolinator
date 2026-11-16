@@ -9,9 +9,9 @@ import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
-import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -22,10 +22,12 @@ import org.kohsuke.github.HttpException;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Tells the owners of a repository that the analysis of it fails: in a status issue for the default branch,
@@ -97,6 +99,7 @@ public class FailureReporter {
     }
 
     static final long DEFAULT_RETRY_DELAY_MILLIS = 2_000;
+    static final int MAX_TRACKED_TIMEOUTS = 1_000;
 
     private final StatusIssueService issueService;
     private final PrStatusCommentService commentService;
@@ -109,7 +112,15 @@ public class FailureReporter {
     private final int timeoutsBeforeReport;
     private final long retryDelayMillis;
 
-    private final ConcurrentHashMap<String, Integer> consecutiveTimeouts = new ConcurrentHashMap<>();
+    /**
+     * Least recently used first, the oldest entries are dropped, as branches come and go.
+     */
+    private final Map<String, Integer> consecutiveTimeouts = Collections.synchronizedMap(new LinkedHashMap<String, Integer>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Integer> eldest) {
+            return size() > MAX_TRACKED_TIMEOUTS;
+        }
+    });
 
     @Inject
     public FailureReporter(
@@ -203,7 +214,7 @@ public class FailureReporter {
         var actionable = new ArrayList<FailureReport.ToolFailure>();
         var timeouts = new ArrayList<FailureReport.ToolFailure>();
         for (var i = 0; i < causes.size(); i++) {
-            var classification = FailureClassifier.classify(stages.get(i), causes.get(i));
+            var classification = FailureClassifier.classify(stages.get(i), causes.get(i), redactor::redactLines);
             countFailure(classification);
             switch (classification.kind()) {
                 case INFRASTRUCTURE -> {
@@ -214,16 +225,9 @@ public class FailureReporter {
             }
         }
 
-        var timeoutsInARow = 0;
-        if (!timeouts.isEmpty()) {
-            timeoutsInARow = consecutiveTimeouts.merge(timeoutKey(ctx), 1, Integer::sum);
-        } else {
+        if (timeouts.isEmpty()) {
             consecutiveTimeouts.remove(timeoutKey(ctx));
-        }
-        if (!timeouts.isEmpty() && timeoutsInARow < timeoutsBeforeReport) {
-            Log.infof("Analysis of repo %s, branch %s timed out (%s of %s in a row before it is reported)",
-                ctx.metadata().repoFullName(), ctx.branch(), timeoutsInARow, timeoutsBeforeReport);
-        } else {
+        } else if (timeoutsReachedLimit(ctx)) {
             actionable.addAll(timeouts);
         }
 
@@ -235,6 +239,20 @@ public class FailureReporter {
         return new Evaluation(Verdict.FAILED, buildReport(ctx, actionable));
     }
 
+    /**
+     * Counts a timeout of the branch, a single one is often just load.
+     *
+     * @return whether the timeouts in a row are enough to report them as failure
+     */
+    private boolean timeoutsReachedLimit(Context ctx) {
+        var inARow = consecutiveTimeouts.merge(timeoutKey(ctx), 1, Integer::sum);
+        if (inARow < timeoutsBeforeReport) {
+            Log.infof("Analysis of repo %s, branch %s timed out (%s of %s in a row before it is reported)",
+                ctx.metadata().repoFullName(), ctx.branch(), inARow, timeoutsBeforeReport);
+            return false;
+        }
+        return true;
+    }
 
     private FailureReport.ToolFailure toToolFailure(Context ctx, FailureClassifier.Classification c, Throwable cause) {
         String project = ctx.metadata().repoFullName();
@@ -247,7 +265,7 @@ public class FailureReporter {
             }
             command = redactor.redact(process.command());
             exitCode = process.exitCode();
-            var lines = redactor.redactLines(LogExcerpter.cleanLines(process.outputLines()));
+            var lines = LogExcerpter.cleanLines(process.outputLines(), redactor::redactLines);
             excerpt = LogExcerpter.excerpt(lines, StatusReportRenderer.MAX_EXCERPT_LENGTH);
         }
         return new FailureReport.ToolFailure(
@@ -277,15 +295,13 @@ public class FailureReporter {
             return Evaluation.inactive();
         }
         try {
-            var classification = FailureClassifier.classify(FailureStage.SBOM_GENERATION, new io.smallrye.mutiny.TimeoutException());
+            var timeout = new TimeoutException();
+            var classification = FailureClassifier.classify(FailureStage.SBOM_GENERATION, timeout);
             countFailure(classification);
-            var inARow = consecutiveTimeouts.merge(timeoutKey(ctx), 1, Integer::sum);
-            if (inARow < timeoutsBeforeReport) {
-                Log.infof("Analysis of repo %s, branch %s timed out (%s of %s in a row before it is reported)",
-                    ctx.metadata().repoFullName(), ctx.branch(), inARow, timeoutsBeforeReport);
+            if (!timeoutsReachedLimit(ctx)) {
                 return new Evaluation(Verdict.INCONCLUSIVE, null);
             }
-            var failure = toToolFailure(ctx, classification, new io.smallrye.mutiny.TimeoutException());
+            var failure = toToolFailure(ctx, classification, timeout);
             return new Evaluation(Verdict.FAILED, buildReport(ctx, List.of(failure)));
         } catch (RuntimeException e) {
             countError("evaluate");
@@ -305,18 +321,17 @@ public class FailureReporter {
         boolean checkoutFailed,
         Result<Project> uploadResult
     ) {
-        return onWorkerPool(() -> reportToIssue(ctx, evaluate(ctx, sbomResults, checkoutFailed, Optional.ofNullable(uploadResult))));
+        return onWorkerPool(ctx, () -> reportToIssue(ctx, evaluate(ctx, sbomResults, checkoutFailed, Optional.ofNullable(uploadResult))));
     }
 
     /**
      * Reports that the analysis of the default branch did not finish in time.
      */
     public Uni<Void> onDefaultBranchTimeout(Context ctx) {
-        return onWorkerPool(() -> reportToIssue(ctx, evaluateTimeout(ctx)));
+        return onWorkerPool(ctx, () -> reportToIssue(ctx, evaluateTimeout(ctx)));
     }
 
     private void reportToIssue(Context ctx, Evaluation evaluation) {
-        ctx.metadata().writeToMDC();
         if (!isActive(ctx.repo()) || !ctx.config().map(TechnolinatorConfig::reporting).map(TechnolinatorConfig.ReportingConfig::issues).orElse(true)) {
             return;
         }
@@ -352,11 +367,12 @@ public class FailureReporter {
         var repoName = ctx.metadata().repoFullName();
         try {
             var statusEnabled = statusCommentsEnabled(ctx);
-            if (mode == Mode.DRY_RUN && evaluation.verdict() == Verdict.FAILED && isActive(ctx.repo())
-                && ctx.config().map(TechnolinatorConfig::reporting).map(TechnolinatorConfig.ReportingConfig::pullRequestComments).orElse(true)) {
+            if (mode == Mode.DRY_RUN && evaluation.verdict() == Verdict.FAILED && isActive(ctx.repo()) && pullRequestCommentsConfigured(ctx)) {
                 Log.infof("[dry-run] Would comment the failure of the analysis in pull-request %s#%s", repoName, pullRequest.getNumber());
-                Log.debugf("[dry-run] Comment:%n%s", StatusReportRenderer.pullRequestFailureComment(
-                    evaluation.report(), false, reportText, PrStatusCommentService.COMMENT_MARKER));
+                if (Log.isDebugEnabled()) {
+                    Log.debugf("[dry-run] Comment:%n%s", StatusReportRenderer.pullRequestFailureComment(
+                        evaluation.report(), false, reportText, PrStatusCommentService.COMMENT_MARKER));
+                }
             }
             var outcome = switch (evaluation.verdict()) {
                 case FAILED -> PrStatusCommentService.Outcome.FAILED;
@@ -389,8 +405,7 @@ public class FailureReporter {
      * Reports that the analysis of the pull-request did not finish in time.
      */
     public Uni<Void> onPullRequestTimeout(Context ctx, GHPullRequest pullRequest) {
-        return onWorkerPool(() -> {
-            ctx.metadata().writeToMDC();
+        return onWorkerPool(ctx, () -> {
             var evaluation = evaluateTimeout(ctx);
             if (isActive(ctx.repo())) {
                 // the vulnerability report of the previous analysis stays in the comment, it is not touched without a new one
@@ -408,8 +423,11 @@ public class FailureReporter {
     }
 
     private boolean statusCommentsEnabled(Context ctx) {
-        return mode == Mode.ON && isActive(ctx.repo())
-            && ctx.config().map(TechnolinatorConfig::reporting).map(TechnolinatorConfig.ReportingConfig::pullRequestComments).orElse(true);
+        return mode == Mode.ON && isActive(ctx.repo()) && pullRequestCommentsConfigured(ctx);
+    }
+
+    private static boolean pullRequestCommentsConfigured(Context ctx) {
+        return ctx.config().map(TechnolinatorConfig::reporting).map(TechnolinatorConfig.ReportingConfig::pullRequestComments).orElse(true);
     }
 
     private boolean isFork(Context ctx, GHPullRequest pullRequest) {
@@ -437,16 +455,17 @@ public class FailureReporter {
         return ctx.metadata().repoFullName() + "#" + ctx.branch();
     }
 
-    private Uni<Void> onWorkerPool(Runnable action) {
-        return Uni.createFrom().item(Unchecked.supplier(() -> {
+    private Uni<Void> onWorkerPool(Context ctx, Runnable action) {
+        return Uni.createFrom().<Void>item(() -> {
+                ctx.metadata().writeToMDC();
                 try {
                     action.run();
                 } catch (RuntimeException e) {
                     countError("unexpected");
                     Log.warnf(e, "Failure reporting failed");
                 }
-                return (Void) null;
-            }))
+                return null;
+            })
             .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
             .onFailure().recoverWithNull();
     }
@@ -487,9 +506,6 @@ public class FailureReporter {
                 if (lower.contains("secondary rate limit") || lower.contains("abuse detection")) {
                     return true;
                 }
-            }
-            if (t.getCause() == t) {
-                break;
             }
         }
         return false;

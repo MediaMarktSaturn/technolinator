@@ -114,7 +114,7 @@ public final class GitHubRepositoryIndex {
             repositories.forEach(repository -> byName.put(repository.reference().name(), repository));
             // an installation not listing anything at all is more likely to be a glitch than an account without repositories
             var exhaustive = allGranted && !byName.isEmpty();
-            var key = new RepositoryReference(host.toLowerCase(Locale.ROOT), owner.toLowerCase(Locale.ROOT), "").ownerKey();
+            var key = ownerKey(host, owner);
             owners.put(key, new Owner(exhaustive, Map.copyOf(byName), Set.of()));
             return this;
         }

@@ -36,11 +36,6 @@ public record PullRequestEvent(
     }
 
     @Override
-    public boolean targetsDefaultBranch() {
-        return payload.getPullRequest().getBase().getRef().equals(defaultBranch());
-    }
-
-    @Override
     public GHRepository repository() {
         return payload.getRepository();
     }

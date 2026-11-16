@@ -62,7 +62,7 @@ public abstract class DispatcherBase {
         if (!enabledCommitStatusWrite) {
             metadata.writeToMDC();
             Log.infof("Skip setting repo %s commit %s status to %s, because it's disabled via configuration.", repo.getUrl(), commitSha, state);
-            return Uni.createFrom().nothing();
+            return Uni.createFrom().nullItem();
         }
 
         return Uni.createFrom().item(Unchecked.supplier(() -> {

@@ -18,7 +18,7 @@ project:
     # desired name of the project in dependency-track; default is the GitHub repository name
     name: awesomeProject
 analysis:
-    # the location targeted by cdxgen; default: repository root
+    # the location targeted by cdxgen, relative to and within the repository; default: repository root
     location: projectLocation
     # whether cdxgen should scan for projects recursively in 'location' or only 'location' itself; default: true
     recursive: false
@@ -70,3 +70,4 @@ Please see the [adoption documentation](Adoption.md) for details.
 
 The JDK versions available for selection need to be provided and configured to the Technolinator runtime.
 Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 25 (default), JDK 21 and JDK 17 built in.
+Requesting a version that isn't available fails the analysis with an explanatory error instead of silently falling back.

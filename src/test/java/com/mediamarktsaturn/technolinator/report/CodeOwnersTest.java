@@ -37,6 +37,22 @@ class CodeOwnersTest {
     }
 
     @Test
+    void ownersWhichCouldInjectMarkdownAreIgnored() {
+        var owners = CodeOwners.parse(Optional.of("* @alice @org/team](http://evil) @bad<b> @org/ok @alice"));
+
+        assertThat(owners.users()).containsExactly("alice");
+        assertThat(owners.teams()).containsExactly("@org/ok");
+    }
+
+    @Test
+    void enterpriseManagedUsersAreTaken() {
+        var owners = CodeOwners.parse(Optional.of("* @alice_acme @acme_corp/platform"));
+
+        assertThat(owners.users()).containsExactly("alice_acme");
+        assertThat(owners.teams()).containsExactly("@acme_corp/platform");
+    }
+
+    @Test
     void noCatchAllOrNoFile() {
         assertThat(CodeOwners.parse(Optional.of("/src/ @alice"))).isEqualTo(CodeOwners.none());
         assertThat(CodeOwners.parse(Optional.empty())).isEqualTo(CodeOwners.none());

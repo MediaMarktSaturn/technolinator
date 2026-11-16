@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.plainProject;
@@ -347,6 +348,46 @@ class HousekeepingServiceTest {
     }
 
     @Test
+    void startsInBackgroundOnlyIfNoOtherRunIsInProgress() {
+        // Given
+        var listing = new CompletableFuture<GitHubRepositoryIndex>();
+        when(indexer.build(any())).thenReturn(Uni.createFrom().completionStage(listing));
+        when(dtrack.listProjects(false)).thenReturn(Uni.createFrom().item(List.of()));
+        var service = service();
+
+        // When
+        var first = service.startInBackground(HousekeepingSelection.all());
+        var second = service.startInBackground(HousekeepingSelection.all());
+
+        // Then
+        assertThat(first).isTrue();
+        assertThat(second).isFalse();
+        assertThat(service.isRunning()).isTrue();
+        verify(worker, times(1)).begin(any());
+
+        // and the next run is possible again, once the first one is done
+        listing.complete(index(repo("org", "app", false)));
+        assertThat(service.isRunning()).isFalse();
+        assertThat(processed).hasSize(1);
+        assertThat(service.startInBackground(HousekeepingSelection.all())).isTrue();
+    }
+
+    @Test
+    void releasesRunIfItCouldNotBeStarted() {
+        // Given
+        when(worker.enabledActions()).thenThrow(new IllegalStateException("broken"));
+        var service = service();
+
+        // When
+        var started = service.startInBackground(HousekeepingSelection.all());
+
+        // Then
+        assertThat(started).isTrue();
+        assertThat(service.isRunning()).isFalse();
+        verifyNoInteractions(indexer, dtrack);
+    }
+
+    @Test
     void abortsRunExceedingTimeout() {
         // Given
         when(indexer.build(any())).thenReturn(Uni.createFrom().nothing());
@@ -360,5 +401,28 @@ class HousekeepingServiceTest {
         verify(worker).end(any());
         assertThat(lastSuccess()).isZero();
         assertThat(lastCompleted()).isZero();
+    }
+
+    @Test
+    void releasesRunIfListingCouldNotBeStarted() {
+        // Given
+        when(indexer.build(any()))
+            .thenThrow(new IllegalStateException("broken"))
+            .thenReturn(Uni.createFrom().item(index(repo("org", "app", false))));
+        when(dtrack.listProjects(false)).thenReturn(Uni.createFrom().item(List.of()));
+        var service = service();
+
+        // When
+        run(service);
+
+        // Then
+        verify(worker, never()).process(any());
+        verify(worker).end(any());
+        assertThat(service.isRunning()).isFalse();
+        assertThat(lastCompleted()).isZero();
+
+        // and the next run is possible again
+        run(service);
+        assertThat(processed).hasSize(1);
     }
 }

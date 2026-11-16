@@ -8,7 +8,6 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 
-
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -22,7 +21,8 @@ import java.util.Set;
  * {@code POST /housekeeping?repository=owner/repo,owner/other-repo&project=my-project&project=1c2f...}.
  * <p>
  * The run happens in the background, the endpoint answers right away: {@code 202} if it was started, {@code 409} if no action is enabled
- * or another run is in progress, and {@code 400} for parameters without a value or repositories without owner.
+ * or another run is in progress, and {@code 400} for parameters without a value, repositories without owner, or more than
+ * {@value #MAX_SELECTED} repositories and projects in total.
  * <p>
  * It works independent of {@code app.housekeeping.enabled}, which only switches the scheduled runs. The switches of the actions still apply.
  * <p>
@@ -34,6 +34,8 @@ public class HousekeepingEndpoint {
     static final String PATH = "/housekeeping";
     static final String REPOSITORY_PARAM = "repository";
     static final String PROJECT_PARAM = "project";
+    // every selected repository and project is looked up on its own, beyond that listing everything is the better choice anyway
+    static final int MAX_SELECTED = 100;
 
     private final HousekeepingService service;
     private final HousekeepingWorker worker;
@@ -56,8 +58,16 @@ public class HousekeepingEndpoint {
             respond(context, 400, "Parameters '%s' and '%s' need at least one value if given".formatted(REPOSITORY_PARAM, PROJECT_PARAM), null);
             return;
         }
+        if (repositories.size() + projects.size() > MAX_SELECTED) {
+            respond(context, 400, "At most %d repositories and projects can be selected, got %d".formatted(MAX_SELECTED, repositories.size() + projects.size()), null);
+            return;
+        }
 
         var selection = new HousekeepingSelection(repositories, projects);
+        if (projects.stream().anyMatch(project -> project.chars().anyMatch(Character::isISOControl))) {
+            respond(context, 400, "Parameter '%s' must not contain control characters".formatted(PROJECT_PARAM), null);
+            return;
+        }
         var withoutOwner = selection.repositories().stream().filter(repository -> TargetedListing.parseRepository(repository).isEmpty()).sorted().toList();
         if (!withoutOwner.isEmpty()) {
             respond(context, 400, "Repositories need to be given as 'owner/repo', got %s".formatted(withoutOwner), null);
@@ -68,17 +78,11 @@ public class HousekeepingEndpoint {
             respond(context, 409, "Housekeeping has no enabled action", null);
             return;
         }
-        if (service.isRunning()) {
+        Log.infof("Housekeeping triggered manually%s", selection.isAll() ? "" : " for " + selection);
+        if (!service.startInBackground(selection)) {
             respond(context, 409, "Housekeeping is already in progress", null);
             return;
         }
-
-        Log.infof("Housekeeping triggered manually%s", selection.isAll() ? "" : " for " + selection);
-        service.run(selection).subscribe().with(
-            ignored -> {
-            },
-            failure -> Log.error("Manually triggered housekeeping failed", failure)
-        );
         respond(context, 202, "Housekeeping started", selection);
     }
 

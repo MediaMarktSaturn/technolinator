@@ -14,6 +14,18 @@ public final class Commons {
     }
 
     /**
+     * Cuts the [content] to at most [maxLength] characters if it is longer, preferably at a line end, and appends the [note] then.
+     */
+    public static String truncate(String content, int maxLength, String note) {
+        if (content.length() <= maxLength) {
+            return content;
+        }
+        var end = Math.max(0, maxLength - note.length());
+        var lineEnd = content.lastIndexOf('\n', end);
+        return content.substring(0, lineEnd > 0 ? lineEnd : end) + note;
+    }
+
+    /**
      * Subscriber that does nothing but triggering the pipeline.
      */
     public static final UniSubscriber<? super Object> NOOP_SUBSCRIBER = new UniSubscriber<>() {

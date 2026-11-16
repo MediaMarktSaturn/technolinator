@@ -19,6 +19,7 @@ import com.mediamarktsaturn.technolinator.sbom.VulnerabilityReporting;
 import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
+import io.smallrye.mutiny.infrastructure.Infrastructure;
 import io.smallrye.mutiny.tuples.Tuple2;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.cyclonedx.exception.ParseException;
@@ -60,7 +61,7 @@ public class AnalysisProcessHandler {
     private final CdxgenClient cdxgenClient;
     private final String dtrackUrl;
     private final boolean pushFetchLicenses, pullRequestFetchLicenses, pullRequestReportsEnabled;
-    private Pattern backstageCatalogPattern;
+    private final Pattern backstageCatalogPattern;
 
     private final ObjectMapper yamlMapper;
 
@@ -94,10 +95,15 @@ public class AnalysisProcessHandler {
         this.pullRequestFetchLicenses = pullRequestFetchLicenses;
         this.dtrackUrl = dtrackUrl;
         this.pullRequestReportsEnabled = pullRequestReportsEnabled;
+        this.backstageCatalogPattern = compileBackstageAnnotationPattern(backstageAnnotationRegex);
+    }
+
+    private static Pattern compileBackstageAnnotationPattern(String regex) {
         try {
-            this.backstageCatalogPattern = Pattern.compile(backstageAnnotationRegex);
+            return Pattern.compile(regex);
         } catch (Exception e) {
-            Log.errorf(e, "Failed to compile backstage annotation regex '%s'", backstageAnnotationRegex);
+            Log.errorf(e, "Failed to compile backstage annotation regex '%s'", regex);
+            return null;
         }
     }
 
@@ -114,8 +120,9 @@ public class AnalysisProcessHandler {
 
     public Uni<Result<Project>> onPush(PushEvent event, Command.Metadata metadata) {
         var taskKey = metadata.uniqueId();
-        TASKS.computeIfAbsent(taskKey, k -> Instant.now());
-        return handleAnalysis(event, metadata, pushFetchLicenses)
+        TASKS.putIfAbsent(taskKey, Instant.now());
+        // deferred, so that a failure while setting up the analysis can't leave the task registered forever
+        return Uni.createFrom().deferred(() -> handleAnalysis(event, metadata, pushFetchLicenses))
             .onTermination().invoke(() -> TASKS.remove(taskKey));
     }
 
@@ -186,15 +193,15 @@ public class AnalysisProcessHandler {
     }
 
     RepositoryDetails addBackstageManifestTags(RepositoryDetails repoDetails, LocalRepository repo) {
-        if (backstageCatalogPattern == null) {
+        // there is no repository to read from if the checkout failed
+        if (backstageCatalogPattern == null || repo == null) {
             return repoDetails;
         }
 
         try {
             var catalogInfo = repo.dir().resolve(BACKSTAGE_CATALOG_INFO);
             if (Files.isReadable(catalogInfo)) {
-                var ciNode = yamlMapper.readTree(catalogInfo.toFile());
-                var ciAnnotations = ciNode.get("metadata").get("annotations");
+                var ciAnnotations = yamlMapper.readTree(catalogInfo.toFile()).path("metadata").path("annotations");
                 if (ciAnnotations.isObject()) {
                     var backstageTopics = new ArrayList<String>();
                     ciAnnotations.fieldNames().forEachRemaining(f -> {
@@ -227,7 +234,8 @@ public class AnalysisProcessHandler {
             }
             return Uni.createFrom().voidItem();
         }
-        return Uni.createFrom().deferred(() -> {
+        // reporting on pull-requests is a best-effort extra, it must never fail the analysis itself
+        return Uni.createFrom().<Void>deferred(() -> {
             // get pull-requests from analyzed head branch
             List<GHPullRequest> pullRequests;
             try {
@@ -235,41 +243,46 @@ public class AnalysisProcessHandler {
                         pr.getHead().getRef().equals(event.branch()))
                     .toList();
             } catch (IOException e) {
-                Log.errorf("Failed to list pull-requests in repo %s with head %s", event.repoUrl(), event.branch());
-                return Uni.createFrom().failure(e);
+                Log.errorf(e, "Failed to list pull-requests in repo %s with head %s", event.repoUrl(), event.branch());
+                return Uni.createFrom().voidItem();
             }
 
-            if (!pullRequests.isEmpty()) {
-                return createReport(event, sbomResults, metadata)
-                    .invoke(reportResult -> reportResult.mapSuccess(report -> {
-                            metadata.writeToMDC();
-                            String reportText = null;
-                            if (report instanceof VulnerabilityReporting.VulnerabilityReport.Report(
-                                String text, String projectName
-                            )) {
-                                reportText = text.replace(DTRACK_PLACEHOLDER, buildDTrackProjectSearchUrl(projectName));
-                            } else {
-                                Log.warnf("No vulnerability report created for repo %s, ref %s", event.repoUrl(), event.ref());
-                            }
-                            // the analysis result is part of the comment even if there is no report, e.g. to tell about a failure
-                            var ctx = new FailureReporter.Context(event.repository(), metadata, started, event.config());
-                            // push events are evaluated for the status issue, once is enough
-                            var evaluation = event instanceof PullRequestEvent
-                                ? failureReporter.evaluate(ctx, sbomResults, checkoutFailed, Optional.empty())
-                                : FailureReporter.Evaluation.inactive();
-                            for (var pr : pullRequests) {
-                                failureReporter.updatePullRequest(ctx, pr, evaluation, reportText);
-                            }
-                            return null;
-                        }
-                    ))
-                    .onFailure().invoke(failure -> Log.errorf(failure, "Pull-Request handling failed for repo %s, ref %s", event.repoUrl(), event.ref()))
-                    .onFailure().recoverWithNull().onItem().ignore().andContinueWithNull();
-            } else {
+            if (pullRequests.isEmpty()) {
                 Log.infof("No pull-requests open in repo %s with head %s", event.repoUrl(), event.branch());
                 return Uni.createFrom().voidItem();
             }
-        });
+
+            return createReport(event, sbomResults, metadata)
+                .invoke(reportResult -> {
+                    if (reportResult instanceof Result.Success<VulnerabilityReporting.VulnerabilityReport>(var report)) {
+                        updatePullRequests(event, pullRequests, report, sbomResults, metadata, started, checkoutFailed);
+                    }
+                })
+                .replaceWithVoid();
+        }).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+            .onFailure().invoke(failure -> Log.errorf(failure, "Pull-Request handling failed for repo %s, ref %s", event.repoUrl(), event.ref()))
+            .onFailure().recoverWithNull();
+    }
+
+    private void updatePullRequests(Event<?> event, List<GHPullRequest> pullRequests, VulnerabilityReporting.VulnerabilityReport report,
+                                    List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata,
+                                    Instant started, boolean checkoutFailed) {
+        metadata.writeToMDC();
+        String reportText = null;
+        if (report instanceof VulnerabilityReporting.VulnerabilityReport.Report(String text, String projectName)) {
+            reportText = text.replace(DTRACK_PLACEHOLDER, buildDTrackProjectSearchUrl(projectName));
+        } else {
+            Log.warnf("No vulnerability report created for repo %s, ref %s", event.repoUrl(), event.ref());
+        }
+        // the analysis result is part of the comment even if there is no report, e.g. to tell about a failure
+        var ctx = new FailureReporter.Context(event.repository(), metadata, started, event.config());
+        // push events are evaluated for the status issue, once is enough
+        var evaluation = event instanceof PullRequestEvent
+            ? failureReporter.evaluate(ctx, sbomResults, checkoutFailed, Optional.empty())
+            : FailureReporter.Evaluation.inactive();
+        for (var pr : pullRequests) {
+            failureReporter.updatePullRequest(ctx, pr, evaluation, reportText);
+        }
     }
 
     Uni<Result<VulnerabilityReporting.VulnerabilityReport>> createReport(Event<?> event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
@@ -296,18 +309,7 @@ public class AnalysisProcessHandler {
                     .filter(r -> r instanceof VulnerabilityReporting.VulnerabilityReport.Report)
                     .map(r -> (VulnerabilityReporting.VulnerabilityReport.Report) r)
                     .toList()
-            ).map(reports -> {
-                if (reports.isEmpty()) {
-                    return Result.success(VulnerabilityReporting.VulnerabilityReport.none());
-                } else if (reports.size() == 1) {
-                    return Result.success(reports.get(0));
-                } else {
-                    return Result.success(VulnerabilityReporting.VulnerabilityReport.report(
-                        reports.stream().map(r -> "# %s %n%n %s %n".formatted(r.projectName(), r.text())).collect(Collectors.joining()),
-                        event.getRepoName()
-                    ));
-                }
-            });
+            ).map(reports -> Result.success(VulnerabilityReporting.combine(reports, event.getRepoName())));
     }
 
     @SuppressWarnings("unchecked")
@@ -389,7 +391,14 @@ public class AnalysisProcessHandler {
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {
                 var localRepo = s.result();
-                var cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config());
+                List<CdxgenClient.SbomCreationCommand> cmds;
+                try {
+                    cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config());
+                } catch (RuntimeException e) {
+                    // invalid repository config, the checkout still needs to be handed over for cleanup
+                    Log.errorf(e, "Aborting analysis of repo %s, branch %s because of invalid configuration", event.repoUrl(), event.branch());
+                    yield Uni.createFrom().item(Tuple2.of(List.of(Result.failure(e)), localRepo));
+                }
                 yield executeCommands(cmds, metadata).map(result -> Tuple2.of(result, localRepo));
             }
             case Result.Failure<LocalRepository> f -> {
@@ -405,18 +414,21 @@ public class AnalysisProcessHandler {
             commands.stream().map(cmd -> cmd.execute(metadata)).toList()
         ).with(results -> {
             metadata.writeToMDC();
-            var resultClasses = results.stream().collect(Collectors.groupingBy(Object::getClass))
-                .entrySet().stream().map(e -> "%s x %s".formatted(e.getValue().size(), e.getKey().getSimpleName()))
-                .collect(Collectors.joining(", "));
-            var sbomClasses = results.stream()
-                .filter(r -> r instanceof Result.Success).map(r -> ((Result.Success<CdxgenClient.SBOMGenerationResult>) r).result())
-                .collect(Collectors.groupingBy(Object::getClass))
-                .entrySet().stream().map(e -> "%s x %s".formatted(e.getValue().size(), e.getKey().getSimpleName()))
-                .collect(Collectors.joining(", "));
             Log.infof("Analysis of repo %s, branch %s for %s projects resulted in %s with SBOMs %s",
-                metadata.repoFullName(), metadata.gitRef(), commands.size(), resultClasses, sbomClasses);
+                metadata.repoFullName(), metadata.gitRef(), commands.size(),
+                countByClass(results),
+                countByClass(results.stream()
+                    .filter(r -> r instanceof Result.Success)
+                    .map(r -> ((Result.Success<CdxgenClient.SBOMGenerationResult>) r).result())
+                    .toList()));
             return (List<Result<CdxgenClient.SBOMGenerationResult>>) results;
         });
+    }
+
+    private static String countByClass(List<?> items) {
+        return items.stream().collect(Collectors.groupingBy(Object::getClass, Collectors.counting()))
+            .entrySet().stream().map(e -> "%s x %s".formatted(e.getValue(), e.getKey().getSimpleName()))
+            .collect(Collectors.joining(", "));
     }
 
     String buildDTrackProjectSearchUrl(String projectName) {

@@ -81,6 +81,7 @@ curl -X POST 'http://localhost:8080/housekeeping?repository=my-org/my-repo,my-or
 | `project`       | Dependency-Track project by exact name (any version) or UUID                                                                |
 
 Both are optional, repeatable and may be comma separated lists; matching is case-insensitive. Without any, everything is processed.
+Up to 100 repositories and projects can be selected in total, as each is looked up on its own; beyond that, run for everything instead.
 The worker always handles whole units, so selecting a project selects its repository and all projects belonging to it, too, and selecting a repository selects all of its projects.
 Selected names that don't match anything are logged as a warning. `APP_ENABLED_REPOS`, dry-run mode and all action switches and limits apply as usual.
 
@@ -97,7 +98,7 @@ The run happens in the background, the response is immediate:
 | Status | Meaning                                                                                      |
 |--------|----------------------------------------------------------------------------------------------|
 | `202`  | Run started                                                                                  |
-| `400`  | `repository` or `project` given without any value (to not accidentally run for everything), or a repository without owner |
+| `400`  | `repository` or `project` given without any value (to not accidentally run for everything), a repository without owner, or more than 100 selected in total |
 | `409`  | No action is enabled, or a run is already in progress                                        |
 
 A partial run doesn't update the gauges `housekeeping_last_completed_epoch_seconds` and `housekeeping_last_success_epoch_seconds`, as they tell about complete runs.

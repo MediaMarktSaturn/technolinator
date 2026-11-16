@@ -27,9 +27,8 @@ public interface Command<T> {
             MDC.put("ref", gitRef);
             MDC.put("repository", repoFullName);
             MDC.put("traceId", traceId);
-            commitSha.ifPresent(sha -> MDC.put("commitSha", sha));
+            commitSha.ifPresentOrElse(sha -> MDC.put("commitSha", sha), () -> MDC.remove("commitSha"));
         }
-
 
         /**
          * Unique identifier for a combination of repo, ref and commit, used for identify the same origin of an analysis

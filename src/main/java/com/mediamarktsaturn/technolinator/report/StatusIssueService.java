@@ -10,6 +10,8 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -48,8 +50,14 @@ public class StatusIssueService {
 
     static final Duration ISSUES_DISABLED_MEMORY = Duration.ofHours(6);
 
+    private static final int LOCK_STRIPES = 256;
+
+    private interface Operation {
+        Action run() throws IOException;
+    }
+
     private final Clock clock;
-    private final ConcurrentHashMap<String, Object> locks = new ConcurrentHashMap<>();
+    private final KeyedLocks locks = new KeyedLocks(LOCK_STRIPES);
     private final ConcurrentHashMap<String, Instant> issuesDisabledUntil = new ConcurrentHashMap<>();
 
     public StatusIssueService() {
@@ -64,33 +72,23 @@ public class StatusIssueService {
      * Makes sure an open issue tells about the failure.
      */
     public Action onFailure(IssueApi api, FailureReport report) throws IOException {
-        var repo = report.repoFullName();
-        synchronized (lockFor(repo)) {
-            if (skipBecauseIssuesDisabled(api, repo)) {
-                return Action.ISSUES_DISABLED;
-            }
-            try {
-                return reportFailure(api, report);
-            } catch (IOException e) {
-                if (indicatesDisabledIssues(e)) {
-                    rememberIssuesDisabled(repo);
-                    return Action.ISSUES_DISABLED;
-                }
-                throw e;
-            }
-        }
+        return synchronizedOn(api, report.repoFullName(), () -> reportFailure(api, report));
     }
 
     /**
      * Closes the issue of the failure, if there is one.
      */
-    public Action onSuccess(IssueApi api, String repo, java.util.Optional<String> commitSha, Instant started) throws IOException {
-        synchronized (lockFor(repo)) {
+    public Action onSuccess(IssueApi api, String repo, Optional<String> commitSha, Instant started) throws IOException {
+        return synchronizedOn(api, repo, () -> reportSuccess(api, repo, commitSha, started));
+    }
+
+    private Action synchronizedOn(IssueApi api, String repo, Operation operation) throws IOException {
+        synchronized (locks.of(repo)) {
             if (skipBecauseIssuesDisabled(api, repo)) {
                 return Action.ISSUES_DISABLED;
             }
             try {
-                return reportSuccess(api, repo, commitSha, started);
+                return operation.run();
             } catch (IOException e) {
                 if (indicatesDisabledIssues(e)) {
                     rememberIssuesDisabled(repo);
@@ -103,16 +101,14 @@ public class StatusIssueService {
 
     private Action reportFailure(IssueApi api, FailureReport report) throws IOException {
         var issues = api.findStatusIssues();
-        var open = issues.stream().filter(IssueApi.StatusIssue::open)
-            .sorted(Comparator.comparing(IssueApi.StatusIssue::createdAt).thenComparingInt(IssueApi.StatusIssue::number))
-            .toList();
+        var open = openIssues(issues);
         var owners = CodeOwners.parse(api.readCodeOwners());
 
         if (open.isEmpty()) {
-            var lastClosed = issues.stream().filter(i -> !i.open()).findFirst();
-            if (lastClosed.isPresent() && isClosedByPerson(lastClosed.get())) {
+            var closedByPerson = lastClosedByPerson(issues);
+            if (closedByPerson.isPresent()) {
                 Log.infof("Status issue #%s of %s was closed manually, not reporting before the next successful analysis",
-                    lastClosed.get().number(), report.repoFullName());
+                    closedByPerson.get().number(), report.repoFullName());
                 return Action.MUTED;
             }
             var created = api.create(
@@ -145,17 +141,16 @@ public class StatusIssueService {
         return Action.UPDATED;
     }
 
-    private Action reportSuccess(IssueApi api, String repo, java.util.Optional<String> commitSha, Instant started) throws IOException {
+    private Action reportSuccess(IssueApi api, String repo, Optional<String> commitSha, Instant started) throws IOException {
         var issues = api.findStatusIssues();
-        var open = issues.stream().filter(IssueApi.StatusIssue::open)
-            .sorted(Comparator.comparing(IssueApi.StatusIssue::createdAt).thenComparingInt(IssueApi.StatusIssue::number))
-            .toList();
+        var open = openIssues(issues);
 
         if (open.isEmpty()) {
-            var lastClosed = issues.stream().filter(i -> !i.open()).findFirst();
-            if (lastClosed.isPresent() && isClosedByPerson(lastClosed.get())) {
-                api.updateBody(lastClosed.get().number(), StatusReportRenderer.markResolved(lastClosed.get().body()));
-                Log.infof("Analysis of %s succeeded again, status issue #%s closed manually before is open to reports again", repo, lastClosed.get().number());
+            var closedByPerson = lastClosedByPerson(issues);
+            if (closedByPerson.isPresent()) {
+                var issue = closedByPerson.get();
+                api.updateBody(issue.number(), StatusReportRenderer.markResolved(issue.body()));
+                Log.infof("Analysis of %s succeeded again, status issue #%s closed manually before is open to reports again", repo, issue.number());
                 return Action.UNMUTED;
             }
             return Action.NOTHING;
@@ -179,6 +174,25 @@ public class StatusIssueService {
         return Action.CLOSED;
     }
 
+    /**
+     * @return the open issues, the oldest first
+     */
+    private static List<IssueApi.StatusIssue> openIssues(List<IssueApi.StatusIssue> issues) {
+        return issues.stream().filter(IssueApi.StatusIssue::open)
+            .sorted(Comparator.comparing(IssueApi.StatusIssue::createdAt).thenComparingInt(IssueApi.StatusIssue::number))
+            .toList();
+    }
+
+    /**
+     * Technolinator marks the issues it closes as resolved, so anything else got closed by a person.
+     *
+     * @param issues the newest first
+     */
+    private static Optional<IssueApi.StatusIssue> lastClosedByPerson(List<IssueApi.StatusIssue> issues) {
+        return issues.stream().filter(i -> !i.open()).findFirst()
+            .filter(i -> StatusMarker.parse(i.body()).map(m -> m.state() != StatusMarker.State.RESOLVED).orElse(true));
+    }
+
     private static void closeDuplicates(IssueApi api, String repo, IssueApi.StatusIssue keep, List<IssueApi.StatusIssue> duplicates) throws IOException {
         for (var duplicate : duplicates) {
             api.updateBody(duplicate.number(), StatusReportRenderer.markResolved(duplicate.body()));
@@ -188,29 +202,25 @@ public class StatusIssueService {
         }
     }
 
-    /**
-     * Technolinator marks the issues it closes as resolved, so anything else got closed by a person.
-     */
-    private static boolean isClosedByPerson(IssueApi.StatusIssue issue) {
-        return StatusMarker.parse(issue.body()).map(m -> m.state() != StatusMarker.State.RESOLVED).orElse(true);
-    }
-
     private boolean skipBecauseIssuesDisabled(IssueApi api, String repo) {
         var until = issuesDisabledUntil.get(repo);
-        if (until != null && clock.instant().isBefore(until)) {
-            return true;
+        if (until != null) {
+            if (clock.instant().isBefore(until)) {
+                return true;
+            }
+            issuesDisabledUntil.remove(repo);
         }
         if (!api.issuesEnabled()) {
             Log.infof("Issues are disabled in %s, skipping status issue", repo);
-            rememberIssuesDisabled(repo);
             return true;
         }
-        issuesDisabledUntil.remove(repo);
         return false;
     }
 
     private void rememberIssuesDisabled(String repo) {
-        issuesDisabledUntil.put(repo, clock.instant().plus(ISSUES_DISABLED_MEMORY));
+        var now = clock.instant();
+        issuesDisabledUntil.values().removeIf(until -> !now.isBefore(until));
+        issuesDisabledUntil.put(repo, now.plus(ISSUES_DISABLED_MEMORY));
     }
 
     static boolean indicatesDisabledIssues(IOException e) {
@@ -218,10 +228,6 @@ public class StatusIssueService {
             return true;
         }
         var message = e.getMessage();
-        return message != null && message.toLowerCase(java.util.Locale.ROOT).contains("issues are disabled");
-    }
-
-    private Object lockFor(String repo) {
-        return locks.computeIfAbsent(repo, k -> new Object());
+        return message != null && message.toLowerCase(Locale.ROOT).contains("issues are disabled");
     }
 }

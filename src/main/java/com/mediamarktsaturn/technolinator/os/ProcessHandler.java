@@ -8,9 +8,11 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Runs operating system commands
@@ -18,6 +20,12 @@ import java.util.Map;
 public class ProcessHandler {
 
     public static final Path CURRENT_DIR = Paths.get(".");
+
+    /**
+     * Upper bound of output lines kept per process, the oldest ones are dropped first.
+     * Protects against verbose tools (e.g. in debug mode) exhausting the heap.
+     */
+    static final int MAX_OUTPUT_LINES = 20_000;
 
     public static Uni<ProcessResult> run(String command) {
         return run(command, CURRENT_DIR, Map.of(), new ProcessCallback.DefaultProcessCallback());
@@ -28,8 +36,15 @@ public class ProcessHandler {
     }
 
     static Uni<ProcessResult> run(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
+        // deferred, so that every subscription (e.g. a retry) runs its own process with its own state
+        return Uni.createFrom().deferred(() -> start(command, workingDir, env, callback));
+    }
+
+    private static Uni<ProcessResult> start(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
         callback.log("Starting '%s' in %s".formatted(command, workingDir));
-        List<String> outputLines = new ArrayList<>();
+        var outputLines = new ArrayDeque<String>();
+        var process = new AtomicReference<Process>();
+        var cancelled = new AtomicBoolean();
         return Uni.createFrom().item(
                 Unchecked.supplier(() -> {
                     var commandParts = command.trim().split("\\s+");
@@ -38,28 +53,52 @@ public class ProcessHandler {
                         .redirectErrorStream(true);
                     processBuilder.environment().putAll(env);
 
-                    var process = processBuilder.start();
-                    var output = new BufferedReader(new InputStreamReader(process.getInputStream()));
-
-                    String line;
-                    while ((line = output.readLine()) != null) {
-                        callback.onOutput(line);
-                        outputLines.add(line);
+                    var started = processBuilder.start();
+                    process.set(started);
+                    if (cancelled.get()) {
+                        kill(started);
                     }
-                    return process.waitFor();
+
+                    try (var output = new BufferedReader(new InputStreamReader(started.getInputStream()))) {
+                        String line;
+                        while ((line = output.readLine()) != null) {
+                            callback.onOutput(line);
+                            if (outputLines.size() >= MAX_OUTPUT_LINES) {
+                                outputLines.removeFirst();
+                            }
+                            outputLines.addLast(line);
+                        }
+                    }
+                    return started.waitFor();
                 })
             ).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+            // a timed out or otherwise abandoned analysis must not leave its processes behind
+            .onCancellation().invoke(() -> {
+                cancelled.set(true);
+                kill(process.get());
+            })
             .map(exit -> {
                 callback.onComplete(exit);
                 if (exit != 0) {
-                    return (ProcessResult) new ProcessResult.Failure(outputLines, exit, new ProcessFailedException(command, exit, outputLines));
+                    var lines = List.copyOf(outputLines);
+                    return (ProcessResult) new ProcessResult.Failure(lines, exit, new ProcessFailedException(command, exit, lines));
                 } else {
-                    return (ProcessResult) new ProcessResult.Success(outputLines);
+                    return (ProcessResult) new ProcessResult.Success(List.copyOf(outputLines));
                 }
             }).onFailure().recoverWithItem(failure -> {
                 callback.onFailure(failure);
-                return (ProcessResult) new ProcessResult.Failure(outputLines, null, failure);
+                return (ProcessResult) new ProcessResult.Failure(List.copyOf(outputLines), null, failure);
             });
+    }
+
+    /**
+     * Terminates the process including the processes it spawned, e.g. the build tools started by cdxgen
+     */
+    private static void kill(Process process) {
+        if (process != null) {
+            process.descendants().forEach(ProcessHandle::destroyForcibly);
+            process.destroyForcibly();
+        }
     }
 
     public sealed interface ProcessResult {

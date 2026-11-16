@@ -27,17 +27,24 @@ public class SecretRedactor {
     private static final int MIN_SECRET_LENGTH = 6;
     private static final int MIN_SECRET_LINE_LENGTH = 12;
 
-    private static final Pattern SENSITIVE_ENV_NAME = Pattern.compile("(?i).*(TOKEN|SECRET|PASSWORD|PASSWD|APIKEY|API_KEY|PRIVATE_KEY|CREDENTIAL).*");
+    private static final Pattern SENSITIVE_ENV_NAME = Pattern.compile("(?i)TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|APIKEY|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIAL");
 
-    private static final Pattern AUTHORIZATION = Pattern.compile("(?i)(authorization\\s*[:=]\\s*)(?:(?:bearer|basic|token)\\s+)?\\S+");
-    private static final Pattern URL_CREDENTIALS = Pattern.compile("(?i)([a-z][a-z0-9+.-]*://)[^/\\s:@]+:[^/\\s@]+@");
-    private static final Pattern URL_LONG_USER = Pattern.compile("(?i)([a-z][a-z0-9+.-]*://)[^/\\s:@]{20,}@");
+    // The texts are untrusted and not size limited, so each pattern starts at a literal or at a word start to stay linear.
+    private static final Pattern AUTHORIZATION = Pattern.compile("(?i)(authorization[\"']?\\s*[:=]\\s*[\"']?)(?:(?:bearer|basic|token)\\s+)?[^\\s\"']+");
+    private static final Pattern BEARER = Pattern.compile("(?i)\\b(bearer\\s+)[A-Za-z0-9._~+/=-]{16,}");
+    private static final Pattern URL_CREDENTIALS = Pattern.compile("(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*://)[^/\\s:@]+:[^/\\s]+@");
+    private static final Pattern URL_LONG_USER = Pattern.compile("(?i)(?<![a-z0-9+.-])([a-z][a-z0-9+.-]*://)[^/\\s:@]{20,}@");
     private static final Pattern NPM_AUTH = Pattern.compile("(?i)(_auth(?:token)?|_password)(\\s*=\\s*)\\S+");
-    private static final Pattern KEY_VALUE = Pattern.compile("(?i)\\b([\\w.-]*(?:password|passwd|secret|token|api[_-]?key|apikey|credentials?))(\\s*[=:]\\s*)(?!\\[REDACTED])[^\\s,;&\"']+");
-    private static final Pattern GITHUB_TOKEN = Pattern.compile("\\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\\b");
-    private static final Pattern JWT = Pattern.compile("\\beyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{5,}\\b");
-    private static final Pattern PRIVATE_KEY_BEGIN = Pattern.compile("-----BEGIN [A-Z ]*PRIVATE KEY-----");
-    private static final Pattern PRIVATE_KEY_END = Pattern.compile("-----END [A-Z ]*PRIVATE KEY-----");
+    // quotes around the key (JSON) and around the value are covered, a quoted value may contain spaces
+    private static final Pattern KEY_VALUE = Pattern.compile(
+        "(?i)((?:password|passwd|secret|token|api[_-]?key|apikey|access[_-]?key|private[_-]?key|credentials?)[\"']?)(\\s*[=:]\\s*)"
+            + "(?!\\[REDACTED])(?:\"[^\"\\r\\n]*\"|'[^'\\r\\n]*'|[^\\s,;&\"']+)");
+    private static final Pattern KNOWN_TOKEN = Pattern.compile(
+        "gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{20,}|npm_[A-Za-z0-9]{36}"
+            + "|xox[abposr]-[A-Za-z0-9-]{10,}|\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b");
+    private static final Pattern JWT = Pattern.compile("eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{5,}");
+    private static final Pattern PRIVATE_KEY_BEGIN = Pattern.compile("-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----");
+    private static final Pattern PRIVATE_KEY_END = Pattern.compile("-----END [A-Z ]*PRIVATE KEY(?: BLOCK)?-----");
 
     /**
      * Secret values, longest first, so that a secret containing another one is replaced completely.
@@ -77,11 +84,12 @@ public class SecretRedactor {
             result = result.replace(secret, MASK);
         }
         result = replaceKeepingPrefix(AUTHORIZATION, result, 1, "");
+        result = replaceKeepingPrefix(BEARER, result, 1, "");
         result = replaceKeepingPrefix(URL_CREDENTIALS, result, 1, "@");
         result = replaceKeepingPrefix(URL_LONG_USER, result, 1, "@");
         result = replaceKeepingPrefix(NPM_AUTH, result, 1, 2);
         result = replaceKeepingPrefix(KEY_VALUE, result, 1, 2);
-        result = GITHUB_TOKEN.matcher(result).replaceAll(Matcher.quoteReplacement(MASK));
+        result = KNOWN_TOKEN.matcher(result).replaceAll(Matcher.quoteReplacement(MASK));
         result = JWT.matcher(result).replaceAll(Matcher.quoteReplacement(MASK));
         return result;
     }
@@ -131,7 +139,7 @@ public class SecretRedactor {
 
         var env = System.getenv();
         env.forEach((name, value) -> {
-            if (SENSITIVE_ENV_NAME.matcher(name).matches()) {
+            if (SENSITIVE_ENV_NAME.matcher(name).find()) {
                 values.add(value);
             }
         });

@@ -17,7 +17,6 @@ import java.util.Optional;
 public class DepscanClient extends VulnerabilityReporting {
 
     private static final String OUTPUT_DIR = "depscan-reports";
-    private static final String OUTPUT_FILE = "report.txt";
 
     private static final Map<String, String> DEPSCAN_ENV = Map.of("USE_VDB_10Y", "true");
 
@@ -36,15 +35,16 @@ public class DepscanClient extends VulnerabilityReporting {
      * 'depscan' command with the following options:
      * * --no-vuln-table # no console report
      * * --no-banner # no logo printed to console
+     * * --vdb-scope app # use the app-only vulnerability database (~3.5 GiB instead of ~47 GiB uncompressed, no OS distro data), as SBOMs are created from sources
      * * --reports-dir %s # location of reports
      * * --report-template %s # Jinja2 template used for report generation
      * * --report-name %s # filename of the custom report
      * * --bom %s # sbom to analyse
      */
-    private static final String DEPSCAN_COMMAND = "depscan --no-vuln-table --no-banner --reports-dir %s --report-template %s --report-name %s --bom %s";
+    private static final String DEPSCAN_COMMAND = "depscan --no-vuln-table --no-banner --vdb-scope app --reports-dir %s --report-template %s --report-name %s --bom %s";
 
     /**
-     * Creates a vulnerability report using grype for the given [sbomFile]
+     * Creates a vulnerability report using depscan for the given [sbomFile]
      */
     @Override
     public Uni<Result<VulnerabilityReport>> createVulnerabilityReport(Path sbomFile, String projectName) {
@@ -65,7 +65,7 @@ public class DepscanClient extends VulnerabilityReporting {
         var reportDir = sbomFile.getParent();
         return ProcessHandler.run(command, reportDir, DEPSCAN_ENV)
             .map(result -> createReport(result, reportDir.resolve(OUTPUT_DIR), projectName))
-            .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
+            .onFailure().recoverWithItem(Result::failure);
     }
 
 }

@@ -5,6 +5,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -67,20 +68,14 @@ public class PrStatusCommentService {
     ) {
     }
 
-    private final Object[] locks = new Object[LOCK_STRIPES];
-
-    public PrStatusCommentService() {
-        for (var i = 0; i < LOCK_STRIPES; i++) {
-            locks[i] = new Object();
-        }
-    }
+    private final KeyedLocks locks = new KeyedLocks(LOCK_STRIPES);
 
     public static boolean isStatusComment(String body) {
         return body != null && body.trim().endsWith(COMMENT_MARKER);
     }
 
     public Action update(CommentApi api, Update update) throws IOException {
-        synchronized (locks[Math.floorMod(update.key().hashCode(), LOCK_STRIPES)]) {
+        synchronized (locks.of(update.key())) {
             return doUpdate(api, update);
         }
     }
@@ -89,7 +84,7 @@ public class PrStatusCommentService {
         var found = api.findComments(PrStatusCommentService::isStatusComment);
         // Anyone can write the marker into a comment, but only comments of the app can be updated, and be trusted.
         // Without status management the comment is found like it always was, whoever wrote it.
-        var comments = u.statusEnabled() ? found.stream().filter(c -> isWrittenByApp(c, u)).toList() : found;
+        var comments = u.statusEnabled() ? found.stream().filter(c -> BotIdentity.isWrittenByApp(c.authorLogin(), u.botLogin())).toList() : found;
         var existing = comments.isEmpty() ? null : comments.getFirst();
         if (u.statusEnabled() && comments.size() > 1) {
             deleteDuplicates(api, u, comments.subList(1, comments.size()));
@@ -134,14 +129,14 @@ public class PrStatusCommentService {
     }
 
     private static String plainReport(String reportText) {
-        return reportText == null ? null : "%s\n\n%s".formatted(reportText, COMMENT_MARKER);
+        if (reportText == null) {
+            return null;
+        }
+        var report = StatusReportRenderer.limit(reportText, StatusReportRenderer.MAX_BODY_LENGTH - COMMENT_MARKER.length() - 2);
+        return "%s\n\n%s".formatted(report, COMMENT_MARKER);
     }
 
-    private static boolean isWrittenByApp(CommentApi.Comment comment, Update u) {
-        return BotIdentity.isWrittenByApp(comment.authorLogin(), u.botLogin());
-    }
-
-    private static void deleteDuplicates(CommentApi api, Update u, java.util.List<CommentApi.Comment> duplicates) {
+    private static void deleteDuplicates(CommentApi api, Update u, List<CommentApi.Comment> duplicates) {
         for (var duplicate : duplicates) {
             try {
                 api.delete(duplicate.id());

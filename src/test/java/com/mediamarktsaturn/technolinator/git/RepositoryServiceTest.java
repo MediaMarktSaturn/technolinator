@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.kohsuke.github.GHRepository;
-import org.kohsuke.github.GitHub;
+import com.mediamarktsaturn.technolinator.TestUtil;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -48,7 +48,7 @@ class RepositoryServiceTest {
     })
     void testSuccessfulCheckout(String repoName, String branch, String checkFile) throws IOException {
         // Given
-        var ghRepo = GitHub.connectAnonymously().getRepository(repoName);
+        var ghRepo = TestUtil.github().getRepository(repoName);
         var metadata = new Command.Metadata("main", "heubeck/examiner", "", Optional.empty());
 
         var cmd = new RepositoryService.CheckoutCommand(ghRepo, branch);
@@ -72,7 +72,7 @@ class RepositoryServiceTest {
     @Test
     void testInvalidBranch() throws IOException {
         // Given
-        var ghRepo = GitHub.connectAnonymously().getRepository("heubeck/examiner");
+        var ghRepo = TestUtil.github().getRepository("heubeck/examiner");
         var metadata = new Command.Metadata("main", "heubeck/examiner", "", Optional.empty());
 
         var cmd = new RepositoryService.CheckoutCommand(ghRepo, "never/ever");

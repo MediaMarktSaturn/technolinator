@@ -5,9 +5,11 @@ import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
 import com.mediamarktsaturn.technolinator.os.ProcessHandler;
+import com.mediamarktsaturn.technolinator.os.Util;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.cyclonedx.exception.ParseException;
 import org.cyclonedx.model.Bom;
@@ -27,6 +29,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -174,9 +177,13 @@ public class CdxgenClient {
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
             metadata.writeToMDC();
             return removeExcludedFiles(this)
-                .emitOn(Infrastructure.getDefaultWorkerPool())
                 .chain(() -> generateSbom(this, metadata))
-                .map(result -> parseSbom(this, result, metadata));
+                .map(result -> parseSbom(this, result, metadata))
+                // a failing project must neither affect the others nor hide the checkout from the cleanup
+                .onFailure().recoverWithItem(failure -> {
+                    Log.errorf(failure, "Analysis of project '%s' failed unexpectedly", projectName);
+                    return Result.failure(failure);
+                });
         }
     }
 
@@ -305,41 +312,39 @@ public class CdxgenClient {
             context.put(CDXGEN_DEBUG, "debug");
         }
 
-        String gradleEnv = sliceConfig(configPath, TechnolinatorConfig::gradle, TechnolinatorConfig.GradleConfig::args)
-            .stream().reduce(new ArrayList<>(), CdxgenClient::reduceList).stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
+        String gradleEnv = joinedArgs(configPath, TechnolinatorConfig::gradle, TechnolinatorConfig.GradleConfig::args);
         if (!gradleEnv.isBlank()) {
             context.put(CDXGEN_GRADLE_ARGS, gradleEnv);
         }
 
-        String mavenEnv = sliceConfig(configPath, TechnolinatorConfig::maven, TechnolinatorConfig.MavenConfig::args)
-            .stream().reduce(new ArrayList<>(), CdxgenClient::reduceList).stream().map(this::resolveEnvVars).collect(Collectors.joining(" "));
+        String mavenEnv = joinedArgs(configPath, TechnolinatorConfig::maven, TechnolinatorConfig.MavenConfig::args);
         if (!mavenEnv.isBlank()) {
             context.put(CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS + " " + mavenEnv);
         }
 
-        Map<String, String> env = sliceConfig(configPath, TechnolinatorConfig::env)
-            .stream().reduce(new HashMap<>(), CdxgenClient::reduceMap).entrySet().stream().collect(Collectors.toMap(
-                    Map.Entry::getKey,
-                    e -> resolveEnvVars(e.getValue())
-                )
-            );
-        context.putAll(env);
+        sliceConfig(configPath, TechnolinatorConfig::env)
+            .forEach(env -> env.forEach((key, value) -> context.put(key, resolveEnvVars(value))));
 
-        String jdkHome = sliceConfig(configPath, TechnolinatorConfig::jdk, TechnolinatorConfig.JdkConfig::version)
-            .stream().map(jdkHomes::get).reduce(JAVA_HOME, (a, e) -> e);
-        context.put("JAVA_HOME", jdkHome);
+        var jdkVersion = sliceConfig(configPath, TechnolinatorConfig::jdk, TechnolinatorConfig.JdkConfig::version).stream().reduce((a, b) -> b);
+        var jdkHome = jdkVersion.map(version -> {
+            var home = jdkHomes.get(version);
+            if (home == null) {
+                throw new IllegalArgumentException("JDK version '%s' is not available, supported are: %s".formatted(version, jdkHomes.keySet()));
+            }
+            return home;
+        }).orElse(JAVA_HOME);
+        if (jdkHome != null) {
+            context.put("JAVA_HOME", jdkHome);
+        }
 
         return context;
     }
 
-    static <T> List<T> reduceList(List<T> aggregate, List<T> sample) {
-        aggregate.addAll(sample);
-        return aggregate;
-    }
-
-    static Map<String, String> reduceMap(Map<String, String> aggregate, Map<String, String> sample) {
-        aggregate.putAll(sample);
-        return aggregate;
+    /**
+     * Args of the given tool along the config path, in hierarchical order, with the env variables resolved.
+     */
+    private <T> String joinedArgs(List<TechnolinatorConfig> path, Function<TechnolinatorConfig, T> tool, Function<T, List<String>> args) {
+        return sliceConfig(path, tool, args).stream().flatMap(List::stream).map(this::resolveEnvVars).collect(Collectors.joining(" "));
     }
 
     static <R> List<R> sliceConfig(List<TechnolinatorConfig> path, Function<TechnolinatorConfig, R> extractor) {
@@ -376,7 +381,11 @@ public class CdxgenClient {
             .map(p -> p.endsWith("/") ? p.substring(0, p.length() - 1) : p)
             .collect(Collectors.joining("/"));
 
-        return repoDir.resolve(includePaths);
+        var folder = repoDir.resolve(includePaths);
+        if (!folder.normalize().startsWith(repoDir.normalize())) {
+            throw new IllegalArgumentException("Analysis location '" + includePaths + "' is not allowed to step out of the repository");
+        }
+        return folder;
     }
 
     String determineProjectName(String repoName, List<TechnolinatorConfig> path) {
@@ -384,68 +393,68 @@ public class CdxgenClient {
         if (names.isEmpty()) {
             return repoName;
         } else {
-            return repoName + names.stream().map(String::trim).collect(Collectors.joining("-", "-", ""));
+            // the name ends up as a single argument of the command line, so it must not contain whitespace
+            return repoName + names.stream().map(String::trim).collect(Collectors.joining("-", "-", "")).replaceAll("\\s+", "-");
         }
     }
 
     boolean analyseRecursive(List<TechnolinatorConfig> path) {
-        var recursiveConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::recursive);
-        if (recursiveConfig.isEmpty()) {
-            return recursiveDefault;
-        } else {
-            return recursiveConfig.getLast();
-        }
+        return lastConfigured(path, TechnolinatorConfig.AnalysisConfig::recursive, recursiveDefault);
     }
 
     boolean requiredScopeOnlyFlag(List<TechnolinatorConfig> path) {
-        var requiredOnlyConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::requiredScopeOnly);
-        if (requiredOnlyConfig.isEmpty()) {
-            return requiredScopeOnlyDefault;
-        } else {
-            return requiredOnlyConfig.getLast();
-        }
+        return lastConfigured(path, TechnolinatorConfig.AnalysisConfig::requiredScopeOnly, requiredScopeOnlyDefault);
     }
 
     boolean evidenceFlag(List<TechnolinatorConfig> path) {
-        var evidenceConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::evidence);
-        if (evidenceConfig.isEmpty()) {
-            return evidenceDefault;
-        } else {
-            return evidenceConfig.getLast();
-        }
+        return lastConfigured(path, TechnolinatorConfig.AnalysisConfig::evidence, evidenceDefault);
     }
 
     boolean formulationFlag(List<TechnolinatorConfig> path) {
-        var formulationConfig = sliceConfig(path, TechnolinatorConfig::analysis, TechnolinatorConfig.AnalysisConfig::formulation);
-        if (formulationConfig.isEmpty()) {
-            return formulationDefault;
-        } else {
-            return formulationConfig.getLast();
-        }
+        return lastConfigured(path, TechnolinatorConfig.AnalysisConfig::formulation, formulationDefault);
+    }
+
+    /**
+     * The most specific analysis option configured along the path, the default if there is none.
+     */
+    private static boolean lastConfigured(List<TechnolinatorConfig> path, Function<TechnolinatorConfig.AnalysisConfig, Boolean> option, boolean defaultValue) {
+        var configured = sliceConfig(path, TechnolinatorConfig::analysis, option);
+        return configured.isEmpty() ? defaultValue : configured.getLast();
     }
 
     /**
      * Replaces variable templates in form ${VAR} with the actual env value
      */
     String resolveEnvVars(String value) {
-        var matcher = ENV_VAR_PATTERN.matcher(value);
-        while (matcher.find()) {
-            var envVar = matcher.group(1);
-            String envVal = allowedEnvSubstitutions.contains(envVar) ? System.getenv(envVar) : envVar;
-            value = value.replace("${" + envVar + "}", envVal == null ? "" : envVal);
-        }
-        return value;
+        return ENV_VAR_PATTERN.matcher(value).replaceAll(match -> {
+            var envVar = match.group(1);
+            var envVal = allowedEnvSubstitutions.contains(envVar) ? System.getenv(envVar) : envVar;
+            return Matcher.quoteReplacement(envVal == null ? "" : envVal);
+        });
     }
 
+    /**
+     * Removes the files and folders to exclude from the analysis. Names are relative to the repository directory,
+     * anything pointing outside of it is ignored.
+     */
     static Uni<Void> removeExcludedFiles(SbomCreationCommand cmd) {
         if (cmd.excludeFiles().isEmpty()) {
             return Uni.createFrom().voidItem();
-        } else {
-            var dir = cmd.repoDir();
-            var excludes = String.join(" ", cmd.excludeFiles());
-            return ProcessHandler.run("rm -rf " + excludes, dir, Map.of())
-                .onItem().ignore().andContinueWithNull();
         }
+        return Uni.createFrom().item(Unchecked.supplier(() -> {
+            var root = cmd.repoDir().toAbsolutePath().normalize();
+            for (var exclude : cmd.excludeFiles()) {
+                var target = root.resolve(exclude.trim()).normalize();
+                if (target.equals(root) || !target.startsWith(root)) {
+                    Log.warnf("Ignoring exclude '%s', as it doesn't point into the repository", exclude);
+                } else {
+                    Util.removeRecursively(target);
+                }
+            }
+            return (Void) null;
+        })).runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+            .onFailure().invoke(e -> Log.warnf(e, "Failed to remove excluded files from %s", cmd.repoDir()))
+            .onFailure().recoverWithNull();
     }
 
     public sealed interface SBOMGenerationResult {

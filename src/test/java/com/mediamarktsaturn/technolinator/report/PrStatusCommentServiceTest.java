@@ -65,6 +65,15 @@ class PrStatusCommentServiceTest {
     }
 
     @Test
+    void hugeReportIsCappedBelowTheLimitOfGitHub() throws IOException {
+        cut.update(api, update(Outcome.SUCCEEDED, T0, "line\n".repeat(100_000)));
+
+        assertThat(api.onlyBody().length()).isLessThan(65_536);
+        assertThat(api.onlyBody()).endsWith(COMMENT_MARKER).contains("The report is truncated");
+        assertThat(PrStatusCommentService.isStatusComment(api.onlyBody())).isTrue();
+    }
+
+    @Test
     void failureCreatesCommentWithReportOfTheSuccessfulProjects() throws IOException {
         var action = cut.update(api, update(Outcome.FAILED, T0, "## Vulnerabilities of other module"));
 

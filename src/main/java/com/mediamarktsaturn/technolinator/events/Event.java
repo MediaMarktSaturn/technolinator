@@ -25,10 +25,6 @@ public interface Event<P extends GHEventPayload> {
 
     Optional<TechnolinatorConfig> config();
 
-    default boolean targetsDefaultBranch() {
-        return branch().equals(defaultBranch());
-    }
-
     default boolean isDefaultBranch() {
         return branch().equals(defaultBranch());
     }

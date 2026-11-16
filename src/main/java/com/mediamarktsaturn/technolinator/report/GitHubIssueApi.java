@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.report;
 
 import io.quarkus.logging.Log;
 import org.kohsuke.github.GHDirection;
+import org.kohsuke.github.GHException;
 import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHIssue;
 import org.kohsuke.github.GHIssueQueryBuilder;
@@ -61,14 +62,22 @@ public class GitHubIssueApi implements IssueApi {
         var result = new ArrayList<StatusIssue>();
         var scanned = 0;
         var iterator = query.list().withPageSize(MAX_ISSUES_SCANNED).iterator();
-        while (iterator.hasNext() && scanned++ < MAX_ISSUES_SCANNED) {
-            var issue = iterator.next();
-            var body = issue.getBody() == null ? "" : issue.getBody();
-            if (issue.isPullRequest() || !StatusMarker.isPresentIn(body) || !isWrittenByApp(issue)) {
-                continue;
+        try {
+            while (scanned++ < MAX_ISSUES_SCANNED && iterator.hasNext()) {
+                var issue = iterator.next();
+                var body = issue.getBody() == null ? "" : issue.getBody();
+                if (issue.isPullRequest() || !StatusMarker.isPresentIn(body) || !isWrittenByApp(issue)) {
+                    continue;
+                }
+                issues.put(issue.getNumber(), issue);
+                result.add(toStatusIssue(issue));
             }
-            issues.put(issue.getNumber(), issue);
-            result.add(toStatusIssue(issue));
+        } catch (GHException e) {
+            // paging fails unchecked, but callers tell the causes of failures by their exceptions
+            if (e.getCause() instanceof IOException cause) {
+                throw cause;
+            }
+            throw e;
         }
         return result;
     }

@@ -71,6 +71,62 @@ class StatusReportRendererTest {
     }
 
     @Test
+    void hugeOtherContentCannotExceedTheLimitOfGitHub() {
+        var other = "vulnerability\n".repeat(100_000);
+        var report = report(T0, "abc", failure("shop", "error", "x".repeat(200_000)));
+
+        var failureComment = StatusReportRenderer.pullRequestFailureComment(report, true, other, MARKER);
+        var recoveredComment = StatusReportRenderer.pullRequestRecoveredComment(T0, Optional.of("abc"), other, MARKER);
+
+        assertThat(failureComment.length()).isLessThan(65_536);
+        assertThat(failureComment).endsWith(MARKER).contains("The report is truncated");
+        assertThat(recoveredComment.length()).isLessThan(65_536);
+        assertThat(recoveredComment).endsWith(MARKER).contains("The report is truncated");
+    }
+
+    @Test
+    void hiddenProjectsAreListedLimited() {
+        var failures = new ArrayList<FailureReport.ToolFailure>();
+        for (var i = 0; i < 30; i++) {
+            failures.add(failure("module-" + i, "error " + i, ""));
+        }
+        var report = report(T0, "abc", failures.toArray(FailureReport.ToolFailure[]::new));
+
+        var body = StatusReportRenderer.issueBody(report, T0, List.of());
+
+        assertThat(body).contains("25 more failing projects not shown").contains("`module-14`, ...").doesNotContain("module-15");
+    }
+
+    @Test
+    void causeChangedCommentListsLimitedFailures() {
+        var failures = new ArrayList<FailureReport.ToolFailure>();
+        for (var i = 0; i < 30; i++) {
+            failures.add(failure("module-" + i, "error " + i, ""));
+        }
+
+        var comment = StatusReportRenderer.issueCauseChangedComment(report(T0, "abc", failures.toArray(FailureReport.ToolFailure[]::new)));
+
+        assertThat(comment).contains("`module-4`").doesNotContain("module-5").contains("- and 25 more");
+    }
+
+    @Test
+    void titleAndInlineCodeAreLimited() {
+        assertThat(StatusReportRenderer.issueTitle("b".repeat(1000)).length()).isEqualTo(StatusReportRenderer.MAX_TITLE_LENGTH);
+        assertThat(StatusReportRenderer.code("a\nb\r\nc")).isEqualTo("`a b c`");
+        assertThat(StatusReportRenderer.code("x".repeat(5000)).length()).isLessThan(StatusReportRenderer.MAX_INLINE_LENGTH + 20);
+    }
+
+    @Test
+    void limitCutsAtLineEndsAndKeepsShortContent() {
+        assertThat(StatusReportRenderer.limit("short", 100)).isEqualTo("short");
+
+        var limited = StatusReportRenderer.limit("line\n".repeat(1000), 500);
+
+        assertThat(limited.length()).isLessThanOrEqualTo(500);
+        assertThat(limited).startsWith("line\nline").contains("The report is truncated");
+    }
+
+    @Test
     void forkPullRequestsOmitLogsAndKeyErrorLine() {
         var secretish = "customer-internal-artifact-name";
         var report = report(T0, "sha", failure("shop", "Could not resolve " + secretish, "[ERROR] " + secretish));
