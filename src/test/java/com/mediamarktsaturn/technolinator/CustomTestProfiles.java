@@ -27,4 +27,11 @@ public class CustomTestProfiles {
             return Collections.singletonMap("app.commit_status_write.enabled", "false");
         }
     }
+
+    public static class ArchiveProjectsDisabled implements QuarkusTestProfile {
+        @Override
+        public Map<String, String> getConfigOverrides() {
+            return Collections.singletonMap("app.archive_projects.enabled", "false");
+        }
+    }
 }

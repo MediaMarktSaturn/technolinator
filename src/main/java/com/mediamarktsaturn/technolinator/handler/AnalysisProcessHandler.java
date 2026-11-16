@@ -25,6 +25,7 @@ import org.cyclonedx.model.Bom;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHIssueState;
 import org.kohsuke.github.GHPullRequest;
+import org.kohsuke.github.GHRepository;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -119,6 +120,38 @@ public class AnalysisProcessHandler {
     public Uni<Result<Project>> onRelease(ReleaseEvent event, Command.Metadata metadata) {
         var repoDetails = repoService.getRepositoryDetails(event);
         return dtrackClient.appendVersionInfo(repoDetails, event.ref(), metadata.commitSha());
+    }
+
+    /**
+     * Archives all Dependency-Track projects of the given repository, returns the number of archived projects.
+     */
+    public Uni<Integer> onRepositoryArchived(GHRepository repo) {
+        return dtrackClient.archiveProjectsOfRepository(
+            repo.getName(), repo.getGitTransportUrl(), repo.getHtmlUrl().toString());
+    }
+
+    /**
+     * Renames all Dependency-Track projects of the repository's former name to the current name.
+     * Projects which can't be renamed are archived instead.
+     */
+    public Uni<DependencyTrackClient.RenameResult> onRepositoryRenamed(GHRepository repo, String oldName) {
+        final var newName = repo.getName();
+        final var newVcsUrl = repo.getGitTransportUrl();
+        final var newWebsiteUrl = repo.getHtmlUrl().toString();
+        return dtrackClient.renameProjectsOfRepository(
+            oldName, newName,
+            replaceLastSegment(newVcsUrl, newName, oldName),
+            replaceLastSegment(newWebsiteUrl, newName, oldName),
+            newVcsUrl, newWebsiteUrl);
+    }
+
+    private static String replaceLastSegment(String url, String newName, String oldName) {
+        final var needle = "/" + newName;
+        final var idx = url.lastIndexOf(needle);
+        if (idx < 0) {
+            return url;
+        }
+        return url.substring(0, idx) + "/" + oldName + url.substring(idx + needle.length());
     }
 
     Uni<Result<Project>> handleAnalysis(Event<?> event, Command.Metadata metadata, boolean fetchLicenses) {
