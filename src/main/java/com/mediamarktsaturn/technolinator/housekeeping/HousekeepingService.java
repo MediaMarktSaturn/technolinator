@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -32,7 +33,10 @@ import java.util.stream.Collectors;
  *     <li>pairs the repositories with their projects, see {@link UnitMatcher}</li>
  *     <li>hands every resulting {@link HousekeepingUnit} to the {@link HousekeepingWorker} exactly once, up to {@code worker_concurrency} in parallel</li>
  * </ol>
- * Only one run is active at a time, there's no scheduling logic in here, see {@link HousekeepingScheduler}.
+ * A run can be restricted to some repositories and projects, see {@link HousekeepingSelection}. Such a partial run doesn't touch the metrics
+ * telling when the last complete run happened.
+ * <p>
+ * Only one run is active at a time, there's no scheduling logic in here, see {@link HousekeepingScheduler} and {@link HousekeepingEndpoint}.
  */
 @ApplicationScoped
 public class HousekeepingService {
@@ -76,14 +80,28 @@ public class HousekeepingService {
     }
 
     /**
-     * Performs a housekeeping run. The returned {@link Uni} never fails, problems are logged and reported via metrics.
-     * Does nothing, if another run is still in progress or nothing is enabled. Nothing happens before the returned {@link Uni} is subscribed to.
+     * Performs a housekeeping run for everything. See {@link #run(HousekeepingSelection)}.
      */
     public Uni<Void> runAll() {
-        return Uni.createFrom().deferred(this::doRunAll);
+        return run(HousekeepingSelection.all());
     }
 
-    private Uni<Void> doRunAll() {
+    /**
+     * @return whether a run is in progress at the moment
+     */
+    public boolean isRunning() {
+        return running.get();
+    }
+
+    /**
+     * Performs a housekeeping run for the [selection]. The returned {@link Uni} never fails, problems are logged and reported via metrics.
+     * Does nothing, if another run is still in progress or nothing is enabled. Nothing happens before the returned {@link Uni} is subscribed to.
+     */
+    public Uni<Void> run(HousekeepingSelection selection) {
+        return Uni.createFrom().deferred(() -> doRun(selection));
+    }
+
+    private Uni<Void> doRun(HousekeepingSelection selection) {
         if (!running.compareAndSet(false, true)) {
             Log.warn("Housekeeping run skipped, the previous one is still in progress");
             return Uni.createFrom().voidItem();
@@ -106,11 +124,12 @@ public class HousekeepingService {
         var run = new HousekeepingRun(UUID.randomUUID().toString().substring(0, 8), Instant.now(), dryRun);
         var sample = Timer.start(meterRegistry);
         run.writeToMDC();
-        Log.infof("Housekeeping run %s started%s with actions %s", run.id(), run.dryRun() ? " in dry-run mode" : "", enabledActions);
+        Log.infof("Housekeeping run %s started%s with actions %s%s", run.id(), run.dryRun() ? " in dry-run mode" : "", enabledActions,
+            selection.isAll() ? "" : ", restricted to repositories " + new TreeSet<>(selection.repositories()) + " and projects " + new TreeSet<>(selection.projects()));
         worker.begin(run);
 
-        return crawl(run)
-            .invoke(summary -> reportCompletion(run, summary))
+        return crawl(run, selection)
+            .invoke(summary -> reportCompletion(run, summary, selection))
             .onTermination().invoke(() -> {
                 worker.end(run);
                 sample.stop(meterRegistry.timer("housekeeping_run_duration"));
@@ -122,18 +141,26 @@ public class HousekeepingService {
             .replaceWithVoid();
     }
 
-    private Uni<HousekeepingSummary> crawl(HousekeepingRun run) {
+    private Uni<HousekeepingSummary> crawl(HousekeepingRun run, HousekeepingSelection selection) {
         var progress = new AtomicReference<Supplier<HousekeepingSummary>>(HousekeepingSummary::notStarted);
         return Uni.combine().all().unis(indexer.build(run), dtrackClient.listProjects(false)).asTuple()
             .chain(listings -> {
                 var index = listings.getItem1();
                 var projects = listings.getItem2();
                 run.writeToMDC();
-                var units = UnitMatcher.match(run, index, projects, enabledRepos);
+                var allUnits = UnitMatcher.match(run, index, projects, enabledRepos);
+                var units = allUnits.stream().filter(selection::selects).toList();
+                if (!selection.isAll()) {
+                    var unmatched = selection.unmatched(allUnits);
+                    if (!unmatched.isEmpty()) {
+                        Log.warnf("Nothing found for the selected %s", unmatched);
+                    }
+                }
                 var failedUnits = new AtomicInteger();
                 progress.set(() -> summarize(index, projects, units, failedUnits.get(), true));
-                Log.infof("Housekeeping found %d repositories of %d GitHub accounts and %d projects in Dependency-Track, resulting in %d units to take care of",
-                    index.repositories().size(), index.owners(), projects.size(), units.size());
+                Log.infof("Housekeeping found %d repositories of %d GitHub accounts and %d projects in Dependency-Track, resulting in %d units to take care of%s",
+                    index.repositories().size(), index.owners(), projects.size(), units.size(),
+                    selection.isAll() ? "" : " (of %d in total)".formatted(allUnits.size()));
 
                 return Multi.createFrom().iterable(units)
                     .onItem().transformToUni(unit -> Uni.createFrom().deferred(() -> worker.process(unit))
@@ -187,13 +214,16 @@ public class HousekeepingService {
         );
     }
 
-    private void reportCompletion(HousekeepingRun run, HousekeepingSummary summary) {
+    private void reportCompletion(HousekeepingRun run, HousekeepingSummary summary, HousekeepingSelection selection) {
         var now = Instant.now().getEpochSecond();
-        if (!summary.aborted()) {
-            lastCompletedEpochSeconds.set(now);
-        }
-        if (summary.complete()) {
-            lastSuccessEpochSeconds.set(now);
+        // a partial run doesn't tell anything about the state of the whole
+        if (selection.isAll()) {
+            if (!summary.aborted()) {
+                lastCompletedEpochSeconds.set(now);
+            }
+            if (summary.complete()) {
+                lastSuccessEpochSeconds.set(now);
+            }
         }
         if (summary.failedInstallations() > 0) {
             meterRegistry.counter("housekeeping_installation_failures").increment(summary.failedInstallations());

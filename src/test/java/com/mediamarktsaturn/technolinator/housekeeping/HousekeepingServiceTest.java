@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.plainProject;
@@ -121,6 +122,57 @@ class HousekeepingServiceTest {
         // Then
         assertThat(processed).hasSize(1);
         assertThat(processed.getFirst().repository()).map(GitHubRepo::fullName).contains("org/app");
+    }
+
+    @Test
+    void restrictsRunToSelectedRepositoriesAndProjects() {
+        // Given
+        given(
+            index(repo("org", "app", false), repo("org", "other", false), repo("org", "third", false), repo("org", "fourth", false)),
+            List.of(
+                project("p1", "app", "org", "app"),
+                project("p2", "other", "org", "other"),
+                project("p3", "third", "org", "third"),
+                project("p4", "deleted", "org", "deleted"),
+                project("p5", "deleted-too", "org", "deleted-too")
+            )
+        );
+
+        // When
+        service().run(new HousekeepingSelection(Set.of("ORG/App", "deleted-too"), Set.of("p3", "Other"))).await().atMost(Duration.ofSeconds(10));
+
+        // Then
+        assertThat(processed.stream().flatMap(unit -> unit.projects().stream()).map(DependencyTrackProject::uuid))
+            .containsExactlyInAnyOrder("p1", "p2", "p3", "p5");
+        assertThat(processed).hasSize(4);
+    }
+
+    @Test
+    void partialRunDoesNotAdvanceCompletionMetrics() {
+        // Given
+        given(index(repo("org", "app", false)), List.of(project("p1", "app", "org", "app")));
+
+        // When
+        service().run(new HousekeepingSelection(Set.of("app"), Set.of())).await().atMost(Duration.ofSeconds(10));
+
+        // Then
+        assertThat(processed).hasSize(1);
+        assertThat(lastSuccess()).isZero();
+        assertThat(lastCompleted()).isZero();
+        assertThat(meters.get("housekeeping_run_duration").timer().count()).isEqualTo(1);
+    }
+
+    @Test
+    void selectionMatchingNothingProcessesNothing() {
+        // Given
+        given(index(repo("org", "app", false)), List.of(project("p1", "app", "org", "app")));
+
+        // When
+        service().run(new HousekeepingSelection(Set.of("unknown"), Set.of())).await().atMost(Duration.ofSeconds(10));
+
+        // Then
+        verify(worker, never()).process(any());
+        verify(worker).end(any());
     }
 
     @Test

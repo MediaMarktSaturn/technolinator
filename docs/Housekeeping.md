@@ -43,7 +43,7 @@ With a filter set, projects without a repository reference are left out.
 
 | Environment variable                         | Default       | Description                                                                                       |
 |----------------------------------------------|---------------|---------------------------------------------------------------------------------------------------|
-| `APP_HOUSEKEEPING_ENABLED`                   | `false`       | Main switch                                                                                       |
+| `APP_HOUSEKEEPING_ENABLED`                   | `false`       | Switch of the scheduled run, the [manual trigger](#manual-trigger) works regardless               |
 | `APP_HOUSEKEEPING_CRON`                      | `0 0 2 * * ?` | Quartz style cron expression, by default every night at 02:00                                     |
 | `APP_HOUSEKEEPING_DRY_RUN`                   | `false`       | Actions must only log what they would do, instead of changing anything                            |
 | `APP_HOUSEKEEPING_TIMEOUT`                   | `4H`          | Maximum duration of the whole run                                                                 |
@@ -52,6 +52,40 @@ With a filter set, projects without a repository reference are left out.
 | `APP_HOUSEKEEPING_WORKER_CONCURRENCY`        | `4`           | Number of units processed in parallel                                                             |
 
 Every action additionally has its own switch `app.housekeeping.<action-name>.enabled`; a run without any enabled action does nothing, not even listing.
+
+## Manual trigger
+
+A run can be started on demand with an HTTP endpoint, independent of `APP_HOUSEKEEPING_ENABLED`, which only switches the scheduled runs. So for manual runs only, leave it `false` and enable the actions you need:
+
+```shell
+# everything, like the scheduled run
+curl -X POST http://localhost:8080/housekeeping
+
+# only some repositories and/or Dependency-Track projects
+curl -X POST 'http://localhost:8080/housekeeping?repository=my-org/my-repo,other-repo&project=my-project&project=0b8a3f1e-...'
+```
+
+| Query parameter | Meaning                                                                                                                     |
+|-----------------|-----------------------------------------------------------------------------------------------------------------------------|
+| `repository`    | Repository by name (`repo`) or including owner (`owner/repo`). Also finds repositories that don't exist anymore, via the references of their projects |
+| `project`       | Dependency-Track project by name (any version) or UUID                                                                      |
+
+Both are optional, repeatable and may be comma separated lists; matching is case-insensitive. Without any, everything is processed.
+The worker always handles whole units, so selecting a project selects its repository and all projects belonging to it, too, and selecting a repository selects all of its projects.
+Selected names that don't match anything are logged as a warning. `APP_ENABLED_REPOS`, dry-run mode and all action switches and limits apply as usual.
+The listing of GitHub and Dependency-Track is done in full nevertheless, as it's needed to match and to tell whether a repository is gone.
+
+The run happens in the background, the response is immediate:
+
+| Status | Meaning                                                                                      |
+|--------|----------------------------------------------------------------------------------------------|
+| `202`  | Run started                                                                                  |
+| `400`  | `repository` or `project` given without any value (to not accidentally run for everything)  |
+| `409`  | No action is enabled, or a run is already in progress                                        |
+
+A partial run doesn't update the gauges `housekeeping_last_completed_epoch_seconds` and `housekeeping_last_success_epoch_seconds`, as they tell about complete runs.
+
+> **The endpoint is not protected.** Anyone who can reach it can trigger actions that change Dependency-Track (like archiving projects). Don't expose it beyond the trusted network, e.g. by not routing `/housekeeping` through the ingress.
 
 ## Observability
 
