@@ -64,20 +64,22 @@ class DependencyTrackClientTest {
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("""
-                            {"token":"test-upload"}
+                            {"token":"test-upload","projectUuid":"uuid-3"}
                             """))
         );
 
         wiremock.register(
-            get(urlMatching("/api/v1/project\\?.*"))
+            get(urlPathEqualTo("/api/v1/project/concise"))
                 .withHeader("Accept", equalTo("application/json"))
                 .withHeader("X-API-Key", equalTo(API_KEY))
                 .withQueryParam("name", equalTo("test-project"))
-                .withQueryParam("excludeInactive", equalTo("true"))
+                .withQueryParam("active", equalTo("true"))
                 .willReturn(
                     aResponse()
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
+                        // must not break anything, just gets logged
+                        .withHeader("X-API-Deprecated", "true")
                         .withBody("""
                             [
                                  {
@@ -108,26 +110,6 @@ class DependencyTrackClientTest {
                         .withStatus(200)
                         .withHeader("Content-Type", "application/json")
                         .withBody("{}")
-                )
-        );
-
-        wiremock.register(
-            get(urlMatching("/api/v1/project/lookup\\?.*"))
-                .withHeader("Accept", equalTo("application/json"))
-                .withHeader("X-API-Key", equalTo(API_KEY))
-                .withQueryParam("name", equalTo(name))
-                .withQueryParam("version", equalTo(version))
-                .willReturn(
-                    aResponse()
-                        .withStatus(200)
-                        .withHeader("Content-Type", "application/json")
-                        .withBody("""
-                            {
-                              "name": "test-project",
-                              "version": "1.2.3",
-                              "uuid": "uuid-3"
-                            }
-                            """)
                 )
         );
 
@@ -195,6 +177,56 @@ class DependencyTrackClientTest {
 
         var postBoms = wiremock.find(postRequestedFor(urlMatching(".*")));
         assertThat(postBoms).hasSize(1);
+
+        // project uuid is taken from the upload response, no lookup needed
+        var getRequests = wiremock.find(getRequestedFor(urlMatching(".*")));
+        assertThat(getRequests).hasSize(1);
+        assertThat(getRequests.get(0).getUrl()).startsWith("/api/v1/project/concise?");
+    }
+
+    @Test
+    void testUploadFallsBackToLookupWithoutProjectUuidInResponse() {
+        // Given
+        var name = "fallback-project";
+        var version = "2.0.0";
+
+        wiremock.register(
+            post(urlEqualTo("/api/v1/bom"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{\"token\":\"test-upload\"}"))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project/concise"))
+                .withQueryParam("name", equalTo(name))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("[]"))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project/lookup"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("name", equalTo(name))
+                .withQueryParam("version", equalTo(version))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withBody(JsonObject.of("name", name, "version", version, "uuid", "fallback-uuid").encode())
+                )
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/fallback-uuid"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        var projectDetails = new RepositoryDetails(name, version, "fallback", "https://github.com/x/y", "git://github.com/x/y.git", List.of());
+
+        // When
+        var result = await(cut.uploadSBOM(projectDetails, new Bom(), name, Project.none(), Optional.empty()));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(Result.Success.class, success ->
+            assertThat(success.result()).isInstanceOfSatisfying(Project.Available.class, p -> assertThat(p.url()).endsWith("/projects/fallback-uuid")));
+        assertThat(wiremock.find(getRequestedFor(urlPathEqualTo("/api/v1/project/lookup")))).hasSize(1);
+        assertThat(wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/fallback-uuid")))).hasSize(1);
     }
 
     @Test

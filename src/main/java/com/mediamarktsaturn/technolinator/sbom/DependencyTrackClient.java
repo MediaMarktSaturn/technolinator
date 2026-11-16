@@ -8,6 +8,7 @@ import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.mutiny.core.Vertx;
+import io.vertx.mutiny.ext.web.client.HttpResponse;
 import io.vertx.mutiny.ext.web.client.WebClient;
 import io.vertx.mutiny.ext.web.multipart.MultipartForm;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -20,7 +21,11 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * API client for Dependency-Track
@@ -29,8 +34,10 @@ import java.util.Optional;
 public class DependencyTrackClient {
 
     private static final String API_KEY = "X-API-Key";
+    private static final String API_DEPRECATED_HEADER = "X-API-Deprecated";
     private static final int PAGE_SIZE = 100;
 
+    private final Set<String> reportedDeprecations = ConcurrentHashMap.newKeySet();
     private final WebClient client;
     private final String dtrackBaseUrl, dtrackApiUrl, dtrackApikey;
 
@@ -71,6 +78,7 @@ public class DependencyTrackClient {
                         .attribute("isLatest", "true")
                         .attribute("bom", payload)
                     )
+                    .onItem().invoke(deprecationCheck("POST /bom"))
                     .map(Unchecked.function(result -> {
                         if (result.statusCode() == 200) {
                             return result;
@@ -82,7 +90,7 @@ public class DependencyTrackClient {
                     .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s: %s", projectName, projectVersion, e.getMessage()))
                     .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
                     .call(() -> deactivatePreviousVersion(projectName, projectVersion))
-                    .chain(i -> lookupProject(projectName, projectVersion))
+                    .chain(response -> resolveUploadedProject(response, projectName, projectVersion, commitSha))
                     .call(r -> {
                         if (r instanceof Result.Success<Project>(
                             Project project
@@ -97,6 +105,41 @@ public class DependencyTrackClient {
             .onFailure().recoverWithItem(Result::failure);
     }
 
+    /**
+     * The BOM upload response contains the uuid of the project the BOM was assigned to, so there's no need to look it up.
+     * Falls back to a lookup by name and version if the response doesn't contain it.
+     */
+    private Uni<Result<Project>> resolveUploadedProject(HttpResponse<?> uploadResponse, String projectName, String projectVersion, Optional<String> commitSha) {
+        return parseProjectUuid(uploadResponse)
+            .map(projectUuid -> Uni.createFrom().item(Result.success(
+                Project.available("%s/projects/%s".formatted(dtrackBaseUrl, projectUuid), projectUuid, commitSha.map(DependencyTrackClient::shortCommitSha)))))
+            .orElseGet(() -> {
+                Log.debugf("Upload response for project %s in version %s doesn't contain a project uuid, looking it up", projectName, projectVersion);
+                return lookupProject(projectName, projectVersion);
+            });
+    }
+
+    private static Optional<String> parseProjectUuid(HttpResponse<?> uploadResponse) {
+        try {
+            return Optional.ofNullable(uploadResponse.bodyAsJsonObject())
+                .map(body -> body.getString("projectUuid"))
+                .filter(uuid -> !uuid.isBlank());
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * Logs a warning once per endpoint if Dependency-Track flags it as deprecated
+     */
+    private <T> Consumer<HttpResponse<T>> deprecationCheck(String endpoint) {
+        return response -> {
+            if ("true".equalsIgnoreCase(response.getHeader(API_DEPRECATED_HEADER)) && reportedDeprecations.add(endpoint)) {
+                Log.warnf("Dependency-Track flags endpoint '%s' as deprecated (%s: true), consider migrating to its successor", endpoint, API_DEPRECATED_HEADER);
+            }
+        };
+    }
+
     public Uni<Result<Project>> createOrUpdateParentProject(RepositoryDetails repoDetails, Optional<String> commitSha) {
         var parentProject = createProjectBaseData(repoDetails, commitSha, Optional.empty());
         parentProject.put("name", repoDetails.name());
@@ -105,6 +148,7 @@ public class DependencyTrackClient {
         return client.putAbs(dtrackApiUrl + "/project")
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(parentProject)
+            .onItem().invoke(deprecationCheck("PUT /project"))
             .chain(response -> {
                 if (response.statusCode() == 201) {
                     var projectJson = response.bodyAsJsonObject();
@@ -168,6 +212,7 @@ public class DependencyTrackClient {
             .send()
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.errorf(e, "Failed to lookup project %s in version %s", projectName, projectVersion))
+            .onItem().invoke(deprecationCheck("GET /project/lookup"))
             .chain(response -> {
                 if (response.statusCode() == 200) {
                     var projectJson = response.bodyAsJsonObject();
@@ -182,14 +227,17 @@ public class DependencyTrackClient {
     }
 
     Uni<Void> deactivatePreviousVersion(String projectName, String projectVersion) {
-        return client.getAbs(dtrackApiUrl + "/project")
+        // the concise representation is sufficient here: only uuid, name and version are required, name has to match exactly
+        return client.getAbs(dtrackApiUrl + "/project/concise")
             .addQueryParam("name", projectName)
-            .addQueryParam("excludeInactive", "true")
+            .addQueryParam("active", "true")
+            .addQueryParam("pageSize", String.valueOf(PAGE_SIZE))
             .putHeader(API_KEY, dtrackApikey)
             .putHeader("Accept", "application/json")
             .send()
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.errorf(e, "Failed to list projects named %s", projectName))
+            .onItem().invoke(deprecationCheck("GET /project/concise"))
             .chain(response -> {
                 if (response.statusCode() == 200) {
                     return Uni.combine().all().unis(
@@ -253,6 +301,7 @@ public class DependencyTrackClient {
             .send()
             .onFailure().retry().atMost(3)
             .onFailure().invoke(e -> Log.errorf(e, "Failed to list projects matching %s", searchText))
+            .onItem().invoke(deprecationCheck("GET /project"))
             .chain(response -> {
                 if (response.statusCode() != 200) {
                     Log.errorf("Failed to list projects matching %s, status: %s, message: %s", searchText, response.statusCode(), response.bodyAsString());
@@ -323,6 +372,7 @@ public class DependencyTrackClient {
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(JsonObject.of("active", false))
             .onFailure().retry().atMost(3)
+            .onItem().invoke(deprecationCheck("PATCH /project/{uuid}"))
             .map(response -> {
                 if (response.statusCode() == 200) {
                     Log.infof("Disabled project %s", projectUUID);
@@ -343,6 +393,7 @@ public class DependencyTrackClient {
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(projectDetails)
+            .onItem().invoke(deprecationCheck("PATCH /project/{uuid}"))
             .onItem().invoke(response -> {
                 if (response.statusCode() == 200) {
                     Log.infof("Updated projects %s metadata", projectUUID);
@@ -394,7 +445,11 @@ public class DependencyTrackClient {
      * '#7charShortCommitSha# ' or '' if there's no commitSha available
      */
     String createCommitShaDescriptionPrefix(Optional<String> commitSha) {
-        return commitSha.map(sha -> sha.substring(0, Integer.min(7, sha.length()))).map(sha -> "#" + sha + "# ").orElse("");
+        return commitSha.map(DependencyTrackClient::shortCommitSha).map(sha -> "#" + sha + "# ").orElse("");
+    }
+
+    private static String shortCommitSha(String commitSha) {
+        return commitSha.substring(0, Integer.min(7, commitSha.length()));
     }
 
     /**
@@ -412,8 +467,8 @@ public class DependencyTrackClient {
 
     boolean isDifferentVersionOfSameProject(JsonObject project, String projectName, String projectVersion) {
         return
-            project.getString("name").equals(projectName)
-                && !project.getString("version").equals(projectVersion);
+            Objects.equals(project.getString("name"), projectName)
+                && !Objects.equals(project.getString("version"), projectVersion);
     }
 
 }

@@ -7,8 +7,8 @@ X-API-Key: {{dtrack-apikey}}
     client.global.set("last_seen_project_id", response.body.uuid);
 %}
 
-### List projects by name
-GET {{dtrack-url}}/api/v1/project?name=juice-shop&excludeInactive=true
+### List active projects by name (concise)
+GET {{dtrack-url}}/api/v1/project/concise?name=juice-shop&active=true
 Accept: application/json
 X-API-Key: {{dtrack-apikey}}
 
