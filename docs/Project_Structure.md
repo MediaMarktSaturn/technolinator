@@ -37,3 +37,26 @@ sequenceDiagram
 
     end
 ```
+
+## Archiving
+
+When a repository gets archived on GitHub, all of its Dependency-Track projects are archived (deactivated) as well.
+Projects are matched by name and by the repositories VCS or website URL; children of multi-module projects are archived before their parents.
+The `repository` event requires the GitHub App to be subscribed to the *Repository* event.
+
+```mermaid
+sequenceDiagram
+
+    GitHub -->> OnRepositoryDispatcher: Send repository event
+    OnRepositoryDispatcher ->> OnRepositoryDispatcher: Check action archived and relevance
+
+    OnRepositoryDispatcher ->>+ AnalysisProcessHandler: Archive projects
+    AnalysisProcessHandler ->>+ DependencyTrackClient: Archive projects of repository
+
+    DependencyTrackClient ->> Dependency-Track: List projects by name (paged)
+    DependencyTrackClient ->> Dependency-Track: Patch child projects inactive
+    DependencyTrackClient ->> Dependency-Track: Patch parent projects inactive
+
+    DependencyTrackClient -->>- AnalysisProcessHandler: Number of archived projects
+    AnalysisProcessHandler -->>- OnRepositoryDispatcher: Number of archived projects
+```

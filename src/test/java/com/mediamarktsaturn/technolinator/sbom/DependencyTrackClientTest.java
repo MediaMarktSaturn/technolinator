@@ -2,10 +2,13 @@ package com.mediamarktsaturn.technolinator.sbom;
 
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.http.Fault;
+import com.github.tomakehurst.wiremock.verification.LoggedRequest;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import io.quarkiverse.wiremock.devservice.ConnectWireMock;
 import io.quarkus.test.junit.QuarkusTest;
+import io.smallrye.mutiny.helpers.test.UniAssertSubscriber;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import jakarta.inject.Inject;
 import org.cyclonedx.exception.ParseException;
@@ -445,6 +448,168 @@ class DependencyTrackClientTest {
             assertThat(json.getBoolean("active")).isTrue();
             assertThat(json.getString("description")).hasToString("#7654321# v23.5 | Version me, plenty");
         });
+    }
+
+    @Test
+    void testArchiveProjectsOfRepository() {
+        // Given
+        var repo = "archive-test";
+        var vcs = "git://github.com/heubeck/archive-test.git";
+        var website = "https://github.com/heubeck/archive-test";
+        var otherVcs = "git://github.com/someone-else/archive-test-other.git";
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withHeader("Accept", equalTo("application/json"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("searchText", equalTo(repo))
+                .withQueryParam("excludeInactive", equalTo("true"))
+                .withQueryParam("pageSize", equalTo("100"))
+                .withQueryParam("pageNumber", equalTo("1"))
+                .willReturn(
+                    aResponse()
+                        .withStatus(200)
+                        .withHeader("Content-Type", "application/json")
+                        .withHeader("X-Total-Count", "4")
+                        .withBody(JsonArray.of(
+                            archiveProject("archive-uuid-parent", repo, vcs, website, null),
+                            archiveProject("archive-uuid-child", repo + "-module", vcs, website, "archive-uuid-parent"),
+                            archiveProject("archive-uuid-other", repo + "-other", otherVcs, "https://github.com/someone-else/archive-test-other", null),
+                            archiveProject("archive-uuid-similar", repo + "2", vcs, website, null)
+                        ).encode())
+                )
+        );
+
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/archive-uuid-.+"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        // When
+        var archived = await(cut.archiveProjectsOfRepository(repo, vcs, website));
+
+        // Then
+        assertThat(archived).isEqualTo(2);
+
+        var patchedProjects = wiremock.find(patchRequestedFor(urlMatching(".*")));
+        assertThat(patchedProjects).hasSize(2);
+        // children have to be archived before their parents
+        assertThat(patchedProjects.stream().map(LoggedRequest::getUrl)).containsExactlyInAnyOrder(
+            "/api/v1/project/archive-uuid-child", "/api/v1/project/archive-uuid-parent");
+        var child = patchedProjects.stream().filter(r -> r.getUrl().endsWith("archive-uuid-child")).findFirst().orElseThrow();
+        var parent = patchedProjects.stream().filter(r -> r.getUrl().endsWith("archive-uuid-parent")).findFirst().orElseThrow();
+        assertThat(child.getLoggedDate()).isBeforeOrEqualTo(parent.getLoggedDate());
+        patchedProjects.forEach(p -> assertThat(new JsonObject(p.getBodyAsString())).isEqualTo(JsonObject.of("active", false)));
+    }
+
+    @Test
+    void testArchiveProjectsOfRepositoryWithPaging() {
+        // Given
+        var repo = "paging-test";
+        var vcs = "git://github.com/heubeck/paging-test.git";
+        var website = "https://github.com/heubeck/paging-test";
+
+        var firstPage = new JsonArray();
+        for (int i = 0; i < 100; i++) {
+            firstPage.add(archiveProject("paging-uuid-" + i, repo + "-module" + i, vcs, website, "paging-uuid-parent"));
+        }
+        var secondPage = JsonArray.of(archiveProject("paging-uuid-parent", repo, vcs, website, null));
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(repo))
+                .withQueryParam("pageNumber", equalTo("1"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "101").withBody(firstPage.encode()))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(repo))
+                .withQueryParam("pageNumber", equalTo("2"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "101").withBody(secondPage.encode()))
+        );
+        wiremock.register(
+            patch(urlMatching("/api/v1/project/paging-uuid-.+"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+
+        // When
+        var archived = await(cut.archiveProjectsOfRepository(repo, vcs, website));
+
+        // Then
+        assertThat(archived).isEqualTo(101);
+        assertThat(wiremock.find(patchRequestedFor(urlMatching(".*")))).hasSize(101);
+    }
+
+    @Test
+    void testArchiveProjectsOfRepositoryCountsOnlySuccessfulPatches() {
+        // Given
+        var repo = "partial-test";
+        var vcs = "git://github.com/heubeck/partial-test.git";
+        var website = "https://github.com/heubeck/partial-test";
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(repo))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(JsonArray.of(
+                        archiveProject("partial-uuid-ok", repo, vcs, website, null),
+                        archiveProject("partial-uuid-conflict", repo + "-module", vcs, website, "partial-uuid-ok")
+                    ).encode()))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/partial-uuid-ok"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/partial-uuid-conflict"))
+                .willReturn(aResponse().withStatus(409).withBody("conflict"))
+        );
+
+        // When
+        var archived = await(cut.archiveProjectsOfRepository(repo, vcs, website));
+
+        // Then
+        assertThat(archived).isEqualTo(1);
+    }
+
+    @Test
+    void testArchiveProjectsOfRepositoryWithFailingList() {
+        // Given
+        var repo = "failing-list-test";
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", equalTo(repo))
+                .willReturn(aResponse().withStatus(500).withBody("boom"))
+        );
+
+        // When
+        var subscriber = cut.archiveProjectsOfRepository(repo, "git://x", "https://x")
+            .subscribe().withSubscriber(UniAssertSubscriber.create());
+
+        // Then
+        subscriber.awaitFailure().assertFailedWith(DependencyTrackClientHttpException.class);
+        assertThat(wiremock.find(patchRequestedFor(urlMatching(".*")))).isEmpty();
+    }
+
+    private static JsonObject archiveProject(String uuid, String name, String vcsUrl, String websiteUrl, String parentUuid) {
+        var project = JsonObject.of(
+            "uuid", uuid,
+            "name", name,
+            "version", "1.0.0",
+            "active", true,
+            "externalReferences", JsonArray.of(
+                JsonObject.of("type", "vcs", "url", vcsUrl),
+                JsonObject.of("type", "website", "url", websiteUrl),
+                JsonObject.of("type", "release-notes", "url", websiteUrl + "/releases")
+            )
+        );
+        if (parentUuid != null) {
+            project.put("parent", JsonObject.of("uuid", parentUuid));
+        }
+        return project;
     }
 
     @Test

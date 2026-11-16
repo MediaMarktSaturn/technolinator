@@ -18,6 +18,8 @@ import org.cyclonedx.model.Bom;
 import org.cyclonedx.model.ExternalReference;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -27,6 +29,7 @@ import java.util.Optional;
 public class DependencyTrackClient {
 
     private static final String API_KEY = "X-API-Key";
+    private static final int PAGE_SIZE = 100;
 
     private final WebClient client;
     private final String dtrackBaseUrl, dtrackApiUrl, dtrackApikey;
@@ -203,15 +206,133 @@ public class DependencyTrackClient {
             }).onFailure().recoverWithNull();
     }
 
-    Uni<Void> deactivateProject(String projectUUID) {
+    /**
+     * Archives (deactivates) all active projects in all versions belonging to the repository identified by
+     * the given name and URLs, including multi-module children and parent projects.
+     *
+     * @return the number of successfully archived projects
+     */
+    public Uni<Integer> archiveProjectsOfRepository(String repoName, String vcsUrl, String websiteUrl) {
+        return listProjectsBySearchText(repoName, 1, new ArrayList<>())
+            .chain(candidates -> {
+                var matching = candidates.stream()
+                    .filter(p -> belongsToRepository(p, repoName, vcsUrl, websiteUrl))
+                    .toList();
+
+                if (matching.isEmpty()) {
+                    var nameMatches = candidates.stream().filter(p -> matchesRepoName(p, repoName)).count();
+                    if (nameMatches > 0) {
+                        Log.warnf("Found %d project(s) matching the name of repo %s, but none referencing %s or %s; " +
+                            "not archiving anything", nameMatches, repoName, vcsUrl, websiteUrl);
+                    } else {
+                        Log.infof("No active projects found for repo %s", repoName);
+                    }
+                    return Uni.createFrom().item(0);
+                }
+
+                // dependency-track rejects deactivating a parent having active children, so children go first
+                var children = matching.stream().filter(p -> isChildProject(p, repoName)).toList();
+                var parents = matching.stream().filter(p -> !isChildProject(p, repoName)).toList();
+                Log.infof("Archiving %d project(s) of repo %s (%d children, %d others)",
+                    matching.size(), repoName, children.size(), parents.size());
+
+                return deactivateProjects(children)
+                    .chain(archivedChildren -> deactivateProjects(parents).map(archivedParents -> archivedChildren + archivedParents))
+                    .invoke(archived -> Log.infof("Archived %d of %d project(s) of repo %s", archived, matching.size(), repoName));
+            });
+    }
+
+    private Uni<List<JsonObject>> listProjectsBySearchText(String searchText, int pageNumber, List<JsonObject> collected) {
+        return client.getAbs(dtrackApiUrl + "/project")
+            .addQueryParam("searchText", searchText)
+            .addQueryParam("excludeInactive", "true")
+            .addQueryParam("pageSize", String.valueOf(PAGE_SIZE))
+            .addQueryParam("pageNumber", String.valueOf(pageNumber))
+            .putHeader(API_KEY, dtrackApikey)
+            .putHeader("Accept", "application/json")
+            .send()
+            .onFailure().retry().atMost(3)
+            .onFailure().invoke(e -> Log.errorf(e, "Failed to list projects matching %s", searchText))
+            .chain(response -> {
+                if (response.statusCode() != 200) {
+                    Log.errorf("Failed to list projects matching %s, status: %s, message: %s", searchText, response.statusCode(), response.bodyAsString());
+                    return Uni.createFrom().<List<JsonObject>>failure(new DependencyTrackClientHttpException(response.statusCode(), response.bodyAsString()));
+                }
+                var page = response.bodyAsJsonArray();
+                for (int i = 0; i < page.size(); i++) {
+                    collected.add(page.getJsonObject(i));
+                }
+
+                var totalCount = Optional.ofNullable(response.getHeader("X-Total-Count")).map(String::trim).flatMap(DependencyTrackClient::parseInt);
+                var lastPage = page.size() < PAGE_SIZE || totalCount.map(total -> pageNumber * PAGE_SIZE >= total).orElse(false);
+                if (lastPage) {
+                    return Uni.createFrom().item((List<JsonObject>) collected);
+                }
+                return listProjectsBySearchText(searchText, pageNumber + 1, collected);
+            });
+    }
+
+    private Uni<Integer> deactivateProjects(List<JsonObject> projects) {
+        if (projects.isEmpty()) {
+            return Uni.createFrom().item(0);
+        }
+        return Uni.combine().all().unis(
+            projects.stream().map(p -> deactivateProject(p.getString("uuid"))).toList()
+        ).with(Boolean.class, results -> (int) results.stream().filter(Boolean::booleanValue).count());
+    }
+
+    private static Optional<Integer> parseInt(String value) {
+        try {
+            return Optional.of(Integer.parseInt(value));
+        } catch (NumberFormatException e) {
+            return Optional.empty();
+        }
+    }
+
+    private static boolean matchesRepoName(JsonObject project, String repoName) {
+        var name = project.getString("name");
+        return name != null && (name.equals(repoName) || name.startsWith(repoName + "-"));
+    }
+
+    boolean belongsToRepository(JsonObject project, String repoName, String vcsUrl, String websiteUrl) {
+        if (!matchesRepoName(project, repoName)) {
+            return false;
+        }
+        var extRefs = project.getJsonArray("externalReferences");
+        if (extRefs == null) {
+            return false;
+        }
+        for (int i = 0; i < extRefs.size(); i++) {
+            var url = extRefs.getJsonObject(i).getString("url");
+            if (url != null && (url.equalsIgnoreCase(vcsUrl) || url.equalsIgnoreCase(websiteUrl))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isChildProject(JsonObject project, String repoName) {
+        return project.getJsonObject("parent") != null || !repoName.equals(project.getString("name"));
+    }
+
+    /**
+     * @return true if the project was deactivated successfully
+     */
+    Uni<Boolean> deactivateProject(String projectUUID) {
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(JsonObject.of("active", false))
             .onFailure().retry().atMost(3)
-            .onFailure().invoke(e -> Log.warnf(e, "Failed to disabled project %s", projectUUID))
-            .onItem().invoke(() -> Log.infof("Disabled project %s", projectUUID))
-            .onFailure().recoverWithNull()
-            .replaceWithVoid();
+            .map(response -> {
+                if (response.statusCode() == 200) {
+                    Log.infof("Disabled project %s", projectUUID);
+                    return true;
+                }
+                Log.warnf("Failed to disable project %s with %s: %s", projectUUID, response.statusCode(), response.bodyAsString());
+                return false;
+            })
+            .onFailure().invoke(e -> Log.warnf(e, "Failed to disable project %s", projectUUID))
+            .onFailure().recoverWithItem(false);
     }
 
     Uni<Void> updateProjectMetaData(String projectUUID, RepositoryDetails repoDetails, Project parentProject, Optional<String> commitSha, Optional<String> version) {

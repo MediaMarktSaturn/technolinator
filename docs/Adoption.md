@@ -48,3 +48,4 @@ Therefor the following settings are required for the GitHub app installation:
 
 * Pull Request
 * Push
+* Repository
