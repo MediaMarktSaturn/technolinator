@@ -3,9 +3,9 @@
 Technolinator is available as container image: `ghcr.io/mediamarktsaturn/technolinator:VERSION` ![GitHub release (latest SemVer)](https://img.shields.io/github/v/release/MediaMarktSaturn/technolinator?label=latest%20version&sort=semver&style=flat-square)
 There is in addition a container image tagged with `fat-VERSION` containing even or SDKs (like Swift).
 
-You can run it by providing the minimal configuration values as listed below. Please have a look to the [adoption doc](./Adoption.md) as well to fine tune the image to your needs.
+You can run it by providing the minimal configuration values as listed below, the [getting started guide](Getting_Started.md) walks you through it step by step, including examples of the formats. Please have a look to the [adoption doc](./Adoption.md) as well to fine tune the image to your needs.
 
-Technolinator is configured via the following parameter which can either be provided via ENV, or be put in a `.env` file in the apps working directory.
+Technolinator is configured via the following parameter which can either be provided via ENV, or be put in a `.env` file in the apps working directory. As a Quarkus application, any other [Quarkus configuration source](https://quarkus.io/guides/config-reference) works as well; see [Getting started](Getting_Started.md#where-to-put-the-configuration).
 
 | Parameter                               | Default                                       | Description                                                                                                                                                                                                                        |
 |-----------------------------------------|-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|

@@ -30,7 +30,7 @@ Env vars of pattern `JAVA\d+_HOME` will be detected, and the `\d+` values can be
 ## Config of env vars available for use in repo specific configuration
 
 Any environment variable backed into the runtime can be referred to from the repository config.
-Please mind to add sensitive env names (like GitHub token or artifact repository secrets) to the `SENSITIVE_ENV_VARS` to not having them outputted via logging, see the [Dockerfile](src/main/docker/Dockerfile) for the defaults.
+Please mind to add sensitive env names (like GitHub token or artifact repository secrets) to the `SENSITIVE_ENV_VARS` to not having them outputted via logging, see the [Dockerfile](/src/main/docker/Dockerfile) for the defaults.
 
 ## GitHub App requirements
 
@@ -49,3 +49,6 @@ Therefor the following settings are required for the GitHub app installation:
 * Pull Request
 * Push
 * Repository
+* Release (adds released tags to the Dependency-Track project)
+
+For a step by step guide on registering and installing the app, see [Getting started](Getting_Started.md#2-register-the-github-app).

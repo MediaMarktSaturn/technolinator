@@ -20,6 +20,7 @@ It's built using [![](https://img.shields.io/badge/dynamic/xml?url=https%3A%2F%2
 
 ## Documentation
 
+* **[Getting started](docs/Getting_Started.md)**: from zero to the first analyzed repository
 * Using Technolinator
   * [Repository specific configuration](docs/Repository_Config.md)
 * Operating Technolinator
