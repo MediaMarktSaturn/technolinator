@@ -39,7 +39,7 @@ Go to *Settings* → *Developer settings* → *GitHub Apps* → *New GitHub App*
 | Webhook → Active              | checked                                                                                                                |
 | Webhook URL                   | The public URL Technolinator is reachable at, e.g. `https://technolinator.example.com/`, see [step 5](#5-let-github-reach-technolinator). Can be changed later |
 | Webhook secret                | A random string, e.g. generated using `openssl rand -hex 20`. It's your `QUARKUS_GITHUB_APP_WEBHOOK_SECRET`            |
-| Repository permissions        | *Commit statuses*: Read and write, *Contents*: Read-only, *Pull requests*: Read and write, *Metadata*: Read-only       |
+| Repository permissions        | *Commit statuses*: Read and write, *Contents*: Read-only, *Issues*: Read and write, *Pull requests*: Read and write, *Metadata*: Read-only       |
 | Subscribe to events           | *Pull request*, *Push*, *Repository* and *Release*                                                                     |
 | Where can this app be installed | *Only on this account* is sufficient for a private deployment                                                        |
 

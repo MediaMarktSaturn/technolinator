@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
+import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -30,6 +31,9 @@ public abstract class DispatcherBase {
 
     @Inject
     MetricsPublisher metricsPublisher;
+
+    @Inject
+    FailureReporter failureReporter;
 
     @ConfigProperty(name = "app.analysis_timeout")
     Duration analysisTimeout;

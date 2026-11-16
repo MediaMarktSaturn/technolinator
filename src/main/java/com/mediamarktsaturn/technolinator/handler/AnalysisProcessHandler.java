@@ -10,6 +10,7 @@ import com.mediamarktsaturn.technolinator.events.ReleaseEvent;
 import com.mediamarktsaturn.technolinator.git.LocalRepository;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import com.mediamarktsaturn.technolinator.git.RepositoryService;
+import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.Project;
@@ -39,13 +40,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 @ApplicationScoped
 public class AnalysisProcessHandler {
 
     private static final String SBOM_QUALITY_TAG = "sbom-quality-score=%s";
-    private static final String COMMENT_MARKER = "[//]: # (Technolinator)";
     private static final String DTRACK_PLACEHOLDER = "DEPENDENCY_TRACK_URL";
     private static final String DTRACK_PROJECT_SEARCH_TMPL = "%s/projects?searchText=%s";
     private static final String BACKSTAGE_CATALOG_INFO = "catalog-info.yaml";
@@ -55,6 +54,7 @@ public class AnalysisProcessHandler {
     private final DependencyTrackClient dtrackClient;
     private final SbomqsClient sbomqsClient;
     private final VulnerabilityReporting reporter;
+    private final FailureReporter failureReporter;
 
     private final RepositoryService repoService;
     private final CdxgenClient cdxgenClient;
@@ -70,6 +70,7 @@ public class AnalysisProcessHandler {
         DependencyTrackClient dtrackClient,
         SbomqsClient sbomqsClient,
         VulnerabilityReporting reporter,
+        FailureReporter failureReporter,
         @UtilsProducer.Yaml
         ObjectMapper yamlMapper,
         @ConfigProperty(name = "app.analysis.cdxgen.fetch_licenses")
@@ -88,6 +89,7 @@ public class AnalysisProcessHandler {
         this.sbomqsClient = sbomqsClient;
         this.yamlMapper = yamlMapper;
         this.reporter = reporter;
+        this.failureReporter = failureReporter;
         this.pushFetchLicenses = pushFetchLicenses;
         this.pullRequestFetchLicenses = pullRequestFetchLicenses;
         this.dtrackUrl = dtrackUrl;
@@ -155,12 +157,32 @@ public class AnalysisProcessHandler {
     }
 
     Uni<Result<Project>> handleAnalysis(Event<?> event, Command.Metadata metadata, boolean fetchLicenses) {
+        var started = Instant.now();
         var repoDetails = repoService.getRepositoryDetails(event);
         return checkoutAndGenerateSBOMs(event, metadata, fetchLicenses)
-            .call(result -> handlePullRequests(event, result.getItem1(), metadata))
+            .call(result -> handlePullRequests(event, result.getItem1(), metadata, started, result.getItem2() == null))
             .chain(result -> handleDependencyTrack(event, addBackstageManifestTags(repoDetails, result.getItem2()), result.getItem1(), metadata)
-                .onTermination().invoke(() -> result.getItem2().close())
+                .call(uploadResult -> reportDefaultBranchAnalysis(event, metadata, started, result.getItem1(), result.getItem2() == null, uploadResult))
+                .onTermination().invoke(() -> {
+                    // there is nothing to clean up if the checkout failed
+                    if (result.getItem2() != null) {
+                        result.getItem2().close();
+                    }
+                })
             );
+    }
+
+    /**
+     * Tells the status issue of the repository how the analysis of its default branch went.
+     */
+    Uni<Void> reportDefaultBranchAnalysis(Event<?> event, Command.Metadata metadata, Instant started,
+                                          List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, boolean checkoutFailed,
+                                          Result<Project> uploadResult) {
+        if (!(event instanceof PushEvent) || !event.isDefaultBranch()) {
+            return Uni.createFrom().voidItem();
+        }
+        var ctx = new FailureReporter.Context(event.repository(), metadata, started, event.config());
+        return failureReporter.onDefaultBranchAnalysis(ctx, sbomResults, checkoutFailed, uploadResult);
     }
 
     RepositoryDetails addBackstageManifestTags(RepositoryDetails repoDetails, LocalRepository repo) {
@@ -197,7 +219,8 @@ public class AnalysisProcessHandler {
         }
     }
 
-    Uni<Void> handlePullRequests(Event<?> event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
+    Uni<Void> handlePullRequests(Event<?> event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata,
+                                 Instant started, boolean checkoutFailed) {
         if (!pullRequestReportsEnabled) {
             if (Log.isDebugEnabled()) {
                 Log.debug("PR analysis is disabled");
@@ -220,12 +243,22 @@ public class AnalysisProcessHandler {
                 return createReport(event, sbomResults, metadata)
                     .invoke(reportResult -> reportResult.mapSuccess(report -> {
                             metadata.writeToMDC();
+                            String reportText = null;
                             if (report instanceof VulnerabilityReporting.VulnerabilityReport.Report(
-                                String reportText, String projectName
+                                String text, String projectName
                             )) {
-                                pullRequests.forEach(pr -> upsertPullRequestComment(pr, reportText, projectName));
+                                reportText = text.replace(DTRACK_PLACEHOLDER, buildDTrackProjectSearchUrl(projectName));
                             } else {
                                 Log.warnf("No vulnerability report created for repo %s, ref %s", event.repoUrl(), event.ref());
+                            }
+                            // the analysis result is part of the comment even if there is no report, e.g. to tell about a failure
+                            var ctx = new FailureReporter.Context(event.repository(), metadata, started, event.config());
+                            // push events are evaluated for the status issue, once is enough
+                            var evaluation = event instanceof PullRequestEvent
+                                ? failureReporter.evaluate(ctx, sbomResults, checkoutFailed, Optional.empty())
+                                : FailureReporter.Evaluation.inactive();
+                            for (var pr : pullRequests) {
+                                failureReporter.updatePullRequest(ctx, pr, evaluation, reportText);
                             }
                             return null;
                         }
@@ -275,32 +308,6 @@ public class AnalysisProcessHandler {
                     ));
                 }
             });
-    }
-
-    private void upsertPullRequestComment(GHPullRequest pullRequest, String reportText, String projectName) {
-        var existingComment = StreamSupport.stream(pullRequest.queryComments().list().spliterator(), false)
-            .filter(comment -> comment.getBody().endsWith(COMMENT_MARKER))
-            .findFirst();
-
-        var commentText = "%s\n\n%s".formatted(reportText.replace(DTRACK_PLACEHOLDER, buildDTrackProjectSearchUrl(projectName)), COMMENT_MARKER);
-
-        existingComment.ifPresentOrElse(existing -> {
-            // update existing comment
-            try {
-                existing.update(commentText);
-                Log.infof("Updated comment %s", existing.getHtmlUrl());
-            } catch (IOException e) {
-                Log.errorf(e, "Failed to update comment %s", existing.getHtmlUrl());
-            }
-        }, () -> {
-            // create new comment
-            try {
-                var newComment = pullRequest.comment(commentText);
-                Log.infof("Created comment %s", newComment.getHtmlUrl());
-            } catch (IOException e) {
-                Log.errorf(e, "Failed to comment pull-request %s, repo %s", pullRequest.getNumber(), pullRequest.getRepository().getUrl());
-            }
-        });
     }
 
     @SuppressWarnings("unchecked")

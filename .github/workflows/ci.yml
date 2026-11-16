@@ -210,6 +210,12 @@ jobs:
           docker push ${{ env.image_name }}:${{ env.VERSION }}
           docker push ${{ env.image_name }}:fat-${{ env.VERSION }}
 
+      - name: Create Release
+        if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
+        uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create and upload container SBOM
         if: github.ref == 'refs/heads/main'
         continue-on-error: true
@@ -220,9 +226,3 @@ jobs:
               --project-name technolinator_container \
               --project-version 1 \
               "${{ env.image_name }}:${{ env.VERSION }}"
-
-      - name: Create Release
-        if: github.ref == 'refs/heads/main' && steps.semantic.outputs.new_release_version != null
-        uses: cycjimmy/semantic-release-action@ad51787758d9654d5a75150a89a6fa9b3ccef95e # v8.1.4
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

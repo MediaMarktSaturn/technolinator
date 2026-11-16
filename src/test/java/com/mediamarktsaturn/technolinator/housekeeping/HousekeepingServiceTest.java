@@ -17,6 +17,8 @@ import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestDa
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.repo;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -74,6 +76,19 @@ class HousekeepingServiceTest {
         when(dtrack.listProjects(false)).thenReturn(Uni.createFrom().item(projects));
     }
 
+    /**
+     * Prepares the lookups of a selection: [searches] are pairs of search text and the projects found for it, projects have no children
+     */
+    private void givenTargeted(GitHubRepositoryIndex index, Object... searches) {
+        when(indexer.build(any(), any())).thenReturn(Uni.createFrom().item(index));
+        when(dtrack.listChildren(anyString())).thenReturn(Uni.createFrom().item(List.of()));
+        for (int i = 0; i < searches.length; i += 2) {
+            @SuppressWarnings("unchecked")
+            var found = (List<DependencyTrackProject>) searches[i + 1];
+            when(dtrack.searchProjects((String) searches[i])).thenReturn(Uni.createFrom().item(found));
+        }
+    }
+
     private static void run(HousekeepingService service) {
         service.runAll().await().atMost(Duration.ofSeconds(10));
     }
@@ -127,33 +142,33 @@ class HousekeepingServiceTest {
     @Test
     void restrictsRunToSelectedRepositoriesAndProjects() {
         // Given
-        given(
-            index(repo("org", "app", false), repo("org", "other", false), repo("org", "third", false), repo("org", "fourth", false)),
-            List.of(
-                project("p1", "app", "org", "app"),
-                project("p2", "other", "org", "other"),
-                project("p3", "third", "org", "third"),
-                project("p4", "deleted", "org", "deleted"),
-                project("p5", "deleted-too", "org", "deleted-too")
-            )
+        givenTargeted(
+            index(repo("org", "app", false)),
+            "app", List.of(project("p1", "app", "org", "app"), project("p6", "app-extra", "org", "other-app")),
+            // gone, found by the project selected by name
+            "deleted-too", List.of(project("p5", "deleted-too", "org", "deleted-too"))
         );
 
         // When
-        service().run(new HousekeepingSelection(Set.of("ORG/App", "deleted-too"), Set.of("p3", "Other"))).await().atMost(Duration.ofSeconds(10));
+        service().run(new HousekeepingSelection(Set.of("ORG/App"), Set.of("Deleted-Too"))).await().atMost(Duration.ofSeconds(10));
 
         // Then
-        assertThat(processed.stream().flatMap(unit -> unit.projects().stream()).map(DependencyTrackProject::uuid))
-            .containsExactlyInAnyOrder("p1", "p2", "p3", "p5");
-        assertThat(processed).hasSize(4);
+        assertThat(processed).hasSize(2);
+        assertThat(processed.stream().flatMap(unit -> unit.projects().stream()).map(DependencyTrackProject::uuid)).containsExactlyInAnyOrder("p1", "p5");
+        assertThat(processed.stream().map(HousekeepingUnit::repositoryState)).containsExactlyInAnyOrder(
+            GitHubRepositoryIndex.State.ACTIVE, GitHubRepositoryIndex.State.GONE);
+        // nothing is listed completely
+        verify(indexer, never()).build(any());
+        verify(dtrack, never()).listProjects(anyBoolean());
     }
 
     @Test
     void partialRunDoesNotAdvanceCompletionMetrics() {
         // Given
-        given(index(repo("org", "app", false)), List.of(project("p1", "app", "org", "app")));
+        givenTargeted(index(repo("org", "app", false)), "app", List.of(project("p1", "app", "org", "app")));
 
         // When
-        service().run(new HousekeepingSelection(Set.of("app"), Set.of())).await().atMost(Duration.ofSeconds(10));
+        service().run(new HousekeepingSelection(Set.of("org/app"), Set.of())).await().atMost(Duration.ofSeconds(10));
 
         // Then
         assertThat(processed).hasSize(1);
@@ -165,10 +180,10 @@ class HousekeepingServiceTest {
     @Test
     void selectionMatchingNothingProcessesNothing() {
         // Given
-        given(index(repo("org", "app", false)), List.of(project("p1", "app", "org", "app")));
+        givenTargeted(GitHubRepositoryIndex.builder().build(), "unknown", List.of());
 
         // When
-        service().run(new HousekeepingSelection(Set.of("unknown"), Set.of())).await().atMost(Duration.ofSeconds(10));
+        service().run(new HousekeepingSelection(Set.of("org/unknown"), Set.of())).await().atMost(Duration.ofSeconds(10));
 
         // Then
         verify(worker, never()).process(any());
@@ -257,7 +272,7 @@ class HousekeepingServiceTest {
         // Given
         given(
             GitHubRepositoryIndex.builder().addInstallation("github.com", "org", true, List.of(repo("org", "app", false))).installationFailed().build(),
-            List.of()
+            List.of(project("p1", "app", "org", "app"))
         );
 
         // When
@@ -268,6 +283,45 @@ class HousekeepingServiceTest {
         assertThat(lastSuccess()).isZero();
         assertThat(lastCompleted()).isPositive();
         assertThat(installationFailures()).isEqualTo(1);
+    }
+
+    @Test
+    void onlyProcessesRepositoriesWithProjectsIfAnInstallationFailed() {
+        // Given
+        given(
+            GitHubRepositoryIndex.builder()
+                .addInstallation("github.com", "org", true, List.of(repo("org", "app", false), repo("org", "never-analyzed", false)))
+                .installationFailed().build(),
+            List.of(
+                project("p1", "app", "org", "app"),
+                // the repository might be in the installation that failed, so it can't be told whether it is gone
+                project("p2", "deleted", "org", "deleted"),
+                plainProject("p3", "something-else")
+            )
+        );
+
+        // When
+        run(service());
+
+        // Then
+        assertThat(processed).hasSize(1);
+        assertThat(processed.getFirst().repository()).map(GitHubRepo::fullName).contains("org/app");
+        assertThat(processed.getFirst().projects()).extracting(DependencyTrackProject::uuid).containsExactly("p1");
+    }
+
+    @Test
+    void processesEverythingIfNoInstallationFailed() {
+        // Given
+        given(
+            index(repo("org", "app", false), repo("org", "never-analyzed", false)),
+            List.of(project("p1", "app", "org", "app"), project("p2", "deleted", "org", "deleted"))
+        );
+
+        // When
+        run(service());
+
+        // Then
+        assertThat(processed).hasSize(3);
     }
 
     @Test

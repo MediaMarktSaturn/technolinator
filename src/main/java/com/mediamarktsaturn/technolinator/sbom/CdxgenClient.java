@@ -3,6 +3,7 @@ package com.mediamarktsaturn.technolinator.sbom;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
 import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -257,7 +258,7 @@ public class CdxgenClient {
                     yield parseSbomFile(sbomFile, cmd.projectName());
                 } else {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                    yield Result.failure(f.cause());
+                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? pfe.withProjectName(cmd.projectName()) : f.cause());
                 }
             }
         };

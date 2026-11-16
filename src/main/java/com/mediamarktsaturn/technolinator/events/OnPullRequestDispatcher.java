@@ -3,18 +3,24 @@ package com.mediamarktsaturn.technolinator.events;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Actions;
 import io.quarkiverse.githubapp.event.PullRequest;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.TimeoutException;
+import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHEventPayload;
+import org.kohsuke.github.GHPullRequest;
+import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHUser;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -77,10 +83,12 @@ public class OnPullRequestDispatcher extends DispatcherBase {
             Log.infof("Analyzing pull-request %s of repository %s", prPayload.getNumber(), repoUrl);
             metricsPublisher.reportAnalysisStart(repoName, "pull-request");
 
+            final var analysisStartedAt = Instant.now();
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
             handler.onPullRequest(new PullRequestEvent(prPayload, config), metadata)
                 .ifNoItem().after(analysisTimeout).fail()
+                .onFailure(TimeoutException.class).call(timeout -> reportTimeout(repo, metadata, analysisStartedAt, config, pullRequest))
                 .map(this::mapToResult)
                 .onFailure().recoverWithItem(f -> new PullRequestResult(MetricStatusAnalysis.ERROR))
                 .onTermination().invoke(() -> {
@@ -115,6 +123,13 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                 Tag.of("repo", repoName)
             )
         ).increment();
+    }
+
+    private Uni<Void> reportTimeout(GHRepository repo, Command.Metadata metadata, Instant started, Optional<TechnolinatorConfig> config, GHPullRequest pullRequest) {
+        if (failureReporter == null) {
+            return Uni.createFrom().voidItem();
+        }
+        return failureReporter.onPullRequestTimeout(new FailureReporter.Context(repo, metadata, started, config), pullRequest);
     }
 
     private PullRequestResult mapToResult(Result<Project> result) {

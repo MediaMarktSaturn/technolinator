@@ -16,6 +16,12 @@ class HousekeepingEndpointTest {
     }
 
     @Test
+    void rejectsRepositoriesWithoutOwner() {
+        given().queryParam("repository", "app").post("/housekeeping").then().statusCode(400).body("message", containsString("owner/repo"));
+        given().queryParam("repository", "a/b,app").post("/housekeeping").then().statusCode(400);
+    }
+
+    @Test
     void refusesToRunWithoutEnabledAction() {
         given().post("/housekeeping").then().statusCode(409).body("message", containsString("no enabled action"));
         given().queryParam("repository", "a/b").post("/housekeeping").then().statusCode(409);

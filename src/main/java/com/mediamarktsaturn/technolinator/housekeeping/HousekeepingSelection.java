@@ -12,13 +12,14 @@ import java.util.stream.Collectors;
 /**
  * Restricts a housekeeping run to some repositories and Dependency-Track projects. An {@link #all() empty} selection selects everything.
  * <p>
+ * Selected repositories and projects are looked up on their own, see {@link TargetedListing}, instead of listing everything.
  * As the {@link HousekeepingWorker} always works on whole {@link HousekeepingUnit}s (a hierarchy of projects must not be split),
  * a unit is selected if <em>any</em> of its repository or projects is, so selecting a project selects its repository and all
  * the projects belonging to it, too.
  * All comparisons are case-insensitive.
  *
- * @param repositories Repositories given by name ({@code repo}) or including the owner ({@code owner/repo}). Repositories that don't exist anymore
- *                     are found by the references of their projects.
+ * @param repositories Repositories given as {@code owner/repo}, as the owner is needed to find the installation of the GitHub app.
+ *                     Repositories that don't exist anymore are found by the references of their projects.
  * @param projects     Projects given by name (in any version) or UUID
  */
 public record HousekeepingSelection(Set<String> repositories, Set<String> projects) {

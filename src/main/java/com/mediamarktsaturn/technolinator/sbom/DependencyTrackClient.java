@@ -502,16 +502,8 @@ public class DependencyTrackClient {
      * @param excludeInactive Skip archived projects
      */
     public Uni<List<DependencyTrackProject>> listProjects(boolean excludeInactive) {
-        return listProjectsBySearchText(null, excludeInactive, 1, new ArrayList<>())
-            .map(projects -> {
-                // projects changed while paging might show up twice
-                var unique = new LinkedHashMap<String, DependencyTrackProject>();
-                projects.stream()
-                    .map(DependencyTrackProject::fromJson)
-                    .filter(project -> project.uuid() != null)
-                    .forEach(project -> unique.putIfAbsent(project.uuid(), project));
-                return List.copyOf(unique.values());
-            });
+        return listPages("/project", null, excludeInactive, 1, new ArrayList<>())
+            .map(DependencyTrackClient::uniqueProjects);
     }
 
     /**
@@ -524,9 +516,64 @@ public class DependencyTrackClient {
         return deactivateProject(projectUuid);
     }
 
+    /**
+     * Fetches a single project in any state.
+     * Fails if the project can't be fetched, but not if it doesn't exist.
+     */
+    public Uni<Optional<DependencyTrackProject>> getProject(String projectUuid) {
+        return client.getAbs(dtrackApiUrl + "/project/" + projectUuid)
+            .putHeader(API_KEY, dtrackApikey)
+            .putHeader("Accept", "application/json")
+            .send()
+            .onFailure().retry().atMost(3)
+            .onFailure().invoke(e -> Log.errorf(e, "Failed to get project %s", projectUuid))
+            .onItem().invoke(deprecationCheck("GET /project/{uuid}"))
+            .chain(response -> {
+                if (response.statusCode() == 404) {
+                    return Uni.createFrom().item(Optional.<DependencyTrackProject>empty());
+                }
+                if (response.statusCode() != 200) {
+                    Log.errorf("Failed to get project %s, status: %s, message: %s", projectUuid, response.statusCode(), response.bodyAsString());
+                    return Uni.createFrom().failure(new DependencyTrackClientHttpException(response.statusCode(), response.bodyAsString()));
+                }
+                return Uni.createFrom().item(Optional.of(DependencyTrackProject.fromJson(response.bodyAsJsonObject())));
+            });
+    }
+
+    /**
+     * Lists the projects in any version and state, whose name contains [searchText] (case-insensitive, as Dependency-Track does the search),
+     * so the result might contain projects not named exactly like it.
+     * Fails if the projects can't be listed completely.
+     */
+    public Uni<List<DependencyTrackProject>> searchProjects(String searchText) {
+        return listPages("/project", searchText, false, 1, new ArrayList<>()).map(DependencyTrackClient::uniqueProjects);
+    }
+
+    /**
+     * Lists the direct children of a project, in any state.
+     * Fails if the children can't be listed completely.
+     */
+    public Uni<List<DependencyTrackProject>> listChildren(String projectUuid) {
+        return listPages("/project/" + projectUuid + "/children", null, false, 1, new ArrayList<>()).map(DependencyTrackClient::uniqueProjects);
+    }
+
+    private static List<DependencyTrackProject> uniqueProjects(List<JsonObject> projects) {
+        // projects changed while paging might show up twice
+        var unique = new LinkedHashMap<String, DependencyTrackProject>();
+        projects.stream()
+            .map(DependencyTrackProject::fromJson)
+            .filter(project -> project.uuid() != null)
+            .forEach(project -> unique.putIfAbsent(project.uuid(), project));
+        return List.copyOf(unique.values());
+    }
+
     private Uni<List<JsonObject>> listProjectsBySearchText(String searchText, boolean excludeInactive, int pageNumber, List<JsonObject> collected) {
-        var scope = searchText != null ? "matching " + searchText : "in total";
-        var request = client.getAbs(dtrackApiUrl + "/project");
+        return listPages("/project", searchText, excludeInactive, pageNumber, collected);
+    }
+
+    private Uni<List<JsonObject>> listPages(String path, String searchText, boolean excludeInactive, int pageNumber, List<JsonObject> collected) {
+        var scope = searchText != null ? "matching " + searchText : path.equals("/project") ? "in total" : "of " + path;
+        var request = client.getAbs(dtrackApiUrl + path);
         if (searchText != null) {
             request.addQueryParam("searchText", searchText);
         }
@@ -553,9 +600,15 @@ public class DependencyTrackClient {
                 var totalCount = Optional.ofNullable(response.getHeader("X-Total-Count")).map(String::trim).flatMap(DependencyTrackClient::parseInt);
                 var lastPage = page.size() < PAGE_SIZE || totalCount.map(total -> pageNumber * PAGE_SIZE >= total).orElse(false);
                 if (lastPage) {
+                    // fewer items than announced means the listing is incomplete, which must not be mistaken for a complete one
+                    if (totalCount.isPresent() && collected.size() < totalCount.get()) {
+                        Log.errorf("Listing projects %s is incomplete, got %d of %d projects", scope, collected.size(), totalCount.get());
+                        return Uni.createFrom().<List<JsonObject>>failure(new IllegalStateException(
+                            "Listing projects %s is incomplete, got %d of %d projects".formatted(scope, collected.size(), totalCount.get())));
+                    }
                     return Uni.createFrom().item((List<JsonObject>) collected);
                 }
-                return listProjectsBySearchText(searchText, excludeInactive, pageNumber + 1, collected);
+                return listPages(path, searchText, excludeInactive, pageNumber + 1, collected);
             });
     }
 

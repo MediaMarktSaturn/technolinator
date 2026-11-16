@@ -52,7 +52,7 @@ public class ProcessHandler {
             .map(exit -> {
                 callback.onComplete(exit);
                 if (exit != 0) {
-                    return (ProcessResult) new ProcessResult.Failure(outputLines, exit, new Exception(command + " exited with " + exit));
+                    return (ProcessResult) new ProcessResult.Failure(outputLines, exit, new ProcessFailedException(command, exit, outputLines));
                 } else {
                     return (ProcessResult) new ProcessResult.Success(outputLines);
                 }

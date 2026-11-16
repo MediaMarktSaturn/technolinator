@@ -10,11 +10,17 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHAppInstallation;
+import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHRepositorySelection;
 
 import java.io.IOException;
 import java.time.Clock;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Creates a {@link GitHubRepositoryIndex} from all installations of the GitHub app, using the very same app credentials as the event handling.
@@ -22,6 +28,11 @@ import java.util.List;
  */
 @ApplicationScoped
 public class GitHubRepositoryIndexer {
+
+    /**
+     * Maximum page size of GitHub, saves requests of the rate limit (5000 per hour and installation, more for bigger ones) for big installations
+     */
+    private static final int LIST_PAGE_SIZE = 100;
 
     private final GitHubClientProvider clientProvider;
     private final int installationConcurrency;
@@ -59,9 +70,48 @@ public class GitHubRepositoryIndexer {
 
     private List<GHAppInstallation> listInstallations(HousekeepingRun run) throws IOException {
         run.writeToMDC();
-        var installations = clientProvider.getApplicationClient().getApp().listInstallations().toList();
+        var installations = activeInstallations();
         Log.infof("Indexing repositories of %d installations of the GitHub app", installations.size());
-        return installations.stream()
+        return installations;
+    }
+
+    /**
+     * Looks at the given repositories only, instead of listing all repositories of all installations: lists the installations
+     * of the app (which is cheap), and fetches each of the repositories on its own with the installation of its account.
+     * <p>
+     * A repository is {@link GitHubRepositoryIndex.State#GONE} if its account has an installation with access to <em>all</em> repositories
+     * and GitHub doesn't know the repository (or knows it under another name or account, as it does for renamed or transferred ones).
+     * Repositories of accounts without (active) installation, of installations restricted to selected repositories, or that
+     * couldn't be fetched, are {@link GitHubRepositoryIndex.State#UNKNOWN} then.
+     * Fails if the installations of the app can't be listed.
+     */
+    public Uni<GitHubRepositoryIndex> build(HousekeepingRun run, Collection<Target> targets) {
+        var builder = GitHubRepositoryIndex.builder();
+        var targetsByOwner = new LinkedHashMap<String, List<Target>>();
+        targets.forEach(target -> targetsByOwner.computeIfAbsent(target.owner(), owner -> new ArrayList<>()).add(target));
+
+        return Uni.createFrom().item(Unchecked.supplier(() -> {
+                run.writeToMDC();
+                var installations = activeInstallations().stream()
+                    .filter(installation -> installation.getAccount() != null && installation.getAccount().getLogin() != null
+                        && targetsByOwner.containsKey(installation.getAccount().getLogin().toLowerCase(Locale.ROOT)))
+                    .toList();
+                var covered = installations.stream().map(installation -> installation.getAccount().getLogin().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+                targetsByOwner.keySet().stream().filter(owner -> !covered.contains(owner))
+                    .forEach(owner -> Log.infof("The GitHub app isn't installed for %s, so its repositories are treated as unknown", owner));
+                return installations;
+            }))
+            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+            .onItem().transformToMulti(installations -> Multi.createFrom().iterable(installations))
+            .onItem().transformToUni(installation -> lookupRepositories(run, installation,
+                targetsByOwner.get(installation.getAccount().getLogin().toLowerCase(Locale.ROOT)), builder))
+            .merge(installationConcurrency)
+            .onItem().ignoreAsUni()
+            .map(ignored -> builder.build());
+    }
+
+    private List<GHAppInstallation> activeInstallations() throws IOException {
+        return clientProvider.getApplicationClient().getApp().listInstallations().toList().stream()
             .filter(installation -> {
                 if (installation.getSuspendedAt() != null) {
                     Log.infof("Skipping suspended installation %d", installation.getId());
@@ -70,6 +120,58 @@ public class GitHubRepositoryIndexer {
                 return true;
             })
             .toList();
+    }
+
+    private Uni<Void> lookupRepositories(HousekeepingRun run, GHAppInstallation installation, List<Target> targets, GitHubRepositoryIndex.Builder builder) {
+        final var installationId = installation.getId();
+        return Uni.createFrom().item(Unchecked.supplier(() -> {
+                run.writeToMDC();
+                var login = installation.getAccount().getLogin();
+                var host = installation.getHtmlUrl().getHost();
+                var all = installation.getRepositorySelection() == GHRepositorySelection.ALL;
+                var client = new GitHubInstallationClient(installationId, clientProvider, clock);
+                var failed = false;
+                for (var target : targets) {
+                    try {
+                        var repository = client.current().getRepository(login + "/" + target.name());
+                        if (target.name().equalsIgnoreCase(repository.getName())
+                            && (repository.getOwnerName() == null || login.equalsIgnoreCase(repository.getOwnerName()))) {
+                            builder.addRepository(host, login, GitHubRepo.of(host, login, repository, client));
+                        } else if (all) {
+                            // GitHub redirects renamed and transferred repositories, but nothing exists under the requested name
+                            builder.addGoneRepository(host, login, target.name());
+                        }
+                    } catch (GHFileNotFoundException e) {
+                        if (all) {
+                            builder.addGoneRepository(host, login, target.name());
+                        }
+                    } catch (IOException e) {
+                        failed = true;
+                        Log.errorf(e, "Could not look up repository %s/%s, treating it as unknown", login, target.name());
+                    }
+                }
+                if (failed) {
+                    builder.installationFailed();
+                }
+                return (Void) null;
+            }))
+            .runSubscriptionOn(Infrastructure.getDefaultWorkerPool())
+            .onFailure().invoke(failure -> {
+                builder.installationFailed();
+                run.writeToMDC();
+                Log.errorf(failure, "Could not look up repositories of installation %d, they are treated as unknown", installationId);
+            })
+            .onFailure().recoverWithNull();
+    }
+
+    /**
+     * A repository to look at, identified by its account and name, both in lower case
+     */
+    public record Target(String owner, String name) {
+        public Target {
+            owner = owner.toLowerCase(Locale.ROOT);
+            name = name.toLowerCase(Locale.ROOT);
+        }
     }
 
     private Uni<Void> indexInstallation(HousekeepingRun run, GHAppInstallation installation, GitHubRepositoryIndex.Builder builder) {
@@ -84,9 +186,15 @@ public class GitHubRepositoryIndexer {
                 var host = installation.getHtmlUrl().getHost();
                 var client = new GitHubInstallationClient(installationId, clientProvider, clock);
                 // repositories need to be listed with the installation's own client, the application client lacks the permission
-                var repositories = client.current().getInstallation().listRepositories().toList().stream()
+                var listing = client.current().getInstallation().listRepositories().withPageSize(LIST_PAGE_SIZE);
+                var repositories = listing.toList().stream()
                     .map(repository -> GitHubRepo.of(host, login, repository, client))
                     .toList();
+                // fewer repositories than GitHub announces mean the listing isn't complete, so nothing can be said about the account
+                var announced = listing.getTotalCount();
+                if (announced > repositories.size()) {
+                    throw new IllegalStateException("installation lists only %d of %d repositories".formatted(repositories.size(), announced));
+                }
                 var all = installation.getRepositorySelection() == GHRepositorySelection.ALL;
                 builder.addInstallation(host, login, all, repositories);
                 Log.debugf("Installation %d of %s grants access to %d repositories (%s)", installationId, login, repositories.size(), all ? "all" : "selected");

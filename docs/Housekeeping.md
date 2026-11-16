@@ -36,6 +36,16 @@ flowchart TD
 A repository is considered `GONE` only if its owner has an installation with access to *all repositories*, the repository list was non-empty and doesn't contain it.
 Repositories of installations restricted to *selected repositories* are never `GONE`: a deleted repository can't be told apart from a deselected one.
 
+### Reliability of the listings
+
+The absence of a repository or project only means something if everything was listed:
+
+* **Dependency-Track** is all or nothing: if a page can't be fetched (after retries), or fewer projects are returned than `X-Total-Count` announces, the run is aborted without processing any unit.
+* **GitHub** is checked per installation: an installation whose repositories can't be listed completely (request error, timeout, rate limit handling failing, or fewer repositories returned than GitHub announces via `total_count`) is logged, counted in `housekeeping_installation_failures` and left out, so its repositories are `UNKNOWN`.
+* If **any** installation failed, the lists aren't trustworthy as a whole, so only units with *a repository and projects* are processed (a project might belong to a repository of the failed installation, a repository might have projects that are just not matched). Units with only a repository or only projects are skipped, and a warning tells how many units were processed. The same applies if a lookup of a manual, targeted run fails.
+
+For big installations, repositories are listed with the maximum page size of 100. Each installation has its own rate limit (at least 5000 requests per hour), so a thousand repositories need 10 requests. The client waits for a primary rate limit to reset, which is bounded by `APP_HOUSEKEEPING_TIMEOUT`: the run is aborted without processing any unit if the listing doesn't finish in time.
+
 `APP_ENABLED_REPOS` is applied (case-insensitively) to units, the per-repository `enable: false` of `.github/technolinator.yml` is **not** consulted.
 With a filter set, projects without a repository reference are left out.
 
@@ -62,25 +72,32 @@ A run can be started on demand with an HTTP endpoint, independent of `APP_HOUSEK
 curl -X POST http://localhost:8080/housekeeping
 
 # only some repositories and/or Dependency-Track projects
-curl -X POST 'http://localhost:8080/housekeeping?repository=my-org/my-repo,other-repo&project=my-project&project=0b8a3f1e-...'
+curl -X POST 'http://localhost:8080/housekeeping?repository=my-org/my-repo,my-org/other-repo&project=my-project&project=0b8a3f1e-...'
 ```
 
 | Query parameter | Meaning                                                                                                                     |
 |-----------------|-----------------------------------------------------------------------------------------------------------------------------|
-| `repository`    | Repository by name (`repo`) or including owner (`owner/repo`). Also finds repositories that don't exist anymore, via the references of their projects |
-| `project`       | Dependency-Track project by name (any version) or UUID                                                                      |
+| `repository`    | Repository including its owner (`owner/repo`). Also works for repositories that don't exist anymore, as long as projects reference them |
+| `project`       | Dependency-Track project by exact name (any version) or UUID                                                                |
 
 Both are optional, repeatable and may be comma separated lists; matching is case-insensitive. Without any, everything is processed.
 The worker always handles whole units, so selecting a project selects its repository and all projects belonging to it, too, and selecting a repository selects all of its projects.
 Selected names that don't match anything are logged as a warning. `APP_ENABLED_REPOS`, dry-run mode and all action switches and limits apply as usual.
-The listing of GitHub and Dependency-Track is done in full nevertheless, as it's needed to match and to tell whether a repository is gone.
+
+A run with a selection is **targeted**: it neither lists all repositories of all installations nor all Dependency-Track projects. Instead
+
+* the installations are listed (cheap), but only the named repositories are fetched, each one from the installation of its owner. A repository that's not found there (or was renamed/transferred) counts as gone, an owner without an active installation or a failing lookup as unknown, so nothing is archived on that basis.
+* selected projects are fetched by UUID or searched by name, together with their parents and children.
+* the projects of a repository are searched by the repository's name, and matched like in the full run, including the ones referencing the repository under another name.
+
+Limitations compared to the full run: a project of a repository that has a different name and no matching reference isn't found; and projects with the repository's name but no references, belonging to a different owner, can't be told apart (the same as for the event handling).
 
 The run happens in the background, the response is immediate:
 
 | Status | Meaning                                                                                      |
 |--------|----------------------------------------------------------------------------------------------|
 | `202`  | Run started                                                                                  |
-| `400`  | `repository` or `project` given without any value (to not accidentally run for everything)  |
+| `400`  | `repository` or `project` given without any value (to not accidentally run for everything), or a repository without owner |
 | `409`  | No action is enabled, or a run is already in progress                                        |
 
 A partial run doesn't update the gauges `housekeeping_last_completed_epoch_seconds` and `housekeeping_last_success_epoch_seconds`, as they tell about complete runs.

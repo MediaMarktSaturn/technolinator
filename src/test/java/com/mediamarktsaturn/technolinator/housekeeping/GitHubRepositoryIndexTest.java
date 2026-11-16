@@ -67,6 +67,23 @@ class GitHubRepositoryIndexTest {
         assertThat(index.failedInstallations()).isEqualTo(1);
     }
 
+    @Test
+    void reportsSingleRepositoriesLookedAtOnTheirOwn() {
+        var index = GitHubRepositoryIndex.builder()
+            .addRepository("github.com", "Org", repo("Org", "Active", false))
+            .addRepository("github.com", "org", repo("org", "old", true))
+            .addGoneRepository("github.com", "org", "Deleted")
+            .build();
+
+        assertThat(index.lookup(ref("github.com", "org", "active"))).isEqualTo(ACTIVE);
+        assertThat(index.lookup(ref("github.com", "org", "old"))).isEqualTo(ARCHIVED);
+        assertThat(index.lookup(ref("github.com", "org", "deleted"))).isEqualTo(GONE);
+        // only what was looked at is known
+        assertThat(index.lookup(ref("github.com", "org", "other"))).isEqualTo(UNKNOWN);
+        assertThat(index.repositories()).extracting(GitHubRepo::fullName).containsExactly("Org/Active", "org/old");
+        assertThat(index.owners()).isEqualTo(1);
+    }
+
     private static RepositoryReference ref(String host, String owner, String name) {
         return new RepositoryReference(host, owner, name);
     }
