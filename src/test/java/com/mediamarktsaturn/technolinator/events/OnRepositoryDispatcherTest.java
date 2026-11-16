@@ -72,6 +72,18 @@ class OnRepositoryDispatcherTest {
     }
 
     @Test
+    void testRepositoryDeleted() throws IOException {
+        // When
+        GitHubAppTesting.when()
+            .payloadFromClasspath("/events/repository_deleted.json")
+            .event(GHEvent.REPOSITORY);
+
+        // Then
+        await().untilAsserted(() -> Mockito.verify(handler)
+            .onRepositoryArchived(Mockito.argThat(repo -> "app-test".equals(repo.getName()))));
+    }
+
+    @Test
     void testRepositoryEdited() throws IOException {
         // When
         GitHubAppTesting.when()
