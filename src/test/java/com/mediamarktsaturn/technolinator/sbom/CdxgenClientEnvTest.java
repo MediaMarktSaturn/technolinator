@@ -173,7 +173,22 @@ class CdxgenClientEnvTest {
             .containsEntry("CDX_MAVEN_INCLUDE_TEST_SCOPE", "true")
             .containsEntry("FETCH_LICENSE", "false")
             .containsEntry("USE_GOSUM", "true")
+            .containsEntry("GOFLAGS", "-e")
             .containsEntry("JAVA_HOME", System.getenv("JAVA_HOME"));
+    }
+
+    @Test
+    void testRepoEnvOverridesGoFlags() {
+        // Given
+        var config = ConfigBuilder.create()
+            .env(Map.of("GOFLAGS", "-mod=mod"))
+            .build();
+
+        // When
+        var result = cut.buildEnv(List.of(config), false);
+
+        // Then
+        assertThat(result).containsEntry("GOFLAGS", "-mod=mod");
     }
 
     @Test

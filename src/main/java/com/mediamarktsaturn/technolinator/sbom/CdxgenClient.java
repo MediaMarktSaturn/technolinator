@@ -71,6 +71,7 @@ public class CdxgenClient {
     private static final String CDXGEN_FETCH_LICENSE = "FETCH_LICENSE";
     private static final String JAVA_HOME = System.getenv("JAVA_HOME");
     private static final String CDXGEN_DEBUG = "CDXGEN_DEBUG_MODE";
+    private static final String GOFLAGS = "GOFLAGS";
 
     /**
      * Default arguments for a maven call, suppressing download progress output
@@ -122,7 +123,7 @@ public class CdxgenClient {
             .orElse(Collections.emptyList());
 
         // https://github.com/AppThreat/cdxgen#environment-variables
-        this.cdxgenEnv = Map.of(
+        var defaultEnv = new HashMap<>(Map.of(
             "GITHUB_TOKEN", config.getValue("github.token", String.class).trim(),
             "USE_GOSUM", config.getValue("cdxgen.use_gosum", Boolean.class).toString(),
             CDXGEN_MAVEN_ARGS, DEFAULT_MAVEN_ARGS,
@@ -130,7 +131,14 @@ public class CdxgenClient {
             "CDX_MAVEN_INCLUDE_TEST_SCOPE", String.valueOf(!requiredScopeOnlyDefault),
             "GRADLE_MULTI_THREADED", "true",
             "CDXGEN_TIMEOUT_MS", Long.toString(config.getValue("app.analysis_timeout", Duration.class).toMillis())
-        );
+        ));
+
+        // Go flags applied to all go invocations of cdxgen, e.g. `-e` to tolerate unresolvable packages (generated sources not committed)
+        config.getOptionalValue("cdxgen.go_flags", String.class)
+            .map(String::trim)
+            .filter(flags -> !flags.isEmpty())
+            .ifPresent(flags -> defaultEnv.put(GOFLAGS, flags));
+        this.cdxgenEnv = Map.copyOf(defaultEnv);
 
         jdkHomes = System.getenv().entrySet().stream()
             .filter(e -> e.getKey().matches("JAVA\\d+_HOME"))
