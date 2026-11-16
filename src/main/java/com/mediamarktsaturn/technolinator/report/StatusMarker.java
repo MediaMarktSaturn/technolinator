@@ -5,6 +5,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -88,6 +89,6 @@ public record StatusMarker(State state, Instant started, String sha, String err)
      * @return the given text with the first marker replaced
      */
     public static String replace(String text, StatusMarker replacement) {
-        return MARKER.matcher(text).replaceFirst(m -> java.util.regex.Matcher.quoteReplacement(replacement.render()));
+        return MARKER.matcher(text).replaceFirst(m -> Matcher.quoteReplacement(replacement.render()));
     }
 }

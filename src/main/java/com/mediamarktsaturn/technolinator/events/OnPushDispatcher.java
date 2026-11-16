@@ -136,45 +136,44 @@ public class OnPushDispatcher extends DispatcherBase {
     }
 
     Uni<PushResult> reportAnalysisResult(Result<Project> uploadResult, GHRepository repo, Optional<String> commitSha, Command.Metadata metadata) {
-        return commitSha.map(commit -> {
-            final GHCommitState state;
-            final MetricStatusAnalysis metricStatus;
-            final String url;
-            final String desc;
-            switch (uploadResult) {
-                case Result.Success<Project> s -> {
-                    state = GHCommitState.SUCCESS;
-                    switch (s.result()) {
-                        case Project.Available a -> {
-                            url = a.url();
-                            desc = "SBOM available";
-                            metricStatus = MetricStatusAnalysis.OK;
-                        }
-                        case Project.List l -> {
-                            url = l.searchUrl();
-                            desc = "SBOMs available";
-                            metricStatus = MetricStatusAnalysis.OK;
-                        }
-                        case Project.None n -> {
-                            url = null;
-                            desc = "no SBOM available";
-                            metricStatus = MetricStatusAnalysis.NONE;
-                        }
-                        default -> throw new IllegalStateException();
+        final GHCommitState state;
+        final MetricStatusAnalysis metricStatus;
+        final String url;
+        final String desc;
+        switch (uploadResult) {
+            case Result.Success<Project> s -> {
+                state = GHCommitState.SUCCESS;
+                switch (s.result()) {
+                    case Project.Available a -> {
+                        url = a.url();
+                        desc = "SBOM available";
+                        metricStatus = MetricStatusAnalysis.OK;
+                    }
+                    case Project.List l -> {
+                        url = l.searchUrl();
+                        desc = "SBOMs available";
+                        metricStatus = MetricStatusAnalysis.OK;
+                    }
+                    case Project.None n -> {
+                        url = null;
+                        desc = "no SBOM available";
+                        metricStatus = MetricStatusAnalysis.NONE;
                     }
                 }
-                case Result.Failure<Project> f -> {
-                    desc = getDescriptionFromFailure(f);
-                    state = GHCommitState.ERROR;
-                    metricStatus = MetricStatusAnalysis.ERROR;
-                    url = null;
-                }
-                default -> throw new IllegalStateException();
             }
+            case Result.Failure<Project> f -> {
+                desc = getDescriptionFromFailure(f);
+                state = GHCommitState.ERROR;
+                metricStatus = MetricStatusAnalysis.ERROR;
+                url = null;
+            }
+        }
 
-            return createGHCommitStatus(commit, repo, state, url, desc, metadata)
-                .map(commitStatus -> new PushResult(commitStatus, metricStatus));
-        }).orElseGet(() -> Uni.createFrom().item(null));
+        // without a commit there's nothing to attach the status to, but the outcome is still worth a metric
+        return commitSha
+            .map(commit -> createGHCommitStatus(commit, repo, state, url, desc, metadata)
+                .map(commitStatus -> new PushResult(commitStatus, metricStatus)))
+            .orElseGet(() -> Uni.createFrom().item(new PushResult(null, metricStatus)));
     }
 
     static Optional<String> getEventCommit(GHEventPayload.Push pushPayload) {

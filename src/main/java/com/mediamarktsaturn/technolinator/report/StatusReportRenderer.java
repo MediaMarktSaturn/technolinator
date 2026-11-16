@@ -1,11 +1,14 @@
 package com.mediamarktsaturn.technolinator.report;
 
+import com.mediamarktsaturn.technolinator.Commons;
+
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * Turns {@link FailureReport}s into the markdown shown in status issues and pull-request comments.
@@ -20,9 +23,21 @@ public final class StatusReportRenderer {
     static final int MAX_EXCERPT_LENGTH = 30_000;
     static final int MIN_EXCERPT_LENGTH = 2_000;
     static final int MAX_SHOWN_FAILURES = 5;
+    static final int MAX_LISTED_PROJECTS = 10;
+    static final int MAX_INLINE_LENGTH = 500;
+    static final int MAX_TITLE_LENGTH = 256;
+    /**
+     * Space of a failure comment left for the other content, which is the vulnerability report.
+     */
+    static final int MAX_OTHER_CONTENT_LENGTH = 25_000;
+    /**
+     * What the details of a failure need besides the excerpt: the project, the command, the error line and the explanations.
+     */
+    private static final int FAILURE_OVERHEAD = 2_500;
 
     private static final String TICK = "\u0060";
     private static final Pattern BACKTICK_RUN = Pattern.compile("\u0060+");
+    private static final Pattern LINE_BREAKS = Pattern.compile("[\r\n]+");
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm 'UTC'").withZone(ZoneOffset.UTC);
 
     private StatusReportRenderer() {
@@ -32,7 +47,8 @@ public final class StatusReportRenderer {
     // ---- status issue ----
 
     public static String issueTitle(String branch) {
-        return "Technolinator: SBOM creation fails on " + branch;
+        var title = "Technolinator: SBOM creation fails on " + branch;
+        return title.length() > MAX_TITLE_LENGTH ? title.substring(0, MAX_TITLE_LENGTH - 1) + "…" : title;
     }
 
     /**
@@ -72,9 +88,13 @@ public final class StatusReportRenderer {
     }
 
     public static String issueCauseChangedComment(FailureReport report) {
-        var summaries = report.failures().stream()
+        var failures = report.failures();
+        var summaries = failures.stream().limit(MAX_SHOWN_FAILURES)
             .map(f -> "- " + code(f.project()) + ": " + f.summary())
-            .reduce((a, b) -> a + "\n" + b).orElse("");
+            .collect(Collectors.joining("\n"));
+        if (failures.size() > MAX_SHOWN_FAILURES) {
+            summaries += "\n- and " + (failures.size() - MAX_SHOWN_FAILURES) + " more";
+        }
         return "The cause of the failure changed with commit " + commitLink(report) + ":\n\n" + summaries
             + "\n\nSee the description for details.";
     }
@@ -88,18 +108,15 @@ public final class StatusReportRenderer {
      * @return the given issue body, now marked as resolved and with a note on top of the failure details
      */
     public static String resolvedIssueBody(String body, Instant resolvedAt, Optional<String> commitSha) {
-        var marker = StatusMarker.parse(body);
-        var resolvedMarker = new StatusMarker(StatusMarker.State.RESOLVED,
-            marker.map(StatusMarker::started).orElse(resolvedAt), marker.map(StatusMarker::sha).orElse("-"), marker.map(StatusMarker::err).orElse("-"));
-        var withMarker = marker.isPresent() ? StatusMarker.replace(body, resolvedMarker) : body;
+        var withMarker = markResolved(body);
         var banner = "> ✅ **Resolved on " + TIME.format(resolvedAt) + "**" + commitSha.map(sha -> " with commit " + code(shortSha(sha))).orElse("")
-            + ". The failure below is kept for reference.\n\n";
+            + ". The failure below is kept for reference.";
         var markerEnd = withMarker.indexOf("-->");
         if (markerEnd < 0 || withMarker.contains("**Resolved on")) {
             return withMarker;
         }
         var insertAt = markerEnd + "-->".length();
-        return withMarker.substring(0, insertAt) + "\n\n" + banner.stripTrailing() + withMarker.substring(insertAt);
+        return withMarker.substring(0, insertAt) + "\n\n" + banner + withMarker.substring(insertAt);
     }
 
     /**
@@ -132,7 +149,7 @@ public final class StatusReportRenderer {
         var footer = new StringBuilder();
         footer.append("\n");
         if (otherContent != null && !otherContent.isBlank()) {
-            footer.append("\n---\n\n").append(otherContent.strip()).append("\n");
+            footer.append("\n---\n\n").append(limit(otherContent.strip(), MAX_OTHER_CONTENT_LENGTH)).append("\n");
         }
         footer.append("\n").append(commentMarker);
 
@@ -151,7 +168,7 @@ public final class StatusReportRenderer {
             .append(commitSha.map(sha -> " of commit " + code(shortSha(sha))).orElse(""))
             .append(" was created successfully, the earlier failure is fixed. Thanks for taking care! 🚀\n");
         if (otherContent != null && !otherContent.isBlank()) {
-            body.append("\n---\n\n").append(otherContent.strip()).append("\n");
+            body.append("\n---\n\n").append(limit(otherContent.strip(), MAX_BODY_LENGTH - body.length() - commentMarker.length() - 100)).append("\n");
         }
         body.append("\n").append(commentMarker);
         return body.toString();
@@ -162,7 +179,7 @@ public final class StatusReportRenderer {
     static String failureDetails(FailureReport report, boolean includeLogs, String headingLevel, int budget) {
         var failures = report.failures();
         var shown = failures.subList(0, Math.min(MAX_SHOWN_FAILURES, failures.size()));
-        var perFailure = Math.max(MIN_EXCERPT_LENGTH, Math.min(MAX_EXCERPT_LENGTH, budget / Math.max(1, shown.size()) - 1_500));
+        var perFailure = Math.max(MIN_EXCERPT_LENGTH, Math.min(MAX_EXCERPT_LENGTH, budget / Math.max(1, shown.size()) - FAILURE_OVERHEAD));
 
         var result = new StringBuilder();
         for (var failure : shown) {
@@ -193,12 +210,20 @@ public final class StatusReportRenderer {
             }
         }
         if (failures.size() > shown.size()) {
-            result.append("_").append(failures.size() - shown.size()).append(" more failing projects not shown: ")
-                .append(failures.subList(shown.size(), failures.size()).stream().map(f -> code(f.project()))
-                    .reduce((a, b) -> a + ", " + b).orElse(""))
+            var hidden = failures.subList(shown.size(), failures.size());
+            result.append("_").append(hidden.size()).append(" more failing projects not shown: ")
+                .append(hidden.stream().limit(MAX_LISTED_PROJECTS).map(f -> code(f.project())).collect(Collectors.joining(", ")))
+                .append(hidden.size() > MAX_LISTED_PROJECTS ? ", ..." : "")
                 .append("_\n\n");
         }
         return result.toString();
+    }
+
+    /**
+     * Cuts the content to the given length, if it is longer, as GitHub rejects texts which are too long.
+     */
+    static String limit(String content, int maxLength) {
+        return Commons.truncate(content, maxLength, "\n\n_The report is truncated, as it exceeds the size limit of GitHub comments._");
     }
 
     /**
@@ -210,10 +235,13 @@ public final class StatusReportRenderer {
     }
 
     /**
-     * Inline code which can't be broken out of by the content.
+     * Inline code which can't be broken out of by the content, and is cut if it is unreasonably long.
      */
     static String code(String content) {
-        var single = content.replace("\n", " ").strip();
+        var single = LINE_BREAKS.matcher(content).replaceAll(" ").strip();
+        if (single.length() > MAX_INLINE_LENGTH) {
+            single = single.substring(0, MAX_INLINE_LENGTH) + " [...]";
+        }
         var run = longestBacktickRun(single);
         if (run == 0) {
             return TICK + single + TICK;

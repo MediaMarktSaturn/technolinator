@@ -98,6 +98,36 @@ class FailureClassifierTest {
     }
 
     @Test
+    void errorLineIsFoundDespiteIndentation() {
+        var result = classify(1, "[INFO] mvn run", "   something error happened");
+
+        assertThat(result.errorLine()).isEqualTo("something error happened");
+        assertThat(result.tool()).isEqualTo("maven");
+    }
+
+    @Test
+    void missingExitCodeIsNotShown() {
+        var result = classify(null, "something happened");
+
+        assertThat(result.summary()).isEqualTo("cdxgen failed");
+    }
+
+    @Test
+    void secretsAreRedactedBeforeTheyAreShownOrHashed() {
+        var redactor = new SecretRedactor(List.of());
+        var first = classifyRedacted(redactor, "[ERROR] unknown failure token=aaaaaaaa1");
+        var second = classifyRedacted(redactor, "[ERROR] unknown failure token=bbbbbbbb2");
+
+        assertThat(first.errorLine()).doesNotContain("aaaaaaaa1").contains(SecretRedactor.MASK);
+        assertThat(first.errorHash()).isEqualTo(second.errorHash());
+    }
+
+    private static FailureClassifier.Classification classifyRedacted(SecretRedactor redactor, String... lines) {
+        return FailureClassifier.classify(FailureStage.SBOM_GENERATION,
+            new ProcessFailedException("cdxgen -o bom.json", 1, List.of(lines)), redactor::redactLines);
+    }
+
+    @Test
     void hashIgnoresNumbersAndHashes() {
         var first = classify(1, "[ERROR] Could not resolve dependencies at 1234 abcdef123456 for foo");
         var second = classify(1, "[ERROR] Could not resolve dependencies at 99 fedcba654321 for foo");

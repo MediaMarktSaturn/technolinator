@@ -16,7 +16,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHEventPayload;
-import org.kohsuke.github.GitHub;
+import com.mediamarktsaturn.technolinator.TestUtil;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
@@ -52,7 +52,7 @@ class PushHandlingTest {
         var branch = "main";
 
         var projectName = "examiner";
-        var ghRepo = GitHub.connectAnonymously().getRepository(repoUrl);
+        var ghRepo = TestUtil.github().getRepository(repoUrl);
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
 
         when(dtrackClient.uploadSBOM(captor.capture(), any(), eq(projectName), any(), any()))

@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -96,7 +97,7 @@ public class DependencyTrackClient {
                             throw new DependencyTrackClientHttpException(result.statusCode(), result.bodyAsString());
                         }
                     }))
-                    .onFailure().retry().atMost(3)
+                    .onFailure(DependencyTrackClient::isRetryable).retry().atMost(3)
                     .onFailure().invoke(e -> Log.errorf(e, "Failed to upload project %s in version %s: %s", projectName, projectVersion, e.getMessage()))
                     .onItem().invoke(() -> Log.infof("Uploaded project %s in version %s", projectName, projectVersion))
                     .call(() -> deactivatePreviousVersion(projectName, projectVersion))
@@ -114,6 +115,14 @@ public class DependencyTrackClient {
                         }
                     }))
             .onFailure().recoverWithItem(Result::failure);
+    }
+
+    /**
+     * Transport failures and server side errors are worth another attempt, rejections of the request itself are not.
+     */
+    private static boolean isRetryable(Throwable failure) {
+        return !(failure instanceof DependencyTrackClientHttpException e)
+            || e.getHttpStatus() >= 500 || e.getHttpStatus() == 408 || e.getHttpStatus() == 429;
     }
 
     /**
@@ -225,7 +234,7 @@ public class DependencyTrackClient {
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(parentProject)
             .onItem().invoke(deprecationCheck("PUT /project"))
-            .chain(response -> {
+            .<Result<Project>>chain(response -> {
                 if (response.statusCode() == 201) {
                     var projectJson = response.bodyAsJsonObject();
                     var parentProjectId = projectJson.getString("uuid");
@@ -252,6 +261,10 @@ public class DependencyTrackClient {
                     Log.errorf("Failed to create parent project named %s version %s: %s", repoDetails.name(), repoDetails.version(), response.bodyAsString());
                     return Uni.createFrom().item(Result.failure(new Exception("Failed to create parent project")));
                 }
+            })
+            .onFailure().recoverWithItem(failure -> {
+                Log.errorf(failure, "Failed to create or update parent project named %s version %s", repoDetails.name(), repoDetails.version());
+                return Result.<Project>failure(failure);
             });
     }
 
@@ -759,17 +772,17 @@ public class DependencyTrackClient {
         return commitSha.substring(0, Integer.min(7, commitSha.length()));
     }
 
+    private static final Pattern COMMIT_SHA_DESCRIPTION = Pattern.compile("^#(\\w{1,7})#.*", Pattern.DOTALL);
+
     /**
      * Extracts the commit hash from a given project description prefixed by {@link #createCommitShaDescriptionPrefix(Optional)}
      */
     Optional<String> parseCommitShaFromDescription(String description) {
-        if (description != null && description.matches("^#\\w{1,7}#.*")) {
-            var desc = description.substring(1);
-            desc = desc.substring(0, desc.indexOf('#'));
-            return Optional.of(desc);
-        } else {
+        if (description == null) {
             return Optional.empty();
         }
+        var matcher = COMMIT_SHA_DESCRIPTION.matcher(description);
+        return matcher.matches() ? Optional.of(matcher.group(1)) : Optional.empty();
     }
 
     boolean isDifferentVersionOfSameProject(JsonObject project, String projectName, String projectVersion) {

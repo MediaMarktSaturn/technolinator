@@ -16,10 +16,10 @@ import org.kohsuke.github.GHRepository;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 /**
@@ -80,19 +80,31 @@ public class RepositoryService {
 
     static void extractToDirectory(ZipInputStream zis, Path dir) throws IOException {
         try (zis) {
-            var entry = Objects.requireNonNull(zis.getNextEntry());
+            var firstEntry = zis.getNextEntry();
             // Downloaded zip from GitHub always wraps the content in a single folder, we unwrap that.
-            var wrappingFolderName = entry.getName();
-            if (!entry.isDirectory() || wrappingFolderName.startsWith("/") || !wrappingFolderName.endsWith("/")) {
+            if (firstEntry == null || !firstEntry.isDirectory() || firstEntry.getName().startsWith("/") || !firstEntry.getName().endsWith("/")) {
                 throw new IllegalStateException("Zip does not start with a folder");
             }
-            var wrappingDirLength = wrappingFolderName.length();
+            var wrappingFolder = firstEntry.getName();
+            var wrappingDirLength = wrappingFolder.length();
+            var root = dir.toAbsolutePath().normalize();
+            ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
-                var zipFile = dir.resolve(entry.getName().substring(wrappingDirLength));
+                if (!entry.getName().startsWith(wrappingFolder)) {
+                    throw new IllegalStateException("Zip entry is not within the wrapping folder: " + entry.getName());
+                }
+                if (entry.getName().length() == wrappingDirLength) {
+                    continue;
+                }
+                var target = root.resolve(entry.getName().substring(wrappingDirLength)).normalize();
+                if (!target.startsWith(root)) {
+                    throw new IllegalStateException("Zip entry points outside of target directory: " + entry.getName());
+                }
                 if (entry.isDirectory()) {
-                    Files.createDirectories(zipFile);
+                    Files.createDirectories(target);
                 } else {
-                    Files.write(zipFile, zis.readAllBytes(), StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.CREATE);
+                    Files.createDirectories(target.getParent());
+                    Files.copy(zis, target, StandardCopyOption.REPLACE_EXISTING);
                 }
             }
         }

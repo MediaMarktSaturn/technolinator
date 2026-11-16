@@ -21,7 +21,7 @@ import org.kohsuke.github.GHIssueComment;
 import org.kohsuke.github.GHIssueCommentQueryBuilder;
 import org.kohsuke.github.GHIssueState;
 import org.kohsuke.github.GHPullRequest;
-import org.kohsuke.github.GitHub;
+import com.mediamarktsaturn.technolinator.TestUtil;
 import org.kohsuke.github.PagedIterable;
 import org.mockito.ArgumentCaptor;
 
@@ -62,7 +62,7 @@ class PullRequestHandlingTest {
         var branch = "main";
 
         var projectName = "examiner";
-        var ghRepo = spy(GitHub.connectAnonymously().getRepository(repoUrl));
+        var ghRepo = spy(TestUtil.github().getRepository(repoUrl));
 
         when(reporter.createVulnerabilityReport(any(), eq(projectName))).thenReturn(Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.report("la di dum", projectName))));
         var captor = ArgumentCaptor.forClass(RepositoryDetails.class);
@@ -116,7 +116,7 @@ class PullRequestHandlingTest {
         var branch = "main";
 
         var projectName = "examiner";
-        var ghRepo = spy(GitHub.connectAnonymously().getRepository(repoUrl));
+        var ghRepo = spy(TestUtil.github().getRepository(repoUrl));
 
         when(reporter.createVulnerabilityReport(any(), eq(projectName))).thenReturn(Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.report("la di dum", projectName))));
 

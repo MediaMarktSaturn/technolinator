@@ -5,8 +5,8 @@ import io.quarkus.logging.Log;
 
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -24,23 +24,23 @@ public interface ProcessCallback {
 
     class DefaultProcessCallback implements ProcessCallback {
 
-        private static final String SENSITIVE_ENV_VARS = System.getenv("SENSITIVE_ENV_VARS");
+        /**
+         * Values of the env variables named by SENSITIVE_ENV_VARS (comma separated), to be hidden in the output.
+         * Blank values are ignored, as replacing them would garble every single line.
+         */
+        private static final Map<String, String> SENSITIVE_ENV = Optional.ofNullable(System.getenv("SENSITIVE_ENV_VARS"))
+            .map(names -> Arrays.stream(names.split(",")).map(String::trim).collect(Collectors.toSet()))
+            .map(names -> System.getenv().entrySet().stream()
+                .filter(e -> names.contains(e.getKey()) && !e.getValue().isBlank())
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue)))
+            .orElse(Map.of());
 
         private final Command.Metadata metadata;
         private final long start;
-        private Map<String, String> sensitiveEnv = Collections.emptyMap();
 
         public DefaultProcessCallback() {
             this.metadata = Command.Metadata.readFromMDC();
-
-            if (SENSITIVE_ENV_VARS != null) {
-                var sensitiveEnvKeys = Arrays.stream(SENSITIVE_ENV_VARS.split(",")).map(String::trim).toList();
-                this.sensitiveEnv = System.getenv().entrySet().stream()
-                    .filter(e -> sensitiveEnvKeys.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            }
-
-            start = System.currentTimeMillis();
+            this.start = System.currentTimeMillis();
         }
 
         @Override
@@ -59,7 +59,7 @@ public interface ProcessCallback {
             if (Log.isDebugEnabled()) {
                 metadata.writeToMDC();
                 // hide (sensitive) env values from output
-                for (var env : sensitiveEnv.entrySet()) {
+                for (var env : SENSITIVE_ENV.entrySet()) {
                     logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
                 }
                 Log.debugf("[%s]: %s", metadata.traceId(), logLine);

@@ -2,9 +2,11 @@ package com.mediamarktsaturn.technolinator.report;
 
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
 class SecretRedactorTest {
 
@@ -50,6 +52,40 @@ class SecretRedactorTest {
         var lines = List.of("before", "-----BEGIN RSA PRIVATE KEY-----", "MIIEowIBAAKCAQEA", "abcdef", "-----END RSA PRIVATE KEY-----", "after");
 
         assertThat(cut.redactLines(lines)).containsExactly("before", SecretRedactor.MASK + " (private key)", "after");
+    }
+
+    @Test
+    void quotedValuesAndJsonKeys() {
+        assertThat(cut.redact("{\"password\": \"hunter2 with spaces\", \"user\": \"bob\"}")).doesNotContain("hunter2").doesNotContain("spaces").contains("bob");
+        assertThat(cut.redact("password: 'my secret phrase'")).doesNotContain("phrase");
+        assertThat(cut.redact("{\"Authorization\": \"Bearer abcdef123456\"}")).doesNotContain("abcdef123456");
+    }
+
+    @Test
+    void urlPasswordsMayContainAtSigns() {
+        assertThat(cut.redact("https://bob:p@ssw0rd@repo.example.com/maven2")).doesNotContain("ssw0rd").contains("@repo.example.com/maven2");
+    }
+
+    @Test
+    void tokensOfOtherServices() {
+        assertThat(cut.redact("AKIAIOSFODNN7EXAMPLE")).doesNotContain("AKIA");
+        assertThat(cut.redact("glpat-abcdefghijklmnopqrstuvwx")).doesNotContain("glpat-");
+        assertThat(cut.redact("sent Bearer abcdefghijklmnop1234 to server")).doesNotContain("abcdefghijklmnop1234");
+        assertThat(cut.redact("prefix_ghp_abcdefghijklmnopqrstuvwxyz0123456789")).doesNotContain("ghp_abcdef");
+    }
+
+    @Test
+    void privateKeyBlocksOfPgpAreRemoved() {
+        var lines = List.of("-----BEGIN PGP PRIVATE KEY BLOCK-----", "lQdGBF", "-----END PGP PRIVATE KEY BLOCK-----", "after");
+
+        assertThat(cut.redactLines(lines)).containsExactly(SecretRedactor.MASK + " (private key)", "after");
+    }
+
+    @Test
+    void hugeUntrustedInputIsRedactedInLinearTime() {
+        var evil = String.join(".", java.util.Collections.nCopies(200_000, "a-b")) + " " + "https://".repeat(50_000) + "x".repeat(500_000);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(10), () -> cut.redact(evil));
     }
 
     @Test

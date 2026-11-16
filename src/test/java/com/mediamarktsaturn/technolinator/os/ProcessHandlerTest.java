@@ -5,10 +5,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import java.time.Duration;
 import java.util.Map;
 
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @QuarkusTest
 class ProcessHandlerTest {
@@ -70,6 +72,27 @@ class ProcessHandlerTest {
         assertThat(result).isInstanceOfSatisfying(ProcessHandler.ProcessResult.Success.class, success -> {
             assertThat(success.outputLines()).contains("pom.xml", "src", "README.md", ".gitignore", ".editorconfig");
         });
+    }
+
+    @Test
+    void testCancellationKillsProcess() {
+        // Given
+        var command = "sleep 4711";
+
+        // When
+        var subscription = ProcessHandler.run(command, ProcessHandler.CURRENT_DIR, Map.of(), ProcessCallback.NOOP)
+            .subscribe().with(ignored -> {
+            }, failure -> {
+            });
+        await().atMost(Duration.ofSeconds(10)).until(() -> sleepProcessAlive());
+        subscription.cancel();
+
+        // Then
+        await().atMost(Duration.ofSeconds(10)).until(() -> !sleepProcessAlive());
+    }
+
+    private static boolean sleepProcessAlive() {
+        return ProcessHandle.allProcesses().anyMatch(p -> p.isAlive() && p.info().commandLine().filter(cmd -> cmd.endsWith("sleep 4711")).isPresent());
     }
 
     @Test

@@ -42,6 +42,22 @@ class LogExcerpterTest {
     }
 
     @Test
+    void firstErrorLineIndexIsTheIndexInTheGivenLines() {
+        assertThat(LogExcerpter.firstErrorLineIndex(List.of("info", "  [ERROR] boom "))).isEqualTo(1);
+        assertThat(LogExcerpter.firstErrorLineIndex(List.of("all fine"))).isEqualTo(-1);
+    }
+
+    @Test
+    void secretsAreRedactedBeforeLongLinesAreCut() {
+        var redactor = new SecretRedactor(List.of("SECRET-VALUE-1234"));
+        var line = "x".repeat(LogExcerpter.MAX_LINE_LENGTH - 5) + "SECRET-VALUE-1234";
+
+        var lines = LogExcerpter.cleanLines(List.of(line), redactor::redactLines);
+
+        assertThat(lines.getFirst()).doesNotContain("SECRE").contains("[REDA");
+    }
+
+    @Test
     void hugeLogIsReducedToTheLimitAndKeepsTail() {
         var lines = new ArrayList<String>();
         for (var i = 0; i < 100_000; i++) {

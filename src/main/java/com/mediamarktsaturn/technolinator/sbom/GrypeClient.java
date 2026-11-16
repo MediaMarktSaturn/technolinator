@@ -71,7 +71,7 @@ public class GrypeClient extends VulnerabilityReporting {
         var reportDir = sbomFile.getParent();
         return ProcessHandler.run(command, reportDir, DEFAULT_ENV)
             .map(result -> createReport(result, reportDir, projectName))
-            .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
+            .onFailure().recoverWithItem(Result::failure);
     }
 
 }

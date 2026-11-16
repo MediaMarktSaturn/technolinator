@@ -36,7 +36,7 @@ public class SbomqsClient {
 
         return ProcessHandler.run(command)
             .map(r -> mapResult(r, filename))
-            .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
+            .onFailure().recoverWithItem(Result::failure);
     }
 
     Result<QualityScore> mapResult(ProcessHandler.ProcessResult result, String filename) {

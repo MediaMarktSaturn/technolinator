@@ -7,6 +7,7 @@ import org.cyclonedx.exception.ParseException;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.TimeoutException;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import static com.mediamarktsaturn.technolinator.report.FailureKind.INFRASTRUCTURE;
@@ -132,16 +133,23 @@ public final class FailureClassifier {
     }
 
     public static Classification classify(FailureStage stage, Throwable cause) {
+        return classify(stage, cause, UnaryOperator.identity());
+    }
+
+    /**
+     * @param redaction applied to the output of failed processes before anything is derived from it, so that secrets neither get shown nor hashed
+     */
+    public static Classification classify(FailureStage stage, Throwable cause, UnaryOperator<List<String>> redaction) {
         return switch (stage) {
             case CHECKOUT -> infrastructure("git", "The repository could not be checked out", cause);
             case UPLOAD -> infrastructure("dependency-track", "The SBOM could not be uploaded to Dependency-Track", cause);
-            case SBOM_GENERATION -> classifySbomGeneration(cause);
+            case SBOM_GENERATION -> classifySbomGeneration(cause, redaction);
         };
     }
 
-    private static Classification classifySbomGeneration(Throwable cause) {
+    private static Classification classifySbomGeneration(Throwable cause, UnaryOperator<List<String>> redaction) {
         if (cause instanceof ProcessFailedException process) {
-            return classifyProcess(process);
+            return classifyProcess(process, LogExcerpter.cleanLines(process.outputLines(), redaction));
         }
         if (cause instanceof TimeoutException || cause instanceof io.smallrye.mutiny.TimeoutException) {
             return new Classification(TIMEOUT, "technolinator", "The analysis did not finish in time", "",
@@ -161,9 +169,7 @@ public final class FailureClassifier {
         return new Classification(INFRASTRUCTURE, tool, summary, message, "", hash(tool + "|" + normalize(message)));
     }
 
-    static Classification classifyProcess(ProcessFailedException failure) {
-        var lines = LogExcerpter.cleanLines(failure.outputLines());
-
+    private static Classification classifyProcess(ProcessFailedException failure, List<String> lines) {
         var bestSignature = -1;
         var bestLine = -1;
         for (var lineIdx = 0; lineIdx < lines.size() && bestSignature != 0; lineIdx++) {
@@ -186,14 +192,15 @@ public final class FailureClassifier {
                 hash(tool + "|" + normalize(errorLine)));
         }
 
-        var errorLine = LogExcerpter.firstErrorLine(lines);
+        var errorLineIdx = LogExcerpter.firstErrorLineIndex(lines);
+        var errorLine = errorLineIdx < 0 ? "" : lines.get(errorLineIdx).strip();
         var exitCode = failure.exitCode();
         if (exitCode != null && exitCode == 137) {
             return new Classification(REPO_ACTIONABLE, CDXGEN, "The analysis was killed (exit code 137), most probably it ran out of memory",
                 errorLine, SCOPE_HINT, hash(CDXGEN + "|137"));
         }
-        var tool = errorLine.isEmpty() ? CDXGEN : guessTool(lines, Math.max(0, lines.indexOf(errorLine)));
-        var summary = "%s failed with exit code %s".formatted(tool, exitCode);
+        var tool = errorLineIdx < 0 ? CDXGEN : guessTool(lines, errorLineIdx);
+        var summary = exitCode == null ? "%s failed".formatted(tool) : "%s failed with exit code %s".formatted(tool, exitCode);
         var hashSource = errorLine.isEmpty() ? summary : errorLine;
         return new Classification(REPO_ACTIONABLE, tool, summary, errorLine, "", hash(tool + "|" + normalize(hashSource)));
     }

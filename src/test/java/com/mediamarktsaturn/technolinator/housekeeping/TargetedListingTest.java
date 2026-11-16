@@ -157,4 +157,19 @@ class TargetedListingTest {
         assertThat(requestedTargets()).isEmpty();
         assertThat(listing.projects()).isEmpty();
     }
+
+    @Test
+    void ignoresRepositoriesWithUnsafeNames() {
+        // Given
+        givenIndex();
+        var tampered = project(UUID, "tampered", "org", "%2e%2e");
+        when(dtrack.getProject(UUID)).thenReturn(Uni.createFrom().item(Optional.of(tampered)));
+
+        // When
+        var listing = load(Set.of("org/..", "org/a b", "org/app%2Fx", "org/app?x"), Set.of(UUID));
+
+        // Then
+        assertThat(requestedTargets()).isEmpty();
+        assertThat(listing.projects()).extracting(DependencyTrackProject::uuid).containsExactly(UUID);
+    }
 }

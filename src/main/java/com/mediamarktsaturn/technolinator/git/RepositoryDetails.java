@@ -13,15 +13,8 @@ public record RepositoryDetails(
     List<String> topics
 ) {
     public RepositoryDetails withAdditionalTopics(String... addTopics) {
-        return new RepositoryDetails(
-            name,
-            version,
-            description,
-            websiteUrl,
-            vcsUrl,
-            new ArrayList<>(topics) {{
-                this.addAll(Arrays.asList(addTopics));
-            }}
-        );
+        var allTopics = new ArrayList<>(topics);
+        allTopics.addAll(Arrays.asList(addTopics));
+        return new RepositoryDetails(name, version, description, websiteUrl, vcsUrl, allTopics);
     }
 }

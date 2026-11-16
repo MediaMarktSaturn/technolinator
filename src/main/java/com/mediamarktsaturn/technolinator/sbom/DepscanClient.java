@@ -17,7 +17,6 @@ import java.util.Optional;
 public class DepscanClient extends VulnerabilityReporting {
 
     private static final String OUTPUT_DIR = "depscan-reports";
-    private static final String OUTPUT_FILE = "report.txt";
 
     private static final Map<String, String> DEPSCAN_ENV = Map.of("USE_VDB_10Y", "true");
 
@@ -44,7 +43,7 @@ public class DepscanClient extends VulnerabilityReporting {
     private static final String DEPSCAN_COMMAND = "depscan --no-vuln-table --no-banner --reports-dir %s --report-template %s --report-name %s --bom %s";
 
     /**
-     * Creates a vulnerability report using grype for the given [sbomFile]
+     * Creates a vulnerability report using depscan for the given [sbomFile]
      */
     @Override
     public Uni<Result<VulnerabilityReport>> createVulnerabilityReport(Path sbomFile, String projectName) {
@@ -65,7 +64,7 @@ public class DepscanClient extends VulnerabilityReporting {
         var reportDir = sbomFile.getParent();
         return ProcessHandler.run(command, reportDir, DEPSCAN_ENV)
             .map(result -> createReport(result, reportDir.resolve(OUTPUT_DIR), projectName))
-            .onFailure().recoverWithItem(failure -> Result.failure(failure.getCause()));
+            .onFailure().recoverWithItem(Result::failure);
     }
 
 }
