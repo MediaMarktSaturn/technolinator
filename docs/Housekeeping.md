@@ -55,7 +55,7 @@ Every action additionally has its own switch `app.housekeeping.<action-name>.ena
 
 ## Manual trigger
 
-A run can be started on demand with an HTTP endpoint, independent of `APP_HOUSEKEEPING_ENABLED`, which only switches the scheduled runs. So for manual runs only, leave it `false` and enable the actions you need:
+A run can be started on demand with an HTTP endpoint, independent of `APP_HOUSEKEEPING_ENABLED`, which only switches the scheduled runs. So for manual runs only, leave it `false`; the actions are enabled by default.
 
 ```shell
 # everything, like the scheduled run
@@ -122,7 +122,7 @@ It applies to units with repository state `ARCHIVED` or `GONE` and at least one 
 
 | Environment variable                                     | Default | Description                                                                                    |
 |----------------------------------------------------------|---------|------------------------------------------------------------------------------------------------|
-| `APP_HOUSEKEEPING_ARCHIVE_ORPHANED_PROJECTS_ENABLED`     | `false` | Action switch                                                                                  |
+| `APP_HOUSEKEEPING_ARCHIVE_ORPHANED_PROJECTS_ENABLED`     | `true`  | Action switch. Runs only happen if triggered manually or `APP_HOUSEKEEPING_ENABLED` schedules them |
 | `APP_HOUSEKEEPING_ARCHIVE_ORPHANED_PROJECTS_MAX_PER_RUN` | `500`   | Upper limit of projects archived per run, as protection against mass-archiving by faulty data. Checked per unit, so the last repository's projects might exceed it |
 
 Safeguards:

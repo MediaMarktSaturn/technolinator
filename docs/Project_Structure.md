@@ -40,7 +40,8 @@ sequenceDiagram
 
 ## Archiving
 
-When a repository gets archived on GitHub, all of its Dependency-Track projects are archived (deactivated) as well.
+When a repository gets archived or deleted on GitHub, all of its Dependency-Track projects are archived (deactivated) as well.
+A deleted repository can't be asked for its `technolinator.yml` anymore, so `enable: false` is not honoured in that case; `APP_ENABLED_REPOS` still applies.
 Projects are matched by name and by the repositories VCS or website URL; children of multi-module projects are archived before their parents.
 Projects lacking external references (e.g. not created by Technolinator) are matched by their exact name, and their multi-module children via the parent relation. Projects referencing a different repository are never archived.
 The `repository` event requires the GitHub App to be subscribed to the *Repository* event.
@@ -49,7 +50,7 @@ The `repository` event requires the GitHub App to be subscribed to the *Reposito
 sequenceDiagram
 
     GitHub -->> OnRepositoryDispatcher: Send repository event
-    OnRepositoryDispatcher ->> OnRepositoryDispatcher: Check action archived and relevance
+    OnRepositoryDispatcher ->> OnRepositoryDispatcher: Check action archived or deleted and relevance
 
     OnRepositoryDispatcher ->>+ AnalysisProcessHandler: Archive projects
     AnalysisProcessHandler ->>+ DependencyTrackClient: Archive projects of repository

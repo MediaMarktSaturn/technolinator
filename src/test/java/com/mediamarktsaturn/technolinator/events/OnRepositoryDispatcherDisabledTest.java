@@ -43,4 +43,15 @@ class OnRepositoryDispatcherDisabledTest {
         // Then
         await().untilAsserted(() -> Mockito.verifyNoInteractions(handler));
     }
+
+    @Test
+    void testRepositoryDeletedWithArchivingDisabled() throws IOException {
+        // When
+        GitHubAppTesting.when()
+            .payloadFromClasspath("/events/repository_deleted.json")
+            .event(GHEvent.REPOSITORY);
+
+        // Then
+        await().untilAsserted(() -> Mockito.verifyNoInteractions(handler));
+    }
 }

@@ -6,7 +6,7 @@ So it builds up local repository caches demanding disc space and when running mu
 We're running Technolinator on Kubernetes (alongside with Dependency-Track), therefore our generic application Helm Chart can be used.
 Please read an example deployment configuration using [FluxCD](https://fluxcd.io):
 
-For guidance on how to register a GitHub app, just follow the [Quarkus GitHub App docs](https://quarkiverse.github.io/quarkiverse-docs/quarkus-github-app/dev/register-github-app.html).
+For guidance on how to register and install the GitHub app, please follow the [getting started guide](Getting_Started.md#2-register-the-github-app), which builds upon the [Quarkus GitHub App docs](https://docs.quarkiverse.io/quarkus-github-app/dev/register-github-app.html).
 
 Btw: There's also a nice Helm chart for hosting Dependency-Track on Kubernetes available [here](https://github.com/MediaMarktSaturn/helm-charts/tree/main/charts/dependency-track).
 
