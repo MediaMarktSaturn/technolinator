@@ -17,6 +17,7 @@ public class ConfigBuilder {
     private TechnolinatorConfig.JdkConfig jdk;
 
     private List<TechnolinatorConfig> projects;
+    private TechnolinatorConfig.ReportingConfig reporting;
 
     public static ConfigBuilder create() {
         return new ConfigBuilder();
@@ -40,7 +41,8 @@ public class ConfigBuilder {
             maven,
             jdk,
             env,
-            projects
+            projects,
+            reporting
         );
     }
 
@@ -81,6 +83,11 @@ public class ConfigBuilder {
 
     public ConfigBuilder jdk(TechnolinatorConfig.JdkConfig jdk) {
         this.jdk = jdk;
+        return this;
+    }
+
+    public ConfigBuilder reporting(TechnolinatorConfig.ReportingConfig reporting) {
+        this.reporting = reporting;
         return this;
     }
 

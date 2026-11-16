@@ -9,6 +9,11 @@ with the following options:
 enable: true
 # whether Technolinator shall comment vulnerability reports to pull-requests
 enablePullRequestReport: true
+reporting:
+    # whether a failing analysis of the default branch is reported in a status issue; default: true
+    issues: true
+    # whether a failing analysis of a pull-request is reported in its Technolinator comment; default: true
+    pullRequestComments: true
 project:
     # desired name of the project in dependency-track; default is the GitHub repository name
     name: awesomeProject

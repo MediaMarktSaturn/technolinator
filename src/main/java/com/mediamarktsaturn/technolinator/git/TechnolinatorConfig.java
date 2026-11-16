@@ -15,7 +15,8 @@ public record TechnolinatorConfig(
     MavenConfig maven,
     JdkConfig jdk,
     Map<String, String> env,
-    List<TechnolinatorConfig> projects
+    List<TechnolinatorConfig> projects,
+    ReportingConfig reporting
 ) {
 
     public record ProjectConfig(
@@ -40,6 +41,18 @@ public record TechnolinatorConfig(
 
     public record MavenConfig(
         List<String> args
+    ) {
+    }
+
+    /**
+     * Opt-out of reporting failed analyses to the repository, both default to enabled.
+     *
+     * @param issues the status issue for failing analyses of the default branch
+     * @param pullRequestComments status in the pull-request comment for failing analyses of pull-requests
+     */
+    public record ReportingConfig(
+        Boolean issues,
+        Boolean pullRequestComments
     ) {
     }
 

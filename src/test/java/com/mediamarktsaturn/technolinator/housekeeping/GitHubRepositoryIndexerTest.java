@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.kohsuke.github.GHApp;
 import org.kohsuke.github.GHAppInstallation;
 import org.kohsuke.github.GHAuthenticatedAppInstallation;
+import org.kohsuke.github.GHFileNotFoundException;
 import org.kohsuke.github.GHObject;
 import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHRepositorySelection;
@@ -21,7 +22,9 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.ACTIVE;
@@ -40,6 +43,8 @@ class GitHubRepositoryIndexerTest {
     private GitHubClientProvider clientProvider;
     private GitHub applicationClient;
     private final List<GHAppInstallation> installations = new CopyOnWriteArrayList<>();
+    private final Map<Long, GitHub> clients = new HashMap<>();
+    private final Map<Long, PagedSearchIterable<GHRepository>> listings = new HashMap<>();
 
     @BeforeEach
     @SuppressWarnings("unchecked")
@@ -101,6 +106,93 @@ class GitHubRepositoryIndexerTest {
     }
 
     @Test
+    void leavesOutInstallationsListingFewerRepositoriesThanAnnounced() throws Exception {
+        // Given
+        installation(1, "org-a", GHRepositorySelection.ALL, false, repository("fine", false));
+        installation(2, "org-partial", GHRepositorySelection.ALL, false, repository("listed", false));
+        Mockito.when(listings.get(2L).getTotalCount()).thenReturn(250);
+
+        // When
+        var index = indexer().build(RUN).await().atMost(AWAIT);
+
+        // Then
+        assertThat(index.failedInstallations()).isEqualTo(1);
+        assertThat(index.lookup(ref("org-a", "fine"))).isEqualTo(ACTIVE);
+        assertThat(index.lookup(ref("org-partial", "listed"))).isEqualTo(UNKNOWN);
+        assertThat(index.lookup(ref("org-partial", "deleted"))).isEqualTo(UNKNOWN);
+    }
+
+    @Test
+    void looksAtTheGivenRepositoriesOnly() throws Exception {
+        // Given
+        installation(1, "org-a", GHRepositorySelection.ALL, false, repository("active", false), repository("old", true), repository("unrelated", false));
+        installation(2, "org-b", GHRepositorySelection.SELECTED, false, repository("selected", false));
+        installation(3, "org-c", GHRepositorySelection.ALL, false, repository("untouched", false));
+        installation(4, "org-s", GHRepositorySelection.ALL, true, repository("suspended", false));
+
+        // When
+        var index = indexer().build(RUN, List.of(
+            new GitHubRepositoryIndexer.Target("ORG-A", "Active"),
+            new GitHubRepositoryIndexer.Target("org-a", "old"),
+            new GitHubRepositoryIndexer.Target("org-a", "deleted"),
+            new GitHubRepositoryIndexer.Target("org-b", "selected"),
+            new GitHubRepositoryIndexer.Target("org-b", "other"),
+            new GitHubRepositoryIndexer.Target("org-s", "suspended"),
+            new GitHubRepositoryIndexer.Target("org-d", "nowhere")
+        )).await().atMost(AWAIT);
+
+        // Then
+        assertThat(index.failedInstallations()).isZero();
+        assertThat(index.repositories()).extracting(GitHubRepo::fullName).containsExactly("org-a/active", "org-a/old", "org-b/selected");
+        assertThat(index.repositories().getFirst().installation().installationId()).isEqualTo(1L);
+        assertThat(index.lookup(ref("org-a", "active"))).isEqualTo(ACTIVE);
+        assertThat(index.lookup(ref("org-a", "old"))).isEqualTo(ARCHIVED);
+        assertThat(index.lookup(ref("org-a", "deleted"))).isEqualTo(GONE);
+        // not looked at, so nothing is known, although the installation would be allowed to tell
+        assertThat(index.lookup(ref("org-a", "unrelated"))).isEqualTo(UNKNOWN);
+        assertThat(index.lookup(ref("org-b", "selected"))).isEqualTo(ACTIVE);
+        assertThat(index.lookup(ref("org-b", "other"))).isEqualTo(UNKNOWN);
+        assertThat(index.lookup(ref("org-s", "suspended"))).isEqualTo(UNKNOWN);
+        assertThat(index.lookup(ref("org-d", "nowhere"))).isEqualTo(UNKNOWN);
+        // repositories aren't listed, only fetched
+        Mockito.verify(clients.get(1L).getInstallation(), Mockito.never()).listRepositories();
+        Mockito.verify(clientProvider, Mockito.never()).getInstallationClient(3L);
+        Mockito.verify(clientProvider, Mockito.never()).getInstallationClient(4L);
+    }
+
+    @Test
+    void treatsRenamedRepositoriesAsGone() throws Exception {
+        // Given
+        installation(1, "org-a", GHRepositorySelection.ALL, false, repository("new-name", false));
+        Mockito.doReturn(repository("new-name", false)).when(clients.get(1L)).getRepository("org-a/old-name");
+
+        // When
+        var index = indexer().build(RUN, List.of(new GitHubRepositoryIndexer.Target("org-a", "old-name"))).await().atMost(AWAIT);
+
+        // Then
+        assertThat(index.repositories()).isEmpty();
+        assertThat(index.lookup(ref("org-a", "old-name"))).isEqualTo(GONE);
+    }
+
+    @Test
+    void treatsRepositoriesAsUnknownIfLookupFails() throws Exception {
+        // Given
+        installation(1, "org-a", GHRepositorySelection.ALL, false, repository("fine", false));
+        Mockito.doThrow(new IOException("timeout")).when(clients.get(1L)).getRepository("org-a/broken");
+
+        // When
+        var index = indexer().build(RUN, List.of(
+            new GitHubRepositoryIndexer.Target("org-a", "broken"),
+            new GitHubRepositoryIndexer.Target("org-a", "fine")
+        )).await().atMost(AWAIT);
+
+        // Then
+        assertThat(index.failedInstallations()).isEqualTo(1);
+        assertThat(index.lookup(ref("org-a", "broken"))).isEqualTo(UNKNOWN);
+        assertThat(index.lookup(ref("org-a", "fine"))).isEqualTo(ACTIVE);
+    }
+
+    @Test
     void failsIfInstallationsCanNotBeListed() throws Exception {
         // Given
         Mockito.when(applicationClient.getApp()).thenThrow(new IOException("bad credentials"));
@@ -121,9 +213,22 @@ class GitHubRepositoryIndexerTest {
         installations.add(installationObject(id, account, selection, suspended));
 
         var client = Mockito.mock(GitHub.class);
+        clients.put(id, client);
+        try {
+            Mockito.when(client.getRepository(Mockito.anyString())).thenThrow(new GHFileNotFoundException("Not Found"));
+            for (var repository : repositories) {
+                var fullName = account + "/" + repository.getName();
+                Mockito.doReturn(repository).when(client).getRepository(fullName);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
         var authenticated = Mockito.mock(GHAuthenticatedAppInstallation.class);
         @SuppressWarnings("unchecked")
         PagedSearchIterable<GHRepository> paged = Mockito.mock(PagedSearchIterable.class);
+        listings.put(id, paged);
+        Mockito.when(paged.withPageSize(100)).thenReturn(paged);
+        Mockito.when(paged.getTotalCount()).thenReturn(repositories.length);
         Mockito.when(paged.toList()).thenReturn(new ArrayList<>(List.of(repositories)));
         Mockito.when(authenticated.listRepositories()).thenReturn(paged);
         Mockito.when(client.getInstallation()).thenReturn(authenticated);

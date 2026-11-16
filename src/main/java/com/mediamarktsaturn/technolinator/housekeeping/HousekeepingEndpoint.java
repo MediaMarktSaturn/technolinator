@@ -17,11 +17,12 @@ import java.util.Set;
  * Triggers the {@link HousekeepingService} on demand: {@code POST /housekeeping}.
  * <p>
  * Without parameters the housekeeping runs for everything, just like the scheduled one. It can be restricted by the query parameters
- * {@code repository} and {@code project}, each of them repeatable and/or a comma separated list, see {@link HousekeepingSelection}:
- * {@code POST /housekeeping?repository=owner/repo,other-repo&project=my-project&project=1c2f...}.
+ * {@code repository} (given as {@code owner/repo}) and {@code project} (name or UUID), each of them repeatable and/or a comma separated list,
+ * see {@link HousekeepingSelection}. Then only these are looked up, instead of listing all repositories and projects, see {@link TargetedListing}:
+ * {@code POST /housekeeping?repository=owner/repo,owner/other-repo&project=my-project&project=1c2f...}.
  * <p>
  * The run happens in the background, the endpoint answers right away: {@code 202} if it was started, {@code 409} if no action is enabled
- * or another run is in progress, and {@code 400} for parameters without a value.
+ * or another run is in progress, and {@code 400} for parameters without a value or repositories without owner.
  * <p>
  * It works independent of {@code app.housekeeping.enabled}, which only switches the scheduled runs. The switches of the actions still apply.
  * <p>
@@ -56,6 +57,13 @@ public class HousekeepingEndpoint {
             return;
         }
 
+        var selection = new HousekeepingSelection(repositories, projects);
+        var withoutOwner = selection.repositories().stream().filter(repository -> TargetedListing.parseRepository(repository).isEmpty()).sorted().toList();
+        if (!withoutOwner.isEmpty()) {
+            respond(context, 400, "Repositories need to be given as 'owner/repo', got %s".formatted(withoutOwner), null);
+            return;
+        }
+
         if (!worker.enabled()) {
             respond(context, 409, "Housekeeping has no enabled action", null);
             return;
@@ -65,7 +73,6 @@ public class HousekeepingEndpoint {
             return;
         }
 
-        var selection = new HousekeepingSelection(repositories, projects);
         Log.infof("Housekeeping triggered manually%s", selection.isAll() ? "" : " for " + selection);
         service.run(selection).subscribe().with(
             ignored -> {

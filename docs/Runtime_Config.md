@@ -47,6 +47,27 @@ Technolinator is configured via the following parameter which can either be prov
 | APP_ALWAYS_USE_VERSION_OR_COMMIT_HASH   | false                                         | Always populate the `version` field in Dependency Track with either a tag name or commit hash instead of the branch. :warning: very noisy!                                                                                         |
 | CDXGEN_DEBUG                            | false                                         | Set to `true` for debug output of cdxgen command                                                                                                                                                                                   |
 | APP_REPO_BACKSTAGE_ANNOTATION_REGEX     |                                               | Set to a non-empty value to read a repos [`catalog-info.yaml`](https://backstage.io/docs/features/software-catalog/descriptor-format/#annotations-optional) and add matching annotations as labels to Dependency Track             |
+| APP_FAILURE_REPORTING_MODE              | on                                            | Reporting of failed analyses to the repositories, see [below](#failure-reporting). `on`: report, `dry-run`: only log what would be reported, `off`: nothing                                                                |
+| APP_FAILURE_REPORTING_REPOS             |                                               | Comma separated list of repo names (`name` or `owner/name`) to report failures for; all if empty                                                                                                                              |
+| APP_FAILURE_REPORTING_INCLUDE_LOG_ON_FORK_PRS | false                                   | Include the tool log in the status comment of pull-requests from forks. Off by default, since the log is produced by running tools on untrusted code                                                                              |
+| APP_FAILURE_REPORTING_TIMEOUTS_BEFORE_REPORT | 2                                        | Number of consecutive timeouts of a branch before they are reported as a problem of the repository                                                                                                                                |
+| APP_FAILURE_REPORTING_BOT_LOGIN         |                                               | Login of the GitHub App, used to find its own issues and comments. Defaults to the app slug plus `[bot]`                                                                                                                        |
+
+## Failure reporting
+
+If an analysis fails for a reason the repository owners can act on (e.g. a broken build the SBOM generator can't cope with, an unresolvable dependency, a repeated timeout), Technolinator tells them on GitHub:
+
+* **Default branch:** a single issue labelled `technolinator` acts as status dashboard. Its description contains the failing tool, a summary and the (secret-redacted) tool log, e.g. of cdxgen.
+  * Only one status issue is open per repository. While the analysis keeps failing, the issue is updated instead of creating new ones.
+  * Once the analysis of the default branch succeeds again, the issue is commented and closed. The next failure creates a new issue.
+  * Closing the issue manually **mutes** the reporting for the repository until the next successful analysis of the default branch.
+  * The issue is assigned to the users listed in the repository's `CODEOWNERS` (individual users only, teams can't be assigned).
+  * Repositories with disabled issues are skipped.
+* **Pull-requests:** the status is put into the one Technolinator comment of the pull-request, which is updated with every attempt. It is merged with the vulnerability report, so there is still only one comment. If the analysis succeeds later on, the comment is updated with a short note and stays. Logs are omitted for pull-requests from forks (see above).
+
+Failures which the repository can't fix (checkout failures, Dependency-Track unavailable, unexpected errors) are not reported but only logged and counted in the metrics `analysis_failures`, `failure_report_actions` and `failure_report_errors`.
+
+The feature is `on` by default and requires the GitHub App permissions *Issues: Read and write* and *Pull requests: Read and write*, see [Adoption](Adoption.md#github-app-requirements). Without the issue permission, status issues can't be written (the errors are logged and counted in `failure_report_errors`); set `APP_FAILURE_REPORTING_MODE=dry-run` to only log what would be reported, or `off` to disable it. Repositories can opt out in their [repository config](Repository_Config.md) via `reporting`.
 
 ## Observability
 

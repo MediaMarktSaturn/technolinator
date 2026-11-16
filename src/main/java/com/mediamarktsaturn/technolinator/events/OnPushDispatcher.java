@@ -4,6 +4,7 @@ import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
@@ -19,6 +20,7 @@ import org.kohsuke.github.GHCommitStatus;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.DoubleSupplier;
@@ -75,11 +77,13 @@ public class OnPushDispatcher extends DispatcherBase {
                 );
             }
 
+            final var analysisStartedAt = Instant.now();
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
             handler.onPush(new PushEvent(pushPayload, config), metadata)
                 .ifNoItem().after(analysisTimeout).fail()
                 .chain(result -> reportAnalysisResult(result, repo, commitSha, metadata))
+                .onFailure(TimeoutException.class).call(timeout -> reportTimeout(repo, metadata, analysisStartedAt, config))
                 .onFailure().recoverWithUni(failure -> {
                     metadata.writeToMDC();
                     Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
@@ -114,6 +118,13 @@ public class OnPushDispatcher extends DispatcherBase {
                 Tag.of("repo", repoName)
             )
         ).increment();
+    }
+
+    Uni<Void> reportTimeout(GHRepository repo, Command.Metadata metadata, Instant started, Optional<TechnolinatorConfig> config) {
+        if (failureReporter == null) {
+            return Uni.createFrom().voidItem();
+        }
+        return failureReporter.onDefaultBranchTimeout(new FailureReporter.Context(repo, metadata, started, config));
     }
 
     Uni<PushResult> reportFailure(GHRepository repo, Optional<String> commitSha, Throwable failure, Command.Metadata metadata) {

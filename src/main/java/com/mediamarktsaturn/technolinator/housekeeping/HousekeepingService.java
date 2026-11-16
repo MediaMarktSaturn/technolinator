@@ -33,8 +33,8 @@ import java.util.stream.Collectors;
  *     <li>pairs the repositories with their projects, see {@link UnitMatcher}</li>
  *     <li>hands every resulting {@link HousekeepingUnit} to the {@link HousekeepingWorker} exactly once, up to {@code worker_concurrency} in parallel</li>
  * </ol>
- * A run can be restricted to some repositories and projects, see {@link HousekeepingSelection}. Such a partial run doesn't touch the metrics
- * telling when the last complete run happened.
+ * A run can be restricted to some repositories and projects, see {@link HousekeepingSelection}. Then, only these are looked up instead of
+ * listing everything, see {@link TargetedListing}, and the metrics telling when the last complete run happened are left alone.
  * <p>
  * Only one run is active at a time, there's no scheduling logic in here, see {@link HousekeepingScheduler} and {@link HousekeepingEndpoint}.
  */
@@ -44,6 +44,7 @@ public class HousekeepingService {
     private final GitHubRepositoryIndexer indexer;
     private final DependencyTrackClient dtrackClient;
     private final HousekeepingWorker worker;
+    private final TargetedListing targetedListing;
     private final MeterRegistry meterRegistry;
     private final boolean dryRun;
     private final Duration runTimeout;
@@ -69,6 +70,7 @@ public class HousekeepingService {
         this.indexer = indexer;
         this.dtrackClient = dtrackClient;
         this.worker = worker;
+        this.targetedListing = new TargetedListing(indexer, dtrackClient);
         this.meterRegistry = meterRegistry;
         this.enabledRepos = enabledRepos.stream().map(String::trim).filter(name -> !name.isEmpty()).map(name -> name.toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
         this.dryRun = dryRun;
@@ -143,13 +145,26 @@ public class HousekeepingService {
 
     private Uni<HousekeepingSummary> crawl(HousekeepingRun run, HousekeepingSelection selection) {
         var progress = new AtomicReference<Supplier<HousekeepingSummary>>(HousekeepingSummary::notStarted);
-        return Uni.combine().all().unis(indexer.build(run), dtrackClient.listProjects(false)).asTuple()
+        var listing = selection.isAll()
+            ? Uni.combine().all().unis(indexer.build(run), dtrackClient.listProjects(false)).asTuple()
+                .map(listings -> new TargetedListing.Listing(listings.getItem1(), listings.getItem2()))
+            : targetedListing.load(run, selection);
+        return listing
             .chain(listings -> {
-                var index = listings.getItem1();
-                var projects = listings.getItem2();
+                var index = listings.index();
+                var projects = listings.projects();
                 run.writeToMDC();
                 var allUnits = UnitMatcher.match(run, index, projects, enabledRepos);
-                var units = allUnits.stream().filter(selection::selects).toList();
+                // The absence of a repository or of projects only tells something if everything was listed. Dependency-Track fails the run
+                // if its projects can't be listed completely, but installations failing to list their repositories are only left out.
+                // So with such, solely units having a repository and projects are trustworthy, the others might just be missing their counterpart.
+                var reliable = index.failedInstallations() == 0;
+                var trusted = reliable ? allUnits : allUnits.stream().filter(unit -> unit.repository().isPresent() && !unit.projects().isEmpty()).toList();
+                if (!reliable) {
+                    Log.warnf("The repositories of GitHub could not be listed completely (%d installations failed), so only the %d of %d units having a repository and projects are processed",
+                        index.failedInstallations(), trusted.size(), allUnits.size());
+                }
+                var units = trusted.stream().filter(selection::selects).toList();
                 if (!selection.isAll()) {
                     var unmatched = selection.unmatched(allUnits);
                     if (!unmatched.isEmpty()) {
@@ -158,9 +173,8 @@ public class HousekeepingService {
                 }
                 var failedUnits = new AtomicInteger();
                 progress.set(() -> summarize(index, projects, units, failedUnits.get(), true));
-                Log.infof("Housekeeping found %d repositories of %d GitHub accounts and %d projects in Dependency-Track, resulting in %d units to take care of%s",
-                    index.repositories().size(), index.owners(), projects.size(), units.size(),
-                    selection.isAll() ? "" : " (of %d in total)".formatted(allUnits.size()));
+                Log.infof("Housekeeping found %d repositories of %d GitHub accounts and %d projects in Dependency-Track, resulting in %d units to take care of",
+                    index.repositories().size(), index.owners(), projects.size(), units.size());
 
                 return Multi.createFrom().iterable(units)
                     .onItem().transformToUni(unit -> Uni.createFrom().deferred(() -> worker.process(unit))

@@ -1001,6 +1001,115 @@ class DependencyTrackClientTest {
     }
 
     @Test
+    void testGetProject() {
+        // Given
+        wiremock.register(
+            get(urlEqualTo("/api/v1/project/get-uuid"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withBody(archiveProject("get-uuid", "get-me", "git://github.com/heubeck/get.git", "https://github.com/heubeck/get", "get-parent").put("active", false).encode()))
+        );
+        wiremock.register(
+            get(urlEqualTo("/api/v1/project/get-missing-uuid"))
+                .willReturn(aResponse().withStatus(404).withBody("The project could not be found."))
+        );
+        wiremock.register(
+            get(urlEqualTo("/api/v1/project/get-broken-uuid"))
+                .willReturn(aResponse().withStatus(500).withBody("boom"))
+        );
+
+        // When
+        var found = await(cut.getProject("get-uuid"));
+        var missing = await(cut.getProject("get-missing-uuid"));
+        var broken = cut.getProject("get-broken-uuid").subscribe().withSubscriber(UniAssertSubscriber.create());
+
+        // Then
+        assertThat(found).hasValueSatisfying(project -> {
+            assertThat(project.name()).isEqualTo("get-me");
+            assertThat(project.active()).isFalse();
+            assertThat(project.parentUuid()).contains("get-parent");
+        });
+        assertThat(missing).isEmpty();
+        broken.awaitFailure().assertFailedWith(DependencyTrackClientHttpException.class);
+    }
+
+    @Test
+    void testSearchProjectsIncludesArchivedProjects() {
+        // Given
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("searchText", equalTo("search-me"))
+                .withQueryParam("excludeInactive", equalTo("false"))
+                .withQueryParam("pageNumber", equalTo("1"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "2")
+                    .withBody(JsonArray.of(
+                        archiveProject("search-uuid-1", "search-me", "git://x", "https://x", null),
+                        archiveProject("search-uuid-2", "search-me-too", "git://x", "https://x", null).put("active", false)
+                    ).encode()))
+        );
+
+        // When
+        var projects = await(cut.searchProjects("search-me"));
+
+        // Then
+        assertThat(projects).extracting(DependencyTrackProject::uuid).containsExactly("search-uuid-1", "search-uuid-2");
+    }
+
+    @Test
+    void testListChildren() {
+        // Given
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project/children-parent/children"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("excludeInactive", equalTo("false"))
+                .withQueryParam("pageNumber", equalTo("1"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "1")
+                    .withBody(JsonArray.of(
+                        archiveProject("children-uuid", "children-module", "git://x", "https://x", "children-parent")
+                    ).encode()))
+        );
+
+        // When
+        var children = await(cut.listChildren("children-parent"));
+
+        // Then
+        assertThat(children).extracting(DependencyTrackProject::uuid).containsExactly("children-uuid");
+        assertThat(children.getFirst().parentUuid()).contains("children-parent");
+    }
+
+    @Test
+    void testListProjectsFailsIfFewerProjectsThanAnnouncedAreReturned() {
+        // Given
+        var firstPage = new JsonArray();
+        for (int i = 0; i < 100; i++) {
+            firstPage.add(archiveProject("short-uuid-" + i, "short-module" + i, "git://x", "https://x", null));
+        }
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", absent())
+                .withQueryParam("pageNumber", equalTo("1"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "250").withBody(firstPage.encode()))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", absent())
+                .withQueryParam("pageNumber", equalTo("2"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "250").withBody(JsonArray.of(archiveProject("short-uuid-last", "short-last", "git://x", "https://x", null)).encode()))
+        );
+
+        // When
+        var subscriber = cut.listProjects(false).subscribe().withSubscriber(UniAssertSubscriber.create());
+
+        // Then
+        subscriber.awaitFailure().assertFailedWith(IllegalStateException.class);
+    }
+
+    @Test
     void testArchiveProject() {
         // Given
         wiremock.register(
