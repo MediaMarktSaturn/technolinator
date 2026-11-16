@@ -25,6 +25,7 @@ It's built using [![](https://img.shields.io/badge/dynamic/xml?url=https%3A%2F%2
 * Operating Technolinator
   * [Runtime configuration](docs/Runtime_Config.md)
   * [Deployment configuration](docs/Deployment_Config.md)
+  * [Housekeeping](docs/Housekeeping.md)
   * [Adopting to your needs](docs/Adoption.md)
 * Maintaining Technolinator
   * [Project structure](docs/Project_Structure.md)
