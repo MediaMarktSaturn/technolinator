@@ -35,12 +35,13 @@ public class DepscanClient extends VulnerabilityReporting {
      * 'depscan' command with the following options:
      * * --no-vuln-table # no console report
      * * --no-banner # no logo printed to console
+     * * --vdb-scope app # use the app-only vulnerability database (~3.5 GiB instead of ~47 GiB uncompressed, no OS distro data), as SBOMs are created from sources
      * * --reports-dir %s # location of reports
      * * --report-template %s # Jinja2 template used for report generation
      * * --report-name %s # filename of the custom report
      * * --bom %s # sbom to analyse
      */
-    private static final String DEPSCAN_COMMAND = "depscan --no-vuln-table --no-banner --reports-dir %s --report-template %s --report-name %s --bom %s";
+    private static final String DEPSCAN_COMMAND = "depscan --no-vuln-table --no-banner --vdb-scope app --reports-dir %s --report-template %s --report-name %s --bom %s";
 
     /**
      * Creates a vulnerability report using depscan for the given [sbomFile]
