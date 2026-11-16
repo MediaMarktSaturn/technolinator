@@ -931,6 +931,96 @@ class DependencyTrackClientTest {
         assertThat(cut.renameExternalReferences(JsonArray.of(), "a", "b", "c", "d")).isNull();
     }
 
+    @Test
+    void testListProjectsWithPaging() {
+        // Given
+        var firstPage = new JsonArray();
+        for (int i = 0; i < 100; i++) {
+            firstPage.add(archiveProject("list-uuid-" + i, "list-module" + i, "git://github.com/heubeck/list.git", "https://github.com/heubeck/list", "list-uuid-parent"));
+        }
+        // a project showing up on both pages, because the list changed while paging
+        var secondPage = JsonArray.of(
+            archiveProject("list-uuid-0", "list-module0", "git://github.com/heubeck/list.git", "https://github.com/heubeck/list", "list-uuid-parent"),
+            archiveProject("list-uuid-parent", "list", "git://github.com/heubeck/list.git", "https://github.com/heubeck/list", null)
+                .put("lastBomImport", 1767232800000L)
+        );
+
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .withQueryParam("searchText", absent())
+                .withQueryParam("excludeInactive", equalTo("true"))
+                .withQueryParam("pageSize", equalTo("100"))
+                .withQueryParam("pageNumber", equalTo("1"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "102").withBody(firstPage.encode()))
+        );
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", absent())
+                .withQueryParam("excludeInactive", equalTo("true"))
+                .withQueryParam("pageNumber", equalTo("2"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                    .withHeader("X-Total-Count", "102").withBody(secondPage.encode()))
+        );
+
+        // When
+        var projects = await(cut.listProjects(true));
+
+        // Then
+        assertThat(projects).hasSize(101);
+        assertThat(projects).extracting(DependencyTrackProject::uuid).doesNotHaveDuplicates();
+        var parent = projects.stream().filter(p -> p.uuid().equals("list-uuid-parent")).findFirst().orElseThrow();
+        assertThat(parent.name()).isEqualTo("list");
+        assertThat(parent.version()).isEqualTo("1.0.0");
+        assertThat(parent.active()).isTrue();
+        assertThat(parent.parentUuid()).isEmpty();
+        // release notes aren't a reference to the repository itself
+        assertThat(parent.repositoryUrls()).containsExactly("git://github.com/heubeck/list.git", "https://github.com/heubeck/list");
+        assertThat(parent.lastBomImport()).contains(java.time.Instant.parse("2026-01-01T02:00:00Z"));
+        var child = projects.stream().filter(p -> p.uuid().equals("list-uuid-0")).findFirst().orElseThrow();
+        assertThat(child.parentUuid()).contains("list-uuid-parent");
+        assertThat(child.lastBomImport()).isEmpty();
+    }
+
+    @Test
+    void testListProjectsFailsIfProjectsCanNotBeListedCompletely() {
+        // Given
+        wiremock.register(
+            get(urlPathEqualTo("/api/v1/project"))
+                .withQueryParam("searchText", absent())
+                .withQueryParam("excludeInactive", equalTo("false"))
+                .willReturn(aResponse().withStatus(500).withBody("boom"))
+        );
+
+        // When
+        var subscriber = cut.listProjects(false).subscribe().withSubscriber(UniAssertSubscriber.create());
+
+        // Then
+        subscriber.awaitFailure().assertFailedWith(DependencyTrackClientHttpException.class);
+    }
+
+    @Test
+    void testArchiveProject() {
+        // Given
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-archive-uuid"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-archive-conflict-uuid"))
+                .willReturn(aResponse().withStatus(409).withBody("conflict"))
+        );
+
+        // When, Then
+        assertThat(await(cut.archiveProject("single-archive-uuid"))).isTrue();
+        assertThat(await(cut.archiveProject("single-archive-conflict-uuid"))).isFalse();
+        var patched = wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/single-archive-uuid")));
+        assertThat(patched).hasSize(1);
+        assertThat(new JsonObject(patched.get(0).getBodyAsString())).isEqualTo(JsonObject.of("active", false));
+    }
+
     private static JsonObject archiveProject(String uuid, String name, String vcsUrl, String websiteUrl, String parentUuid) {
         var project = JsonObject.of(
             "uuid", uuid,

@@ -21,7 +21,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -492,9 +492,45 @@ public class DependencyTrackClient {
         return result;
     }
 
+    /**
+     * Lists all projects, in contrast to {@link #listProjectsBySearchText} not restricted to the ones matching a name.
+     * <p>
+     * Dependency-Track sorts the projects by name and version, and the result is collected completely before it's returned,
+     * so it's safe to change the listed projects (e.g. archive them) while processing it.
+     * Fails if the projects can't be listed completely.
+     *
+     * @param excludeInactive Skip archived projects
+     */
+    public Uni<List<DependencyTrackProject>> listProjects(boolean excludeInactive) {
+        return listProjectsBySearchText(null, excludeInactive, 1, new ArrayList<>())
+            .map(projects -> {
+                // projects changed while paging might show up twice
+                var unique = new LinkedHashMap<String, DependencyTrackProject>();
+                projects.stream()
+                    .map(DependencyTrackProject::fromJson)
+                    .filter(project -> project.uuid() != null)
+                    .forEach(project -> unique.putIfAbsent(project.uuid(), project));
+                return List.copyOf(unique.values());
+            });
+    }
+
+    /**
+     * Archives (deactivates) the project identified by [projectUuid].
+     * Dependency-Track rejects archiving a parent having active children, so those need to be archived first.
+     *
+     * @return true if the project was archived successfully
+     */
+    public Uni<Boolean> archiveProject(String projectUuid) {
+        return deactivateProject(projectUuid);
+    }
+
     private Uni<List<JsonObject>> listProjectsBySearchText(String searchText, boolean excludeInactive, int pageNumber, List<JsonObject> collected) {
-        return client.getAbs(dtrackApiUrl + "/project")
-            .addQueryParam("searchText", searchText)
+        var scope = searchText != null ? "matching " + searchText : "in total";
+        var request = client.getAbs(dtrackApiUrl + "/project");
+        if (searchText != null) {
+            request.addQueryParam("searchText", searchText);
+        }
+        return request
             .addQueryParam("excludeInactive", String.valueOf(excludeInactive))
             .addQueryParam("pageSize", String.valueOf(PAGE_SIZE))
             .addQueryParam("pageNumber", String.valueOf(pageNumber))
@@ -502,11 +538,11 @@ public class DependencyTrackClient {
             .putHeader("Accept", "application/json")
             .send()
             .onFailure().retry().atMost(3)
-            .onFailure().invoke(e -> Log.errorf(e, "Failed to list projects matching %s", searchText))
+            .onFailure().invoke(e -> Log.errorf(e, "Failed to list projects %s", scope))
             .onItem().invoke(deprecationCheck("GET /project"))
             .chain(response -> {
                 if (response.statusCode() != 200) {
-                    Log.errorf("Failed to list projects matching %s, status: %s, message: %s", searchText, response.statusCode(), response.bodyAsString());
+                    Log.errorf("Failed to list projects %s, status: %s, message: %s", scope, response.statusCode(), response.bodyAsString());
                     return Uni.createFrom().<List<JsonObject>>failure(new DependencyTrackClientHttpException(response.statusCode(), response.bodyAsString()));
                 }
                 var page = response.bodyAsJsonArray();
@@ -541,78 +577,25 @@ public class DependencyTrackClient {
     }
 
     private static boolean matchesRepoName(JsonObject project, String repoName) {
-        var name = project.getString("name");
-        return name != null && (name.equals(repoName) || name.startsWith(repoName + "-"));
+        return RepositoryProjectMatcher.matchesRepoName(project.getString("name"), repoName);
     }
 
     /**
-     * Selects the projects belonging to the repository. Projects created by technolinator carry external references
-     * to the repository, which is the strongest signal. Projects lacking such references (e.g. created by other means
-     * or never updated with metadata) are matched by their exact name, or, in case of multi-module children,
-     * by being a child of an already matched project. Projects referencing a different repository are never selected.
+     * Selects the projects belonging to the repository, see {@link RepositoryProjectMatcher#select}
      */
     List<JsonObject> selectProjectsOfRepository(List<JsonObject> candidates, String repoName, String vcsUrl, String websiteUrl) {
-        var matched = new ArrayList<JsonObject>();
-        var matchedUuids = new HashSet<String>();
-        var remaining = new ArrayList<JsonObject>();
-
-        for (var candidate : candidates) {
-            if (belongsToRepository(candidate, repoName, vcsUrl, websiteUrl)) {
-                matched.add(candidate);
-                matchedUuids.add(candidate.getString("uuid"));
-            } else if (matchesRepoName(candidate, repoName) && !referencesOtherRepository(candidate, vcsUrl, websiteUrl)) {
-                remaining.add(candidate);
-            }
-        }
-
-        // adopt children of matched projects, repeat for nested hierarchies until nothing changes
-        boolean changed = true;
-        while (changed) {
-            changed = false;
-            for (var it = remaining.iterator(); it.hasNext(); ) {
-                var candidate = it.next();
-                var parent = candidate.getJsonObject("parent");
-                if (parent != null && matchedUuids.contains(parent.getString("uuid"))) {
-                    matched.add(candidate);
-                    matchedUuids.add(candidate.getString("uuid"));
-                    it.remove();
-                    changed = true;
-                }
-            }
-        }
-        return matched;
-    }
-
-    /**
-     * @return true if the project is directly identified as belonging to the repository: either by an external
-     * reference to the repository or, in absence of any repository reference, by its exact name.
-     */
-    boolean belongsToRepository(JsonObject project, String repoName, String vcsUrl, String websiteUrl) {
-        if (!matchesRepoName(project, repoName)) {
-            return false;
-        }
-        if (referencesRepository(project, vcsUrl, websiteUrl)) {
-            return true;
-        }
-        return !hasRepositoryReferences(project) && repoName.equals(project.getString("name"));
-    }
-
-    private static boolean referencesRepository(JsonObject project, String vcsUrl, String websiteUrl) {
-        return repositoryReferenceUrls(project).anyMatch(url -> url.equalsIgnoreCase(vcsUrl) || url.equalsIgnoreCase(websiteUrl));
-    }
-
-    private static boolean referencesOtherRepository(JsonObject project, String vcsUrl, String websiteUrl) {
-        return hasRepositoryReferences(project) && !referencesRepository(project, vcsUrl, websiteUrl);
-    }
-
-    private static boolean hasRepositoryReferences(JsonObject project) {
-        return repositoryReferenceUrls(project).findAny().isPresent();
+        var byUuid = new LinkedHashMap<String, JsonObject>();
+        candidates.forEach(candidate -> byUuid.putIfAbsent(candidate.getString("uuid"), candidate));
+        var projects = byUuid.values().stream().map(DependencyTrackProject::fromJson).toList();
+        return RepositoryProjectMatcher.select(projects, repoName, vcsUrl, websiteUrl).stream()
+            .map(project -> byUuid.get(project.uuid()))
+            .toList();
     }
 
     /**
      * URLs of the VCS and website external references of the project, empty if there are none
      */
-    private static Stream<String> repositoryReferenceUrls(JsonObject project) {
+    static Stream<String> repositoryReferenceUrls(JsonObject project) {
         var extRefs = project.getJsonArray("externalReferences");
         if (extRefs == null) {
             return Stream.empty();
