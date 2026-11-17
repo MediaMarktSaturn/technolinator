@@ -1,7 +1,10 @@
 # Repository specific configuration
 
-Technolinator respects a configuration file in the default branch of repositories:
+Technolinator respects a configuration file in repositories:
 **`.github/technolinator.yml`**
+
+It is read from the default branch, except for pull-requests, which use the file of their own head commit.
+This way, configuration changes can be tried out in a pull-request before they are merged. If the file of the head commit can't be read, the one of the default branch applies.
 
 with the following options:
 ```yaml

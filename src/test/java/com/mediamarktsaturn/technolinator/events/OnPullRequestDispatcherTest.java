@@ -29,6 +29,8 @@ import static org.mockito.ArgumentMatchers.argThat;
 @GitHubAppTest
 class OnPullRequestDispatcherTest {
 
+    private static final String HEAD_SHA = "a6361dbb9f9238e858c6b5855ebe8d670a775614";
+
     @InjectMock
     AnalysisProcessHandler handler;
 
@@ -66,7 +68,7 @@ class OnPullRequestDispatcherTest {
         // When
         GitHubAppTesting.given()
             .github(mocks -> {
-                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/disabled_pr_report.yml");
+                mocks.configFile(CONFIG_FILE).withRef(HEAD_SHA).fromClasspath("/configs/disabled_pr_report.yml");
             })
             .when()
             .payloadFromClasspath("/events/pull_request_opened.json")
@@ -81,6 +83,24 @@ class OnPullRequestDispatcherTest {
             .body(CoreMatchers.containsString("""
                 pull_request_total{repo="app-test",status="DISABLED_PR_REPORTS"} 1.0
                 """));
+    }
+
+    @Test
+    void testPullRequestConfigOfHeadIsUsedInsteadOfDefaultBranch() throws IOException {
+        // When
+        GitHubAppTesting.given()
+            .github(mocks -> {
+                // report disabled on the default branch, but re-enabled by the head of the pull-request
+                mocks.configFile(CONFIG_FILE).fromClasspath("/configs/disabled_pr_report.yml");
+                mocks.configFile(CONFIG_FILE).withRef(HEAD_SHA).fromString("enable: true");
+            })
+            .when()
+            .payloadFromClasspath("/events/pull_request_opened.json")
+            .event(GHEvent.PULL_REQUEST);
+
+        // Then
+        await().untilAsserted(() -> Mockito.verify(handler)
+            .onPullRequest(argThat(got -> got.config().isPresent()), any()));
     }
 
     @Test

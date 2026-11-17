@@ -7,12 +7,14 @@ import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
+import io.quarkiverse.githubapp.GitHubConfigFileProvider;
 import io.quarkiverse.githubapp.event.Actions;
 import io.quarkiverse.githubapp.event.PullRequest;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHPullRequest;
@@ -37,8 +39,11 @@ public class OnPullRequestDispatcher extends DispatcherBase {
     @ConfigProperty(name = "app.pull_requests.enabled")
     boolean enabled;
 
+    @Inject
+    GitHubConfigFileProvider configFileProvider;
+
     @SuppressWarnings("unused")
-    void onPullRequest(@PullRequest GHEventPayload.PullRequest prPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
+    void onPullRequest(@PullRequest GHEventPayload.PullRequest prPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> defaultBranchConfig) {
         if (!enabled) {
             if (Log.isDebugEnabled()) {
                 Log.debug("PR analysis is disabled");
@@ -61,6 +66,8 @@ public class OnPullRequestDispatcher extends DispatcherBase {
 
         final var metadata = new Command.Metadata(pushRef, repo.getFullName(), traceId, Optional.of(commitSha));
         metadata.writeToMDC();
+
+        final var config = headConfig(repo, commitSha, defaultBranchConfig);
 
         // metric tags
         final MetricStatusRepo status;
@@ -123,6 +130,20 @@ public class OnPullRequestDispatcher extends DispatcherBase {
                 Tag.of("repo", repoName)
             )
         ).increment();
+    }
+
+    /**
+     * The configuration of a pull-request is read from its head commit, so changes of the configuration are effective
+     * (and testable) within the pull-request itself. The extension provided configuration of the default branch
+     * is the fallback, if the file can't be read from the head commit.
+     */
+    private Optional<TechnolinatorConfig> headConfig(GHRepository repo, String commitSha, Optional<TechnolinatorConfig> defaultBranchConfig) {
+        try {
+            return configFileProvider.fetchConfigFile(repo, commitSha, CONFIG_FILE, ConfigFile.Source.DEFAULT, TechnolinatorConfig.class);
+        } catch (RuntimeException e) {
+            Log.warnf(e, "Could not read the configuration file of pull-request head %s of repository %s, falling back to the one of the default branch", commitSha, repo.getFullName());
+            return defaultBranchConfig;
+        }
     }
 
     private Uni<Void> reportTimeout(GHRepository repo, Command.Metadata metadata, Instant started, Optional<TechnolinatorConfig> config, GHPullRequest pullRequest) {
