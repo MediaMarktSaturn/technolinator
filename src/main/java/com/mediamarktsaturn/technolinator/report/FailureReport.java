@@ -30,6 +30,7 @@ public record FailureReport(
      * @param tool      the tool which most probably failed, determined heuristically from the output
      * @param errorLine the line of the output which caused the classification, may be empty
      * @param excerpt   the most relevant parts of the output, may be empty
+     * @param kind      whom the failure is attributable to, only repository fixable failures and repeated timeouts get reported at all
      */
     public record ToolFailure(
         String project,
@@ -40,7 +41,8 @@ public record FailureReport(
         String errorLine,
         String hint,
         String excerpt,
-        String errorHash
+        String errorHash,
+        FailureKind kind
     ) {
     }
 

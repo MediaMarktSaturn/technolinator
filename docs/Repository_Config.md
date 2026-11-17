@@ -7,7 +7,7 @@ with the following options:
 ```yaml
 # whether Technolinator does analysis at all; default: true
 enable: true
-# whether Technolinator shall comment vulnerability reports to pull-requests
+# whether Technolinator shall comment vulnerability reports to pull-requests; default: true
 enablePullRequestReport: true
 reporting:
     # whether a failing analysis of the default branch is reported in a status issue; default: true
@@ -28,7 +28,8 @@ analysis:
     evidence: false
     # Generate formulation section using git metadata.
     formulation: false
-    # folders within 'analysis.location' to exclude from created sbom (e.g. non-production stuff)
+    # folders and files within 'analysis.location' to remove before the analysis (e.g. non-production stuff, samples, test fixtures);
+    # must stay inside the location: paths containing '..' or starting with '/', '~' or '$' fail the analysis
     excludes:
         - subfolder1
         - just/another/path/below/projectLocation
@@ -37,11 +38,11 @@ gradle:
     args:
         - -PyourProprietary=property
 maven:
-    # list of arguments to be provided to cdxgen as MVN_ARGS; env vars notated with ${ENV_VAR} will be resolved (see below)
+    # list of arguments to be provided to cdxgen as MVN_ARGS (after '-B -ntp'); env vars notated with ${ENV_VAR} will be resolved (see below)
     args:
         - -Pall
 env:
-    # additional env parameter for cdxgen; env vars notated with ${ENV_VAR} will be resolved (see below)
+    # additional env parameter for cdxgen, e.g. settings of build tools; env vars notated with ${ENV_VAR} will be resolved (see below)
     THIS_IS: just another value
 jdk:
     # select JDK version used by cdxgen on JVM based projects (see below)
@@ -49,7 +50,7 @@ jdk:
 
 # to split up repositories in multiple dependency-track projects, you can recursively configure subprojects.
 # structure is the same like for the single-project config, each distinct project will result in one dependency-track project.
-# subprojects inherit the settings of their parents (and the root project)
+# subprojects inherit the settings of their parents (and the root project): 'location' and 'name' are appended, 'args' are added, other values are overridden
 # minimal required structure is shown below
 projects: []
 # - project:
@@ -59,6 +60,27 @@ projects: []
 ```
 
 The configuration file is optional and only necessary to override default behavior.
+
+## Fixing a failed SBOM creation
+
+If the SBOM can't be created, Technolinator tells so in a status issue (default branch) or its pull-request comment, including the log of the failing tool.
+Technolinator calls [cdxgen](https://github.com/CycloneDX/cdxgen), which runs the build tools of your repository (Maven, Gradle, npm, ...) on a plain checkout:
+**no credentials, only public package repositories, and a JDK which may differ from yours.**
+What works on a clean machine in that setup works for Technolinator.
+
+| What the log tells | What helps |
+|---|---|
+| `Unsupported class file major version`, `invalid target release`, `requires Java 21` | Select the JDK of your build via `jdk.version` |
+| Dependencies, plugins or parent POMs can't be resolved; `401`/`403` | Make them available publicly. Otherwise exclude the module via `analysis.excludes`, or ask the Technolinator operators to provide a central repository for `maven.args`/`gradle.args`/`env` via `${ENV_VAR}` |
+| The build needs a profile or property that enables modules | `maven.args` (e.g. `-Pall`) or `gradle.args` (e.g. `-PmyProperty=value`) |
+| Failure in samples, test fixtures, documentation or other non-production folders | `analysis.excludes` |
+| Only one module of a monorepo fails | Exclude it, or split the repository into `projects`, each with its own `analysis.location`: failures are then reported per project |
+| Out of memory, timeouts, very large repository | Narrow the scope via `analysis.location` and `analysis.excludes`, or split into `projects`. For Gradle, `env: GRADLE_MULTI_THREADED: "false"` reduces memory demand |
+| npm, pnpm, yarn, pip, go or cargo can't install | Commit a lock file that is consistent with the manifest, so a frozen install works on a clean checkout |
+
+To reproduce a failure, clone the repository fresh and run the `cdxgen` command shown in the report, with the JDK of `jdk.version`.
+A single failing step is enough to fail the analysis of that project; the next successful analysis closes the status issue and updates the pull-request comment automatically.
+Only as a last resort, `enable: false` switches Technolinator off for the repository.
 
 ## ${Parameter}
 

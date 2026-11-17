@@ -270,7 +270,7 @@ public class FailureReporter {
         }
         return new FailureReport.ToolFailure(
             project, c.tool(), command, exitCode,
-            c.summary(), redactor.redact(c.errorLine()), c.hint(), excerpt, c.errorHash()
+            c.summary(), redactor.redact(c.errorLine()), c.hint(), excerpt, c.errorHash(), c.kind()
         );
     }
 

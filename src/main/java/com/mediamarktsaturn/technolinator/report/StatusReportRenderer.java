@@ -20,6 +20,11 @@ public final class StatusReportRenderer {
      */
     public static final int MAX_BODY_LENGTH = Commons.MAX_COMMENT_LENGTH;
 
+    /**
+     * Where the repository specific configuration is documented, for the people and agents who read failure reports.
+     */
+    public static final String CONFIG_DOCS_URL = "https://github.com/MediaMarktSaturn/technolinator/blob/main/docs/Repository_Config.md";
+
     static final int MAX_EXCERPT_LENGTH = 30_000;
     static final int MIN_EXCERPT_LENGTH = 2_000;
     static final int MAX_SHOWN_FAILURES = 5;
@@ -82,8 +87,10 @@ public final class StatusReportRenderer {
             .append("To switch these issues off, set ").append(code("reporting.issues: false"))
             .append(" in ").append(code(".github/technolinator.yml")).append(".</sub>\n");
 
-        var budget = MAX_BODY_LENGTH - body.length() - footer.length();
+        var extras = followUp(report, true, false);
+        var budget = MAX_BODY_LENGTH - body.length() - footer.length() - extras.length();
         body.append(failureDetails(report, true, "###", budget));
+        body.append(extras);
         body.append(footer);
         return body.toString();
     }
@@ -148,7 +155,7 @@ public final class StatusReportRenderer {
             .append("This comment is updated with every analysis of this pull request.\n\n");
 
         var footer = new StringBuilder();
-        footer.append("\n");
+        footer.append("\n").append(followUp(report, includeLogs, true));
         var other = otherContent != null && !otherContent.isBlank() ? otherContent.strip() : null;
         var separator = "\n---\n\n";
         var closing = "\n" + commentMarker;
@@ -187,6 +194,48 @@ public final class StatusReportRenderer {
 
     // ---- shared ----
 
+    /**
+     * What follows the failure details: where to look up the configuration, and help for AI coding agents.
+     * The agents get nothing if logs are hidden, as that is for code of untrusted forks, or if the repository can't fix the cause.
+     */
+    static String followUp(FailureReport report, boolean includeLogs, boolean pullRequest) {
+        var result = new StringBuilder();
+        result.append("📖 **Configuration:** the analysis can be tuned per repository, e.g. JDK version, build tool arguments or excluded folders, ")
+            .append("see [Repository specific configuration](").append(CONFIG_DOCS_URL).append(").\n\n");
+        if (includeLogs && report.failures().stream().anyMatch(f -> f.kind() == FailureKind.REPO_ACTIONABLE)) {
+            result.append(aiAgentSection(pullRequest));
+        }
+        return result.toString();
+    }
+
+    private static String aiAgentSection(boolean pullRequest) {
+        var subject = pullRequest ? "this pull request" : "the default branch of this repository";
+        var location = pullRequest ? "comment on this pull request" : "description of this issue";
+        var prompt = (pullRequest ? "@copilot " : "")
+            + "Technolinator could not create the SBOM of " + subject + ". "
+            + "Read the entire " + location + ", including the collapsed log excerpts, to find the cause. "
+            + "Technolinator runs cdxgen, which calls the build tools of this repository on a clean checkout, "
+            + "without credentials and with access to public package repositories only. "
+            + "Fix the cause in this repository: in the build files and lock files, or in `.github/technolinator.yml`, "
+            + "which is documented at " + CONFIG_DOCS_URL + ". "
+            + "Keep the change minimal and focused on this failure, and don't remove modules or dependencies just to silence it. "
+            + "If the cause can't be fixed in this repository, e.g. because a dependency is private, explain that instead of guessing.";
+        var usage = pullRequest
+            ? "Post it as a comment on this pull request to ask GitHub Copilot (needs write access and Copilot cloud agent), "
+            + "or remove the leading `@copilot` and hand it to any other AI coding agent, together with a link to this pull request."
+            : "Assign this issue to Copilot in the sidebar, or hand the prompt to any other AI coding agent, together with a link to this issue.";
+
+        return "<details>\n<summary>🤖 Context and prompt for AI coding agents</summary>\n\n"
+            + "Technolinator creates the SBOM of a repository with [cdxgen](https://github.com/CycloneDX/cdxgen), which runs the build tools "
+            + "of the repository (Maven, Gradle, npm, ...) on a plain checkout. The log excerpts above show what these tools reported. "
+            + "Usually dependencies, plugins or the JDK can't be resolved in such a clean environment without credentials. "
+            + "Fixes are typically changes to the build files or to the repository specific configuration "
+            + "(`jdk.version`, `maven.args`, `gradle.args`, `analysis.location`, `analysis.excludes`, ...), see "
+            + "[Repository specific configuration](" + CONFIG_DOCS_URL + ").\n\n"
+            + "**Prompt.** " + usage + "\n\n"
+            + fenced(prompt) + "\n\n</details>\n\n";
+    }
+
     static String failureDetails(FailureReport report, boolean includeLogs, String headingLevel, int budget) {
         var failures = report.failures();
         var shown = failures.subList(0, Math.min(MAX_SHOWN_FAILURES, failures.size()));
@@ -215,7 +264,7 @@ public final class StatusReportRenderer {
             if (!includeLogs) {
                 result.append("_Logs are not shown for pull requests from forks. They are available in the analysis of the base repository._\n\n");
             } else if (failure.excerpt() != null && !failure.excerpt().isBlank()) {
-                var excerpt = LogExcerpter.fit(failure.excerpt(), perFailure);
+                var excerpt = LogExcerpter.condense(failure.excerpt(), perFailure);
                 result.append("<details>\n<summary>Log excerpt</summary>\n\n")
                     .append(fenced(excerpt)).append("\n\n</details>\n\n");
             }

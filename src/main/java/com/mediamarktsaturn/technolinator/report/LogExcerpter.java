@@ -16,12 +16,17 @@ public final class LogExcerpter {
     static final int TAIL_LINES = 80;
     static final int CONTEXT_LINES = 3;
     static final int MAX_LINE_LENGTH = 400;
+    /**
+     * Logs which would lose fewer lines than this by being condensed are shown completely, as a few missing lines aren't worth the doubt.
+     */
+    static final int MIN_OMITTED_LINES = 50;
     private static final int GAP_MARKER_COST = 40;
 
     private static final Pattern ANSI = Pattern.compile("\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)|[@-Z\\\\-_])");
     private static final Pattern CONTROL_CHARS = Pattern.compile("[\\x00-\\x08\\x0B-\\x1F\\x7F]");
     private static final Pattern ERROR_LINE = Pattern.compile(
         "(?i)\\b(fatal|failed|failure|panic)\\b|(error|exception)\\b|could not|cannot |unable to|ERR!|\\[ERROR]");
+    private static final Pattern GAP_MARKER = Pattern.compile("\\[\\.\\.\\. (\\d{1,9}) lines? omitted \\.\\.\\.]");
 
     private LogExcerpter() {
         // utility
@@ -113,6 +118,13 @@ public final class LogExcerpter {
     }
 
     /**
+     * Shortens an excerpt the same way it got created, so the first errors survive and not only the tail.
+     */
+    public static String condense(String excerpt, int maxChars) {
+        return excerpt.length() <= maxChars ? excerpt : excerpt(List.of(excerpt.split("\n", -1)), maxChars);
+    }
+
+    /**
      * @param lines    already cleaned lines, see {@link #cleanLines(List)}, and redacted
      * @param maxChars upper limit of the result length
      */
@@ -122,9 +134,11 @@ public final class LogExcerpter {
             return "";
         }
 
-        var tailStart = Math.max(0, count - TAIL_LINES);
-        while (tailStart < count - 1 && size(lines, tailStart, count) > maxChars) {
-            tailStart++;
+        var tailStart = shrinkTail(lines, Math.max(0, count - TAIL_LINES), maxChars);
+        var firstError = firstErrorLineIndex(lines);
+        if (firstError >= 0 && firstError < tailStart) {
+            // the first error is often the cause, so it keeps some space even if the tail alone would exceed the limit
+            tailStart = shrinkTail(lines, tailStart, maxChars * 2 / 3);
         }
 
         var budget = maxChars - size(lines, tailStart, count);
@@ -151,23 +165,49 @@ public final class LogExcerpter {
             }
         }
 
+        var omittedLines = 0;
+        for (var i = 0; i < tailStart; i++) {
+            if (!keep[i]) {
+                omittedLines += Math.max(1, gapSize(lines.get(i)));
+            }
+        }
+        if (omittedLines > 0 && omittedLines < MIN_OMITTED_LINES && size(lines, 0, count) - 1 <= maxChars) {
+            return String.join("\n", lines);
+        }
+
         var result = new StringBuilder();
         var omitted = 0;
         for (var i = 0; i < count; i++) {
-            if (i >= tailStart || keep[i]) {
-                if (omitted > 0) {
-                    result.append("[... ").append(omitted).append(omitted == 1 ? " line" : " lines").append(" omitted ...]\n");
-                    omitted = 0;
-                }
-                result.append(lines.get(i)).append('\n');
+            var line = lines.get(i);
+            var gap = gapSize(line);
+            // gaps of an excerpt which gets condensed again are merged with the new ones, so the counts stay right
+            if (gap > 0 || (i < tailStart && !keep[i])) {
+                omitted += Math.max(1, gap);
             } else {
-                omitted++;
+                appendGap(result, omitted);
+                omitted = 0;
+                result.append(line).append('\n');
             }
         }
+        appendGap(result, omitted);
         if (!result.isEmpty()) {
             result.setLength(result.length() - 1);
         }
         return fit(result.toString(), maxChars);
+    }
+
+    private static void appendGap(StringBuilder result, int omitted) {
+        if (omitted > 0) {
+            result.append("[... ").append(omitted).append(omitted == 1 ? " line" : " lines").append(" omitted ...]\n");
+        }
+    }
+
+    /**
+     * @return the number of lines the given gap marker stands for, or 0 if it is no gap marker
+     */
+    private static int gapSize(String line) {
+        var matcher = GAP_MARKER.matcher(line);
+        return matcher.matches() ? Integer.parseInt(matcher.group(1)) : 0;
     }
 
     /**
@@ -184,6 +224,14 @@ public final class LogExcerpter {
             start = lineStart + 1;
         }
         return marker + text.substring(start);
+    }
+
+    private static int shrinkTail(List<String> lines, int tailStart, int maxChars) {
+        var start = tailStart;
+        while (start < lines.size() - 1 && size(lines, start, lines.size()) > maxChars) {
+            start++;
+        }
+        return start;
     }
 
     private static int size(List<String> lines, int from, int to) {

@@ -85,6 +85,8 @@ class PullRequestReportingTest extends GitHubReportingTestSupport {
                 .contains("Log excerpt")
                 .contains("Could not resolve dependencies")
                 .contains("pr0001")
+                .contains(StatusReportRenderer.CONFIG_DOCS_URL)
+                .contains("@copilot Technolinator could not create the SBOM")
                 .doesNotContain(SECRET)
                 .endsWith(SIGNATURE);
             assertThat(markerOf(comment).state()).isEqualTo(StatusMarker.State.FAILED);
@@ -288,7 +290,9 @@ class PullRequestReportingTest extends GitHubReportingTestSupport {
                 .contains(FAILED_HEADER)
                 .contains("Logs are not shown for pull requests from forks")
                 .doesNotContain("Log excerpt")
-                .doesNotContain("Could not resolve dependencies");
+                .doesNotContain("Could not resolve dependencies")
+                .doesNotContain("AI coding agents")
+                .contains(StatusReportRenderer.CONFIG_DOCS_URL);
         }
 
         @Test

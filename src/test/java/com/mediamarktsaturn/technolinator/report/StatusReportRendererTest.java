@@ -151,6 +151,63 @@ class StatusReportRendererTest {
     }
 
     @Test
+    void failureReportsLinkTheConfigurationDocs() {
+        var failure = failure("shop", "error", "log");
+        var report = report(T0, "sha", failure);
+        var timeoutOnly = report(T0, "sha", withKind(failure, FailureKind.TIMEOUT));
+
+        assertThat(StatusReportRenderer.issueBody(report, T0, List.of())).contains("](" + StatusReportRenderer.CONFIG_DOCS_URL + ")");
+        assertThat(StatusReportRenderer.pullRequestFailureComment(report, true, null, MARKER)).contains("](" + StatusReportRenderer.CONFIG_DOCS_URL + ")");
+        assertThat(StatusReportRenderer.pullRequestFailureComment(report, false, null, MARKER)).contains("](" + StatusReportRenderer.CONFIG_DOCS_URL + ")");
+        assertThat(StatusReportRenderer.issueBody(timeoutOnly, T0, List.of())).contains("](" + StatusReportRenderer.CONFIG_DOCS_URL + ")");
+    }
+
+    @Test
+    void pullRequestCommentOffersAPromptForAiAgentsWithoutRepeatingTheLog() {
+        var comment = StatusReportRenderer.pullRequestFailureComment(report(T0, "sha", failure("shop", "error", "unique-log-line")), true, null, MARKER);
+
+        assertThat(comment).contains("<summary>🤖 Context and prompt for AI coding agents</summary>")
+            .contains("@copilot Technolinator could not create the SBOM of this pull request.")
+            .contains("Read the entire comment on this pull request, including the collapsed log excerpts");
+        assertThat(comment.split("unique-log-line", -1)).hasSize(2);
+        assertThat(comment.indexOf("Context and prompt")).isGreaterThan(comment.indexOf("</details>"));
+    }
+
+    @Test
+    void issueOffersAPromptForAiAgentsWithoutCopilotMention() {
+        var body = StatusReportRenderer.issueBody(report(T0, "sha", failure("shop", "error", "unique-log-line")), T0, List.of());
+
+        assertThat(body).contains("Context and prompt for AI coding agents")
+            .contains("Assign this issue to Copilot in the sidebar")
+            .contains("Technolinator could not create the SBOM of the default branch of this repository.")
+            .contains("Read the entire description of this issue")
+            .doesNotContain("@copilot");
+        assertThat(body.split("unique-log-line", -1)).hasSize(2);
+    }
+
+    @Test
+    void noPromptForAiAgentsWhereTheyCannotHelp() {
+        var failure = failure("shop", "error", "log");
+        var timeoutOnly = report(T0, "sha", withKind(failure, FailureKind.TIMEOUT));
+
+        assertThat(StatusReportRenderer.pullRequestFailureComment(report(T0, "sha", failure), false, null, MARKER)).doesNotContain("AI coding agents");
+        assertThat(StatusReportRenderer.pullRequestFailureComment(timeoutOnly, true, null, MARKER)).doesNotContain("AI coding agents");
+        assertThat(StatusReportRenderer.issueBody(timeoutOnly, T0, List.of())).doesNotContain("AI coding agents");
+    }
+
+    @Test
+    void sizeStaysCappedWithTheAdditionalSections() {
+        var report = report(T0, "abc", failure("shop", "error", "x\n".repeat(100_000)));
+
+        assertThat(StatusReportRenderer.issueBody(report, T0, List.of("@acme/owners")).length()).isLessThan(65_536);
+        assertThat(StatusReportRenderer.pullRequestFailureComment(report, true, "other\n".repeat(100_000), MARKER).length()).isLessThan(65_536);
+    }
+
+    private static FailureReport.ToolFailure withKind(FailureReport.ToolFailure f, FailureKind kind) {
+        return new FailureReport.ToolFailure(f.project(), f.tool(), f.command(), f.exitCode(), f.summary(), f.errorLine(), f.hint(), f.excerpt(), f.errorHash(), kind);
+    }
+
+    @Test
     void pullRequestFailureCommentKeepsOtherContentAndEndsWithMarker() {
         var comment = StatusReportRenderer.pullRequestFailureComment(report(T0, "boom"), true, "## Vulnerabilities\nnone", MARKER);
 

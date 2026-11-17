@@ -14,7 +14,7 @@ final class TestReports {
 
     static FailureReport.ToolFailure failure(String project, String errorLine, String excerpt) {
         return new FailureReport.ToolFailure(project, "maven", "cdxgen -o bom.json", 1, "Maven could not resolve dependencies",
-            errorLine, "Check the dependency.", excerpt, FailureClassifier.hash(errorLine));
+            errorLine, "Check the dependency.", excerpt, FailureClassifier.hash(errorLine), FailureKind.REPO_ACTIONABLE);
     }
 
     static FailureReport report(Instant started, String errorLine) {
