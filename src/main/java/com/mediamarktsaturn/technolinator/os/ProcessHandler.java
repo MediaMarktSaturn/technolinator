@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 /**
  * Runs operating system commands
@@ -59,15 +60,21 @@ public class ProcessHandler {
                         kill(started);
                     }
 
+                    // the cdxgen environment audit is of no use, neither in the log nor in reports
+                    var auditFilter = new SecureModeAuditFilter();
+                    Consumer<String> sink = line -> {
+                        callback.onOutput(line);
+                        if (outputLines.size() >= MAX_OUTPUT_LINES) {
+                            outputLines.removeFirst();
+                        }
+                        outputLines.addLast(line);
+                    };
                     try (var output = new BufferedReader(new InputStreamReader(started.getInputStream()))) {
                         String line;
                         while ((line = output.readLine()) != null) {
-                            callback.onOutput(line);
-                            if (outputLines.size() >= MAX_OUTPUT_LINES) {
-                                outputLines.removeFirst();
-                            }
-                            outputLines.addLast(line);
+                            auditFilter.accept(line, sink);
                         }
+                        auditFilter.flush(sink);
                     }
                     return started.waitFor();
                 })

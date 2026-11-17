@@ -116,12 +116,12 @@ public class StatusIssueService {
                 StatusReportRenderer.issueBody(report, report.started(), owners.teams()),
                 owners.users()
             );
-            Log.infof("Created status issue #%s in %s", created.number(), report.repoFullName());
+            logWritten(api, "created", created);
             return Action.CREATED;
         }
 
         var keep = open.getFirst();
-        closeDuplicates(api, report.repoFullName(), keep, open.subList(1, open.size()));
+        closeDuplicates(api, keep, open.subList(1, open.size()));
 
         var marker = StatusMarker.parse(keep.body());
         if (marker.map(m -> m.started().isAfter(report.started())).orElse(false)) {
@@ -130,14 +130,19 @@ public class StatusIssueService {
         }
 
         var body = StatusReportRenderer.issueBody(report, keep.createdAt(), owners.teams());
-        if (!body.equals(keep.body())) {
+        var bodyChanged = !body.equals(keep.body());
+        if (bodyChanged) {
             api.updateBody(keep.number(), body);
         }
         var causeChanged = marker.map(m -> !m.err().equals(report.errorHash())).orElse(false);
         if (causeChanged) {
             api.comment(keep.number(), StatusReportRenderer.issueCauseChangedComment(report));
         }
-        Log.infof("Updated status issue #%s of %s", keep.number(), report.repoFullName());
+        if (bodyChanged || causeChanged) {
+            logWritten(api, "updated", keep);
+        } else {
+            Log.infof("Status issue #%s of %s is up to date", keep.number(), report.repoFullName());
+        }
         return Action.UPDATED;
     }
 
@@ -151,6 +156,7 @@ public class StatusIssueService {
                 var issue = closedByPerson.get();
                 api.updateBody(issue.number(), StatusReportRenderer.markResolved(issue.body()));
                 Log.infof("Analysis of %s succeeded again, status issue #%s closed manually before is open to reports again", repo, issue.number());
+                logWritten(api, "unmuted", issue);
                 return Action.UNMUTED;
             }
             return Action.NOTHING;
@@ -169,7 +175,7 @@ public class StatusIssueService {
             api.updateBody(issue.number(), StatusReportRenderer.resolvedIssueBody(issue.body(), now, commitSha));
             api.comment(issue.number(), StatusReportRenderer.issueResolvedComment(commitSha));
             api.close(issue.number(), true);
-            Log.infof("Closed status issue #%s of %s", issue.number(), repo);
+            logWritten(api, "closed", issue);
         }
         return Action.CLOSED;
     }
@@ -193,12 +199,21 @@ public class StatusIssueService {
             .filter(i -> StatusMarker.parse(i.body()).map(m -> m.state() != StatusMarker.State.RESOLVED).orElse(true));
     }
 
-    private static void closeDuplicates(IssueApi api, String repo, IssueApi.StatusIssue keep, List<IssueApi.StatusIssue> duplicates) throws IOException {
+    private static void closeDuplicates(IssueApi api, IssueApi.StatusIssue keep, List<IssueApi.StatusIssue> duplicates) throws IOException {
         for (var duplicate : duplicates) {
             api.updateBody(duplicate.number(), StatusReportRenderer.markResolved(duplicate.body()));
             api.comment(duplicate.number(), "Closing as duplicate of #" + keep.number() + ", only one status issue is kept open.");
             api.close(duplicate.number(), false);
-            Log.infof("Closed duplicate status issue #%s of %s", duplicate.number(), repo);
+            logWritten(api, "closed_duplicate", duplicate);
+        }
+    }
+
+    /**
+     * Status issues only exist because the SBOM can't be created, so they are always of kind error.
+     */
+    private static void logWritten(IssueApi api, String action, IssueApi.StatusIssue issue) {
+        if (!api.dryRun()) {
+            GitHubReportLog.written(GitHubReportLog.Type.ISSUE, GitHubReportLog.Kind.ERROR, action, issue.url());
         }
     }
 

@@ -159,7 +159,8 @@ public class GitHubIssueApi implements IssueApi {
             issue.getNumber(),
             issue.getBody() == null ? "" : issue.getBody(),
             issue.getCreatedAt().toInstant(),
-            issue.getState() == GHIssueState.OPEN
+            issue.getState() == GHIssueState.OPEN,
+            issue.getHtmlUrl() == null ? "" : issue.getHtmlUrl().toString()
         );
     }
 }

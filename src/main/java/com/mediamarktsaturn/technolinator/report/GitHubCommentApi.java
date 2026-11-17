@@ -38,16 +38,16 @@ public class GitHubCommentApi implements CommentApi {
     }
 
     @Override
-    public void create(String body) throws IOException {
+    public String create(String body) throws IOException {
         var created = pullRequest.comment(body);
-        Log.infof("Created comment %s", created == null ? "" : created.getHtmlUrl());
+        return created == null || created.getHtmlUrl() == null ? "" : created.getHtmlUrl().toString();
     }
 
     @Override
-    public void update(String id, String body) throws IOException {
+    public String update(String id, String body) throws IOException {
         var comment = comments.get(id);
         comment.update(body);
-        Log.infof("Updated comment %s", comment.getHtmlUrl());
+        return comment.getHtmlUrl() == null ? "" : comment.getHtmlUrl().toString();
     }
 
     @Override

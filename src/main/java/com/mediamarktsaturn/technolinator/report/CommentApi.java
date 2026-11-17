@@ -23,9 +23,15 @@ public interface CommentApi {
      */
     List<Comment> findComments(Predicate<String> bodyFilter) throws IOException;
 
-    void create(String body) throws IOException;
+    /**
+     * @return link to the created comment
+     */
+    String create(String body) throws IOException;
 
-    void update(String id, String body) throws IOException;
+    /**
+     * @return link to the updated comment
+     */
+    String update(String id, String body) throws IOException;
 
     void delete(String id) throws IOException;
 }

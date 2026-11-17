@@ -34,7 +34,7 @@ public class DryRunIssueApi implements IssueApi {
     public StatusIssue create(String title, String body, List<String> assignees) {
         Log.infof("[dry-run] Would create issue '%s' in %s, assigned to %s", title, repo, assignees);
         Log.debugf("[dry-run] Description:%n%s", body);
-        return new StatusIssue(0, body, Instant.now(), true);
+        return new StatusIssue(0, body, Instant.now(), true, "");
     }
 
     @Override
@@ -56,5 +56,10 @@ public class DryRunIssueApi implements IssueApi {
     @Override
     public Optional<String> readCodeOwners() {
         return delegate.readCodeOwners();
+    }
+
+    @Override
+    public boolean dryRun() {
+        return true;
     }
 }

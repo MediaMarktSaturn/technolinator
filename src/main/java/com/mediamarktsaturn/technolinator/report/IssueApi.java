@@ -13,8 +13,9 @@ public interface IssueApi {
 
     /**
      * @param body the description, may be empty
+     * @param url  link to the issue, may be empty
      */
-    record StatusIssue(int number, String body, Instant createdAt, boolean open) {
+    record StatusIssue(int number, String body, Instant createdAt, boolean open, String url) {
     }
 
     /**
@@ -42,4 +43,11 @@ public interface IssueApi {
      * @return the content of the CODEOWNERS file of the repository
      */
     Optional<String> readCodeOwners();
+
+    /**
+     * @return whether writes are only pretended, not done
+     */
+    default boolean dryRun() {
+        return false;
+    }
 }

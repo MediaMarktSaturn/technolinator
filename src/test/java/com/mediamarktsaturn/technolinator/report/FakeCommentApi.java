@@ -18,8 +18,9 @@ class FakeCommentApi implements CommentApi {
     }
 
     @Override
-    public void create(String body) {
+    public String create(String body) {
         add("technolinator[bot]", body);
+        return "https://github.com/fake/repo/pull/1#issuecomment-" + ids;
     }
 
     void add(String author, String body) {
@@ -27,12 +28,13 @@ class FakeCommentApi implements CommentApi {
     }
 
     @Override
-    public void update(String id, String body) {
+    public String update(String id, String body) {
         for (var i = 0; i < comments.size(); i++) {
             if (comments.get(i).id().equals(id)) {
                 comments.set(i, new Comment(id, body, comments.get(i).authorLogin()));
             }
         }
+        return "https://github.com/fake/repo/pull/1#issuecomment-" + id;
     }
 
     @Override

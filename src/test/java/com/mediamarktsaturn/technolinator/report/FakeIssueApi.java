@@ -109,6 +109,6 @@ class FakeIssueApi implements IssueApi {
     }
 
     private static StatusIssue toStatusIssue(Issue i) {
-        return new StatusIssue(i.number, i.body, i.createdAt, i.open);
+        return new StatusIssue(i.number, i.body, i.createdAt, i.open, "https://github.com/fake/repo/issues/" + i.number);
     }
 }

@@ -96,44 +96,54 @@ public class PrStatusCommentService {
             return Action.OUTDATED;
         }
 
-        var text = textFor(u, marker);
-        if (text == null) {
+        var comment = commentFor(u, marker);
+        if (comment == null) {
             return Action.NOTHING;
         }
         if (existing == null) {
-            api.create(text);
+            var url = api.create(comment.text());
+            GitHubReportLog.written(GitHubReportLog.Type.PULL_REQUEST, comment.kind(), "created", url);
             return Action.CREATED;
         }
-        api.update(existing.id(), text);
+        var url = api.update(existing.id(), comment.text());
+        GitHubReportLog.written(GitHubReportLog.Type.PULL_REQUEST, comment.kind(), "updated", url);
         return Action.UPDATED;
+    }
+
+    private record Comment(String text, GitHubReportLog.Kind kind) {
     }
 
     /**
      * @return the new content of the comment, or null if it should stay as it is
      */
-    private static String textFor(Update u, Optional<StatusMarker> existing) {
+    private static Comment commentFor(Update u, Optional<StatusMarker> existing) {
         var failedBefore = u.statusEnabled() && existing.map(m -> m.state() == StatusMarker.State.FAILED).orElse(false);
         return switch (u.outcome()) {
             case FAILED -> {
                 if (u.statusEnabled() && u.failure() != null) {
-                    yield StatusReportRenderer.pullRequestFailureComment(u.failure(), u.includeLogs(), u.reportText(), COMMENT_MARKER);
+                    yield new Comment(
+                        StatusReportRenderer.pullRequestFailureComment(u.failure(), u.includeLogs(), u.reportText(), COMMENT_MARKER),
+                        GitHubReportLog.Kind.ERROR
+                    );
                 }
                 yield plainReport(u.reportText());
             }
             case SUCCEEDED -> failedBefore
-                ? StatusReportRenderer.pullRequestRecoveredComment(u.started(), u.commitSha(), u.reportText(), COMMENT_MARKER)
+                ? new Comment(
+                    StatusReportRenderer.pullRequestRecoveredComment(u.started(), u.commitSha(), u.reportText(), COMMENT_MARKER),
+                    GitHubReportLog.kindOfReport(u.reportText()))
                 : plainReport(u.reportText());
             // do not hide a failure because of an analysis which did not tell anything about it
             case UNKNOWN -> failedBefore ? null : plainReport(u.reportText());
         };
     }
 
-    private static String plainReport(String reportText) {
+    private static Comment plainReport(String reportText) {
         if (reportText == null) {
             return null;
         }
         var report = StatusReportRenderer.limit(reportText, StatusReportRenderer.MAX_BODY_LENGTH - COMMENT_MARKER.length() - 2);
-        return "%s\n\n%s".formatted(report, COMMENT_MARKER);
+        return new Comment("%s\n\n%s".formatted(report, COMMENT_MARKER), GitHubReportLog.kindOfReport(reportText));
     }
 
     private static void deleteDuplicates(CommentApi api, Update u, List<CommentApi.Comment> duplicates) {
