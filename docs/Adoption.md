@@ -41,7 +41,7 @@ Therefor the following settings are required for the GitHub app installation:
 
 * Commit statuses: Read and Write
 * Contents: Read only
-* Issues: Read and Write (status issue about failing analyses, see [failure reporting](Runtime_Config.md#failure-reporting))
+* Issues: Read and Write (status issue about failing analyses, see [failure reporting](Analysis.md#failure-reporting))
 * Metadata: Read only
 * Pull requests: Read and Write
 

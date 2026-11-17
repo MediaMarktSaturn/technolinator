@@ -135,7 +135,7 @@ Run Technolinator behind a reverse proxy/ingress with TLS, forwarding to port `8
 
 * The webhook is served on the root path `/` by default. Another path can be configured by `QUARKUS_GITHUB_APP_WEBHOOK_URL_PATH`, or stripped by the proxy, like the docker compose sample does for `/technohook`.
 * Allow request bodies of about 5 MB, push payloads can get that big.
-* Only route the webhook to the outside: `/q/*` (health, metrics) and `/housekeeping` shouldn't be reachable from the internet, see the ingress example in [Deployment configuration](Deployment_Config.md).
+* Only route the webhook to the outside: `/q/*` (health, metrics), `/analyze` and `/housekeeping` shouldn't be reachable from the internet, see the ingress example in [Deployment configuration](Deployment_Config.md).
 
 ### Local setup without inbound connections
 
@@ -194,5 +194,6 @@ Metrics and a Grafana dashboard are described in [Runtime configuration](Runtime
 
 * [Repository specific configuration](Repository_Config.md): tune the analysis per repository
 * [Runtime configuration](Runtime_Config.md): all parameters
+* [Analysis](Analysis.md): [triggering an analysis manually](Analysis.md#manual-analysis) and [failure reporting](Analysis.md#failure-reporting)
 * [Adoption](Adoption.md): private artifact repositories, JDK versions and other customization of the image
 * [Housekeeping](Housekeeping.md): automatic cleanup of Dependency-Track

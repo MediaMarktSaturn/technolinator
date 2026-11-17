@@ -42,30 +42,59 @@ public class OnPushDispatcher extends DispatcherBase {
     // called by the quarkus-github-app extension
     void onPush(@Push GHEventPayload.Push pushPayload, @ConfigFile(CONFIG_FILE) Optional<TechnolinatorConfig> config) {
         var traceId = createTraceId();
-        var pushRef = pushPayload.getRef();
-        var repo = pushPayload.getRepository();
-        var repoUrl = repo.getUrl();
+        var event = new PushEvent(pushPayload, config);
         final var commitSha = getEventCommit(pushPayload);
 
-        final var metadata = new Command.Metadata(pushRef, repo.getFullName(), traceId, commitSha);
+        final var metadata = new Command.Metadata(event.ref(), event.repository().getFullName(), traceId, commitSha);
         metadata.writeToMDC();
 
         // metric tags
-        final MetricStatusRepo status;
-        final var repoName = repo.getName();
+        final var status = eligibility(event);
+        if (status == MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS) {
+            analyze(event, metadata).subscribe().withSubscriber(Commons.NOOP_SUBSCRIBER);
+        }
 
-        if (!isEnabledByConfig(repoName)) {
+        meterRegistry.counter("repo_push", List.of(
+                Tag.of("status", status.name()),
+                Tag.of("repo", event.repository().getName())
+            )
+        ).increment();
+    }
+
+    /**
+     * Tells whether the pushed ref is to be analyzed, which is only the case for the default branch of enabled repositories.
+     * Requires the {@link Command.Metadata} of the push to be written to the MDC.
+     */
+    MetricStatusRepo eligibility(PushEvent event) {
+        var repoUrl = event.repoUrl();
+        if (!isEnabledByConfig(event.repository().getName())) {
             Log.infof("Repo %s excluded by global config", repoUrl);
-            status = MetricStatusRepo.DISABLED_BY_CONFIG;
-        } else if (!config.map(TechnolinatorConfig::enable).orElse(true)) {
+            return MetricStatusRepo.DISABLED_BY_CONFIG;
+        } else if (!event.config().map(TechnolinatorConfig::enable).orElse(true)) {
             Log.infof("Disabled for repo %s by repo config", repoUrl);
-            status = MetricStatusRepo.DISABLED_BY_REPO;
-        } else if (!isBranchEligibleForAnalysis(pushPayload)) {
-            Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", pushRef, repoUrl);
-            status = MetricStatusRepo.NON_DEFAULT_BRANCH;
+            return MetricStatusRepo.DISABLED_BY_REPO;
+        } else if (!isBranchEligibleForAnalysis(event)) {
+            Log.infof("Ref %s of repository %s not eligible for analysis, ignoring.", event.ref(), repoUrl);
+            return MetricStatusRepo.NON_DEFAULT_BRANCH;
         } else {
-            Log.infof("Ref %s of repository %s eligible for analysis", pushRef, repoUrl);
-            status = MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
+            Log.infof("Ref %s of repository %s eligible for analysis", event.ref(), repoUrl);
+            return MetricStatusRepo.ELIGIBLE_FOR_ANALYSIS;
+        }
+    }
+
+    /**
+     * Analyzes the pushed ref, which needs to be {@link #eligibility(PushEvent) eligible}, and reports the outcome via commit status,
+     * status issue and metrics. Nothing happens before the returned {@link Uni} is subscribed to, it never fails.
+     */
+    Uni<Void> analyze(PushEvent event, Command.Metadata metadata) {
+        final var repo = event.repository();
+        final var repoName = repo.getName();
+        final var repoUrl = event.repoUrl();
+        final var pushRef = event.ref();
+        final var commitSha = metadata.commitSha();
+
+        return Uni.createFrom().deferred(() -> {
+            metadata.writeToMDC();
             metricsPublisher.reportLanguages(repo);
             metricsPublisher.reportAnalysisStart(repoName, "push");
 
@@ -80,44 +109,38 @@ public class OnPushDispatcher extends DispatcherBase {
             final var analysisStartedAt = Instant.now();
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
-            handler.onPush(new PushEvent(pushPayload, config), metadata)
+            return Uni.createFrom().deferred(() -> handler.onPush(event, metadata))
                 .ifNoItem().after(analysisTimeout).fail()
                 .chain(result -> reportAnalysisResult(result, repo, commitSha, metadata))
-                .onFailure(TimeoutException.class).call(timeout -> reportTimeout(repo, metadata, analysisStartedAt, config))
+                .onFailure(TimeoutException.class).call(timeout -> reportTimeout(repo, metadata, analysisStartedAt, event.config()))
                 .onFailure().recoverWithUni(failure -> {
                     metadata.writeToMDC();
                     Log.errorf(failure, "Failed to handle ref %s of repository %s", pushRef, repoUrl);
                     return reportFailure(repo, commitSha, failure, metadata);
                 }).onTermination().invoke(() -> metricsPublisher.reportAnalysisCompletion(repoName, "push"))
-                .subscribe().with(
-                    pushResult -> {
-                        metadata.writeToMDC();
-                        Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
-                        meterRegistry.counter("analysis_duration_ms", List.of(
-                            Tag.of("repo", repoName),
-                            Tag.of("failure", "")
-                        )).increment(duration.getAsDouble());
-                        meterRegistry.counter("analysis_status", List.of(
-                            Tag.of("repo", repoName),
-                            Tag.of("status", pushResult.metricStatus.name()))
-                        ).increment();
-                    },
-                    failure -> {
-                        metadata.writeToMDC();
-                        Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
-                        meterRegistry.counter("analysis_duration_ms", List.of(
-                            Tag.of("repo", repoName),
-                            Tag.of("failure", failure.getClass().getSimpleName())
-                        )).increment(duration.getAsDouble());
-                    }
-                );
-        }
-
-        meterRegistry.counter("repo_push", List.of(
-                Tag.of("status", status.name()),
-                Tag.of("repo", repoName)
-            )
-        ).increment();
+                .onItem().invoke(pushResult -> {
+                    metadata.writeToMDC();
+                    Log.infof("Handling completed for ref %s of repository %s", pushRef, repoUrl);
+                    meterRegistry.counter("analysis_duration_ms", List.of(
+                        Tag.of("repo", repoName),
+                        Tag.of("failure", "")
+                    )).increment(duration.getAsDouble());
+                    meterRegistry.counter("analysis_status", List.of(
+                        Tag.of("repo", repoName),
+                        Tag.of("status", pushResult.metricStatus.name()))
+                    ).increment();
+                })
+                .onFailure().invoke(failure -> {
+                    metadata.writeToMDC();
+                    Log.errorf(failure, "Handling failed for ref %s of repository %s", pushRef, repoUrl);
+                    meterRegistry.counter("analysis_duration_ms", List.of(
+                        Tag.of("repo", repoName),
+                        Tag.of("failure", failure.getClass().getSimpleName())
+                    )).increment(duration.getAsDouble());
+                })
+                .onFailure().recoverWithNull()
+                .replaceWithVoid();
+        });
     }
 
     Uni<Void> reportTimeout(GHRepository repo, Command.Metadata metadata, Instant started, Optional<TechnolinatorConfig> config) {
@@ -192,8 +215,8 @@ public class OnPushDispatcher extends DispatcherBase {
         }
     }
 
-    static boolean isBranchEligibleForAnalysis(GHEventPayload.Push pushPayload) {
-        return pushPayload.getRef().equals("refs/heads/" + pushPayload.getRepository().getDefaultBranch());
+    static boolean isBranchEligibleForAnalysis(PushEvent event) {
+        return event.ref().equals(PushEvent.BRANCH_REF_PREFIX + event.defaultBranch());
     }
 
     static String getDescriptionFromFailure(Result.Failure<Project> failure) {

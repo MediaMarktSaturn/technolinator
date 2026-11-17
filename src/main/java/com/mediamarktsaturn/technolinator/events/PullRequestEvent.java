@@ -13,7 +13,7 @@ import java.util.Optional;
 public record PullRequestEvent(
     GHEventPayload.PullRequest payload,
     Optional<TechnolinatorConfig> config
-) implements Event<GHEventPayload.PullRequest> {
+) implements Event {
 
     @Override
     public String branch() {

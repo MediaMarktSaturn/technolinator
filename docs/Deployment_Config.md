@@ -156,9 +156,16 @@ metadata:
   namespace: app
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "5m" # GitHub push payloads become that big.
-    # access is secured by the GitHub app library, but Quarkus info endpoint would be accessible
+    # access is secured by the GitHub app library, but Quarkus info endpoint would be accessible.
+    # /analyze and /housekeeping are not protected at all, so they must not be reachable from the outside either
     nginx.ingress.kubernetes.io/server-snippet: |-
       location /q {
+        deny all;
+      }
+      location /analyze {
+        deny all;
+      }
+      location /housekeeping {
         deny all;
       }
 spec:

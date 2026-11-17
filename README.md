@@ -22,15 +22,16 @@ It's built using [![](https://img.shields.io/badge/dynamic/xml?url=https%3A%2F%2
 
 * **[Getting started](docs/Getting_Started.md)**: from zero to the first analyzed repository
 * Using Technolinator
-  * [Repository specific configuration](docs/Repository_Config.md)
+  * [Repository specific configuration](docs/Repository_Config.md): tune or disable the analysis per repository with `.github/technolinator.yml`
 * Operating Technolinator
-  * [Runtime configuration](docs/Runtime_Config.md)
-  * [Deployment configuration](docs/Deployment_Config.md)
-  * [Housekeeping](docs/Housekeeping.md)
-  * [Adopting to your needs](docs/Adoption.md)
+  * [Runtime configuration](docs/Runtime_Config.md): all parameters of the application and its observability
+  * [Analysis](docs/Analysis.md): trigger an analysis manually and how failed analyses are reported to the repositories
+  * [Deployment configuration](docs/Deployment_Config.md): Helm release and ingress examples for running it on Kubernetes
+  * [Housekeeping](docs/Housekeeping.md): automatic and manual cleanup of Dependency-Track projects
+  * [Adopting to your needs](docs/Adoption.md): derived container images for private artifact repositories and other customization
 * Maintaining Technolinator
-  * [Project structure](docs/Project_Structure.md)
-  * [Contribution](docs/Contribution.md)
+  * [Project structure](docs/Project_Structure.md): how the processing of events works internally
+  * [Contribution](docs/Contribution.md): requirements and tools for developing Technolinator
 
 ---
 

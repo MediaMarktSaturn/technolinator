@@ -13,7 +13,7 @@ import java.util.Optional;
 public record ReleaseEvent(
     GHEventPayload.Release payload,
     Optional<TechnolinatorConfig> config
-) implements Event<GHEventPayload.Release> {
+) implements Event {
 
     @Override
     public String branch() {

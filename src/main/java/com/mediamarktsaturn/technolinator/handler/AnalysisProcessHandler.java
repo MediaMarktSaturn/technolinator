@@ -126,6 +126,13 @@ public class AnalysisProcessHandler {
             .onTermination().invoke(() -> TASKS.remove(taskKey));
     }
 
+    /**
+     * @return whether a push analysis of the same repository, ref and commit as described by [metadata] is in progress
+     */
+    public boolean isPushAnalysisRunning(Command.Metadata metadata) {
+        return TASKS.containsKey(metadata.uniqueId());
+    }
+
     public Uni<Result<Project>> onRelease(ReleaseEvent event, Command.Metadata metadata) {
         var repoDetails = repoService.getRepositoryDetails(event);
         return dtrackClient.appendVersionInfo(repoDetails, event.ref(), metadata.commitSha());
@@ -163,7 +170,7 @@ public class AnalysisProcessHandler {
         return url.substring(0, idx) + "/" + oldName + url.substring(idx + needle.length());
     }
 
-    Uni<Result<Project>> handleAnalysis(Event<?> event, Command.Metadata metadata, boolean fetchLicenses) {
+    Uni<Result<Project>> handleAnalysis(Event event, Command.Metadata metadata, boolean fetchLicenses) {
         var started = Instant.now();
         var repoDetails = repoService.getRepositoryDetails(event);
         return checkoutAndGenerateSBOMs(event, metadata, fetchLicenses)
@@ -182,7 +189,7 @@ public class AnalysisProcessHandler {
     /**
      * Tells the status issue of the repository how the analysis of its default branch went.
      */
-    Uni<Void> reportDefaultBranchAnalysis(Event<?> event, Command.Metadata metadata, Instant started,
+    Uni<Void> reportDefaultBranchAnalysis(Event event, Command.Metadata metadata, Instant started,
                                           List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, boolean checkoutFailed,
                                           Result<Project> uploadResult) {
         if (!(event instanceof PushEvent) || !event.isDefaultBranch()) {
@@ -218,7 +225,7 @@ public class AnalysisProcessHandler {
         return repoDetails;
     }
 
-    Uni<Result<Project>> handleDependencyTrack(Event<?> event, RepositoryDetails repoDetails, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
+    Uni<Result<Project>> handleDependencyTrack(Event event, RepositoryDetails repoDetails, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
         if (event.isDefaultBranch()) {
             return Uni.createFrom().deferred(() -> scoreAndUploadSbomIfApplicable(repoDetails, sbomResults, metadata));
         } else {
@@ -226,7 +233,7 @@ public class AnalysisProcessHandler {
         }
     }
 
-    Uni<Void> handlePullRequests(Event<?> event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata,
+    Uni<Void> handlePullRequests(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata,
                                  Instant started, boolean checkoutFailed) {
         if (!pullRequestReportsEnabled) {
             if (Log.isDebugEnabled()) {
@@ -264,7 +271,7 @@ public class AnalysisProcessHandler {
             .onFailure().recoverWithNull();
     }
 
-    private void updatePullRequests(Event<?> event, List<GHPullRequest> pullRequests, VulnerabilityReporting.VulnerabilityReport report,
+    private void updatePullRequests(Event event, List<GHPullRequest> pullRequests, VulnerabilityReporting.VulnerabilityReport report,
                                     List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata,
                                     Instant started, boolean checkoutFailed) {
         metadata.writeToMDC();
@@ -285,7 +292,7 @@ public class AnalysisProcessHandler {
         }
     }
 
-    Uni<Result<VulnerabilityReporting.VulnerabilityReport>> createReport(Event<?> event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
+    Uni<Result<VulnerabilityReporting.VulnerabilityReport>> createReport(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
         metadata.writeToMDC();
         return Uni.combine().all().unis(sbomResults.stream().map(sbomResult ->
                 switch (sbomResult) {
@@ -380,13 +387,13 @@ public class AnalysisProcessHandler {
     }
 
 
-    Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> checkoutAndGenerateSBOMs(Event<?> event, Command.Metadata metadata, boolean fetchLicenses) {
+    Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> checkoutAndGenerateSBOMs(Event event, Command.Metadata metadata, boolean fetchLicenses) {
         var checkout = Objects.requireNonNull(repoService).createCheckoutCommand(event.repository(), event.ref());
         return checkout.execute(metadata)
             .chain(checkoutResult -> generateSboms(event, checkoutResult, metadata, fetchLicenses));
     }
 
-    Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> generateSboms(Event<?> event, Result<LocalRepository> checkoutResult, Command.Metadata metadata, boolean fetchLicenses) {
+    Uni<Tuple2<List<Result<CdxgenClient.SBOMGenerationResult>>, LocalRepository>> generateSboms(Event event, Result<LocalRepository> checkoutResult, Command.Metadata metadata, boolean fetchLicenses) {
         metadata.writeToMDC();
         return switch (checkoutResult) {
             case Result.Success<LocalRepository> s -> {

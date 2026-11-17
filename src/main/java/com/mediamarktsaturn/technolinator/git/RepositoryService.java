@@ -120,7 +120,7 @@ public class RepositoryService {
         }
     }
 
-    public RepositoryDetails getRepositoryDetails(Event<?> event) {
+    public RepositoryDetails getRepositoryDetails(Event event) {
         return new RepositoryDetails(
             event.getRepoName(),
             buildProjectVersionFromEvent(event),
@@ -131,32 +131,32 @@ public class RepositoryService {
         );
     }
 
-    String buildProjectVersionFromEvent(Event<?> event) {
+    String buildProjectVersionFromEvent(Event event) {
         if (alwaysUseVersionOrCommitHash) {
             return event.version();
         }
         return event.branch();
     }
-    static String getWebsiteUrl(Event<?> event) {
-        return event.payload().getRepository().getHtmlUrl().toString();
+    static String getWebsiteUrl(Event event) {
+        return event.repository().getHtmlUrl().toString();
     }
 
-    static String getVCSUrl(Event<?> event) {
-        return event.payload().getRepository().getGitTransportUrl();
+    static String getVCSUrl(Event event) {
+        return event.repository().getGitTransportUrl();
     }
 
-    static List<String> getProjectTopics(Event<?> event) {
+    static List<String> getProjectTopics(Event event) {
         List<String> topics = new ArrayList<>();
-        topics.add(OWNER_TAG.formatted(event.payload().getRepository().getOwnerName()));
+        topics.add(OWNER_TAG.formatted(event.repository().getOwnerName()));
         try {
-            topics.addAll(event.payload().getRepository().listTopics());
+            topics.addAll(event.repository().listTopics());
         } catch (IOException e) {
             Log.warnf(e, "Could not fetch topics of repo %s", event.repoUrl());
         }
         return topics;
     }
 
-    static String getProjectDescription(Event<?> event) {
-        return event.payload().getRepository().getDescription();
+    static String getProjectDescription(Event event) {
+        return event.repository().getDescription();
     }
 }
