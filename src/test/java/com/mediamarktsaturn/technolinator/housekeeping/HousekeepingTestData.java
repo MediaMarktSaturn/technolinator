@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.technolinator.housekeeping;
 
+import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackProject;
 
 import java.time.Instant;
@@ -61,5 +62,17 @@ final class HousekeepingTestData {
 
     static DependencyTrackProject uploadedAt(DependencyTrackProject project, Instant lastBomImport) {
         return new DependencyTrackProject(project.uuid(), project.name(), project.version(), project.active(), project.parentUuid(), project.repositoryUrls(), Optional.of(lastBomImport));
+    }
+
+    static DependencyTrackProject withMetadata(DependencyTrackProject project, List<DependencyTrackProject.Reference> references, List<String> tags) {
+        return new DependencyTrackProject(project.uuid(), project.name(), project.version(), project.active(), project.parentUuid(),
+            project.repositoryUrls(), project.lastBomImport(), references, tags);
+    }
+
+    /**
+     * The references Technolinator puts to the projects of a repository
+     */
+    static List<DependencyTrackProject.Reference> uploadReferences(String owner, String repoName) {
+        return DependencyTrackClient.repositoryReferences(gitUrl(owner, repoName), webUrl(owner, repoName));
     }
 }

@@ -83,11 +83,24 @@ public record HousekeepingUnit(
      * Dependency-Track rejects archiving a parent having active children, so this is the order to work on projects in.
      */
     public List<List<DependencyTrackProject>> activeProjectsChildrenFirst() {
+        return groupByDepth(activeProjects(), true);
+    }
+
+    /**
+     * Groups the given projects, which are expected to be part of this unit, by their depth in the hierarchy, parents first.
+     * So the projects of a group never are parents of each other, and all parents are contained in a group preceding the ones of their children.
+     * This is the order to work on projects in, whose children shouldn't be active without their parent.
+     */
+    public List<List<DependencyTrackProject>> groupParentsFirst(List<DependencyTrackProject> subset) {
+        return groupByDepth(subset, false);
+    }
+
+    private List<List<DependencyTrackProject>> groupByDepth(List<DependencyTrackProject> subset, boolean deepestFirst) {
         Map<String, String> parents = new HashMap<>();
         projects.forEach(project -> project.parentUuid().ifPresent(parent -> parents.put(project.uuid(), parent)));
 
-        var byDepth = new TreeMap<Integer, List<DependencyTrackProject>>(Comparator.reverseOrder());
-        for (var project : activeProjects()) {
+        var byDepth = new TreeMap<Integer, List<DependencyTrackProject>>(deepestFirst ? Comparator.reverseOrder() : Comparator.naturalOrder());
+        for (var project : subset) {
             byDepth.computeIfAbsent(depth(project.uuid(), parents), depth -> new ArrayList<>()).add(project);
         }
         return List.copyOf(byDepth.values());

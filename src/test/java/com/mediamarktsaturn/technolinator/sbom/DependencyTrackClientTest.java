@@ -1121,13 +1121,70 @@ class DependencyTrackClientTest {
             patch(urlEqualTo("/api/v1/project/single-archive-conflict-uuid"))
                 .willReturn(aResponse().withStatus(409).withBody("conflict"))
         );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-archive-unchanged-uuid"))
+                .willReturn(aResponse().withStatus(304))
+        );
 
         // When, Then
         assertThat(await(cut.archiveProject("single-archive-uuid"))).isTrue();
         assertThat(await(cut.archiveProject("single-archive-conflict-uuid"))).isFalse();
+        // archived already
+        assertThat(await(cut.archiveProject("single-archive-unchanged-uuid"))).isTrue();
         var patched = wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/single-archive-uuid")));
         assertThat(patched).hasSize(1);
         assertThat(new JsonObject(patched.get(0).getBodyAsString())).isEqualTo(JsonObject.of("active", false));
+    }
+
+    @Test
+    void testReactivateProject() {
+        // Given
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-reactivate-uuid"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-reactivate-conflict-uuid"))
+                .willReturn(aResponse().withStatus(409).withBody("conflict"))
+        );
+
+        // When, Then
+        assertThat(await(cut.reactivateProject("single-reactivate-uuid"))).isTrue();
+        assertThat(await(cut.reactivateProject("single-reactivate-conflict-uuid"))).isFalse();
+        var patched = wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/single-reactivate-uuid")));
+        assertThat(patched).hasSize(1);
+        assertThat(new JsonObject(patched.get(0).getBodyAsString())).isEqualTo(JsonObject.of("active", true));
+    }
+
+    @Test
+    void testUpdateProjectReferencesAndTags() {
+        // Given
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/refs-uuid"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/refs-rejected-uuid"))
+                .willReturn(aResponse().withStatus(400).withBody("nope"))
+        );
+        var references = DependencyTrackClient.repositoryReferences("git://github.com/o/r.git", "https://github.com/o/r");
+
+        // When, Then
+        assertThat(await(cut.updateProjectReferencesAndTags("refs-uuid", references, List.of("owner=o", "java", " ")))).isTrue();
+        assertThat(await(cut.updateProjectReferencesAndTags("refs-rejected-uuid", references, List.of()))).isFalse();
+
+        var patched = wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/refs-uuid")));
+        assertThat(patched).hasSize(1);
+        assertThat(new JsonObject(patched.get(0).getBodyAsString())).isEqualTo(JsonObject.of(
+            "tags", JsonArray.of(JsonObject.of("name", "owner=o"), JsonObject.of("name", "java")),
+            "externalReferences", JsonArray.of(
+                JsonObject.of("type", "vcs", "url", "git://github.com/o/r.git"),
+                JsonObject.of("type", "website", "url", "https://github.com/o/r"),
+                JsonObject.of("type", "release-notes", "url", "https://github.com/o/r/releases")
+            )
+        ));
     }
 
     private static JsonObject archiveProject(String uuid, String name, String vcsUrl, String websiteUrl, String parentUuid) {

@@ -47,6 +47,13 @@ public record GitHubRepo(
     }
 
     /**
+     * @return the name of the owner (account) of the repository, as GitHub spells it
+     */
+    public String ownerName() {
+        return fullName.substring(0, Math.max(fullName.indexOf('/'), 0));
+    }
+
+    /**
      * @return a GitHub client authenticated as the installation, valid for at least 5 more minutes
      */
     public GitHub github() {
