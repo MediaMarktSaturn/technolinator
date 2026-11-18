@@ -236,7 +236,23 @@ public class FailureReporter {
                 ctx.metadata().repoFullName(), ctx.branch());
             return new Evaluation(Verdict.INCONCLUSIVE, null);
         }
-        return new Evaluation(Verdict.FAILED, buildReport(ctx, actionable));
+        return new Evaluation(Verdict.FAILED, buildReport(ctx, actionable, scopeOf(sbomResults, checkoutFailed)));
+    }
+
+    private static FailureReport.Scope scopeOf(List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, boolean checkoutFailed) {
+        if (checkoutFailed) {
+            return FailureReport.Scope.UNKNOWN;
+        }
+        var failed = (int) sbomResults.stream().filter(r -> r instanceof Result.Failure<CdxgenClient.SBOMGenerationResult>).count();
+        var succeeded = new ArrayList<String>();
+        for (var result : sbomResults) {
+            if (result instanceof Result.Success<CdxgenClient.SBOMGenerationResult> s
+                && s.result() instanceof CdxgenClient.SBOMGenerationResult.Yield yield
+                && yield.projectName() != null && !yield.projectName().isBlank()) {
+                succeeded.add(yield.projectName());
+            }
+        }
+        return new FailureReport.Scope(sbomResults.size(), failed, succeeded);
     }
 
     /**
@@ -256,12 +272,16 @@ public class FailureReporter {
 
     private FailureReport.ToolFailure toToolFailure(Context ctx, FailureClassifier.Classification c, Throwable cause) {
         String project = ctx.metadata().repoFullName();
+        String location = "";
         String command = "";
         Integer exitCode = null;
         var excerpt = "";
         if (cause instanceof ProcessFailedException process) {
             if (process.projectName() != null && !process.projectName().isBlank()) {
                 project = process.projectName();
+            }
+            if (process.location() != null) {
+                location = process.location();
             }
             command = redactor.redact(process.command());
             exitCode = process.exitCode();
@@ -270,11 +290,11 @@ public class FailureReporter {
         }
         return new FailureReport.ToolFailure(
             project, c.tool(), command, exitCode,
-            c.summary(), redactor.redact(c.errorLine()), c.hint(), excerpt, c.errorHash(), c.kind()
+            c.summary(), redactor.redact(c.errorLine()), c.hint(), excerpt, c.errorHash(), c.kind(), location
         );
     }
 
-    private static FailureReport buildReport(Context ctx, List<FailureReport.ToolFailure> failures) {
+    private static FailureReport buildReport(Context ctx, List<FailureReport.ToolFailure> failures, FailureReport.Scope scope) {
         var repo = ctx.repo();
         return new FailureReport(
             ctx.metadata().repoFullName(),
@@ -283,7 +303,8 @@ public class FailureReporter {
             ctx.metadata().commitSha(),
             ctx.started(),
             ctx.metadata().traceId(),
-            List.copyOf(failures)
+            List.copyOf(failures),
+            scope
         );
     }
 
@@ -302,7 +323,7 @@ public class FailureReporter {
                 return new Evaluation(Verdict.INCONCLUSIVE, null);
             }
             var failure = toToolFailure(ctx, classification, timeout);
-            return new Evaluation(Verdict.FAILED, buildReport(ctx, List.of(failure)));
+            return new Evaluation(Verdict.FAILED, buildReport(ctx, List.of(failure), FailureReport.Scope.UNKNOWN));
         } catch (RuntimeException e) {
             countError("evaluate");
             Log.warnf(e, "Could not evaluate timeout of repo %s", ctx.metadata().repoFullName());

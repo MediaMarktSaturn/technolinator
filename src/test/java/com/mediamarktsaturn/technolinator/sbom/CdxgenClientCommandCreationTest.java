@@ -63,6 +63,31 @@ class CdxgenClientCommandCreationTest {
     }
 
     @Test
+    void testLocationOfCommandsRelativeToRepository() {
+        // Given
+        var repo = Path.of("my-repo");
+        var root = ConfigBuilder.create()
+            .analysis(new TechnolinatorConfig.AnalysisConfig(null, null, null, null, null, List.of()))
+            .build();
+        var sub = ConfigBuilder.create("importer")
+            .analysis(new TechnolinatorConfig.AnalysisConfig("/services/importer/", null, null, null, null, List.of()))
+            .build();
+        var multi = ConfigBuilder.create()
+            .addSubProject(sub)
+            .build();
+
+        // When
+        var rootCommands = cut.createCommands(repo, "my-repo", false, Optional.of(root));
+        var multiCommands = cut.createCommands(repo, "my-repo", false, Optional.of(multi));
+        var configlessCommands = cut.createCommands(repo, "my-repo", false, Optional.empty());
+
+        // Then
+        assertThat(rootCommands).singleElement().satisfies(cmd -> assertThat(cmd.location()).isEmpty());
+        assertThat(configlessCommands).singleElement().satisfies(cmd -> assertThat(cmd.location()).isEmpty());
+        assertThat(multiCommands).singleElement().satisfies(cmd -> assertThat(cmd.location()).isEqualTo("services/importer"));
+    }
+
+    @Test
     void testNoEvidenceFlag() {
         // Given
         var config = ConfigBuilder.create()

@@ -102,6 +102,79 @@ class SecureModeAuditFilterTest {
     }
 
     @Test
+    void removesFollowingReportTablesButKeepsAbortMessage() {
+        var findings = List.of(
+            "+-------+----------+",
+            "|   Findings (1)     |",
+            "+-------+----------+",
+            "| 1     | HIGH     |",
+            "+-------+----------+"
+        );
+        var abort = List.of(
+            "+----------------+",
+            "| \uD83D\uDEAB SECURE MODE: High-risk configuration detected. Aborting SBOM generation. |",
+            "+----------------+"
+        );
+        var input = new ArrayList<String>();
+        input.add("before");
+        input.addAll(AUDIT_TABLE);
+        input.addAll(findings);
+        input.addAll(abort);
+        input.add("after");
+
+        var expected = new ArrayList<String>();
+        expected.add("before");
+        expected.addAll(abort);
+        expected.add("after");
+        assertThat(filter(input)).containsExactlyElementsOf(expected);
+    }
+
+    @Test
+    void keepsOtherTableDirectlyFollowingAuditTable() {
+        var input = new ArrayList<String>();
+        input.addAll(AUDIT_TABLE);
+        input.addAll(OTHER_TABLE);
+        input.add("after");
+
+        var expected = new ArrayList<>(OTHER_TABLE);
+        expected.add("after");
+        assertThat(filter(input)).containsExactlyElementsOf(expected);
+    }
+
+    @Test
+    void removesAuditTableWithPrivateModeAnsiSequences() {
+        var input = new ArrayList<String>();
+        input.add("before");
+        AUDIT_TABLE.forEach(line -> input.add("\u001B[?25l\u001B[33m" + line + "\u001B[39m"));
+        input.add("after");
+
+        assertThat(filter(input)).containsExactly("before", "after");
+    }
+
+    @Test
+    void removesDebugActivitySummaryTable() {
+        var summary = List.of(
+            "+----------------+----------------+--------------+",
+            "|                cdxgen debug activity summary                |",
+            "|              47 completed   0 blocked   0 failed             |",
+            "+----------------+----------------+--------------+",
+            "| Identifier     | Type           | Activity     |",
+            "+----------------+----------------+--------------+",
+            "| ACT-0001       |                | env          |",
+            "|                |                | Read environment variable CD |",
+            "+----------------+----------------+--------------+",
+            "| ACT-0002       |                | execute      |",
+            "+----------------+----------------+--------------+"
+        );
+        var input = new ArrayList<String>();
+        input.add("before");
+        input.addAll(summary);
+        input.add("after");
+
+        assertThat(filter(input)).containsExactly("before", "after");
+    }
+
+    @Test
     void keepsPlainOutput() {
         var input = List.of("a", "| not a table", "+ plus", "", "SECURE MODE: mentioned in text", "+---+", "no title row", "| SECURE MODE |");
 

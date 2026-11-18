@@ -66,8 +66,16 @@ public final class StatusReportRenderer {
         var body = new StringBuilder();
         body.append(marker.render()).append("\n\n");
         body.append("## ❌ SBOM creation is failing on ").append(code(report.branch())).append("\n\n");
-        body.append("Technolinator could not create the SBOM of this repository, so its dependencies are not tracked in Dependency-Track. ")
-            .append("This issue shows the current state of the analysis of ").append(code(report.branch())).append(".\n\n");
+        var scope = report.scope();
+        if (scope.isPartial()) {
+            body.append("Technolinator could not create the SBOM of ").append(scope.failed()).append(" of ").append(scope.total())
+                .append(" projects of this repository, so their dependencies are not tracked in Dependency-Track. ")
+                .append("This issue shows the current state of the analysis of ").append(code(report.branch())).append(".\n\n");
+            body.append(scopeNote(scope)).append("\n\n");
+        } else {
+            body.append("Technolinator could not create the SBOM of this repository, so its dependencies are not tracked in Dependency-Track. ")
+                .append("This issue shows the current state of the analysis of ").append(code(report.branch())).append(".\n\n");
+        }
         body.append("| | |\n|---|---|\n");
         body.append("| Failing since | ").append(TIME.format(failingSince)).append(" |\n");
         body.append("| Last analysis | ").append(commitLink(report)).append(" · ").append(TIME.format(report.started())).append(" |\n");
@@ -153,6 +161,10 @@ public final class StatusReportRenderer {
         body.append("## ❌ Technolinator could not create the SBOM\n\n");
         body.append("The analysis of ").append(commitLink(report)).append(" failed (").append(TIME.format(report.started())).append("). ")
             .append("This comment is updated with every analysis of this pull request.\n\n");
+        if (report.scope().isPartial()) {
+            body.append("Technolinator could not create the SBOM of ").append(report.scope().failed()).append(" of ").append(report.scope().total())
+                .append(" projects.\n\n").append(scopeNote(report.scope())).append("\n\n");
+        }
 
         var footer = new StringBuilder();
         footer.append("\n").append(followUp(report, includeLogs, true));
@@ -236,6 +248,22 @@ public final class StatusReportRenderer {
             + fenced(prompt) + "\n\n</details>\n\n";
     }
 
+    /**
+     * Tells that the analysis of a multi project repository worked in general, and which part of it did not.
+     */
+    static String scopeNote(FailureReport.Scope scope) {
+        var succeeded = scope.total() - scope.failed();
+        var note = new StringBuilder("✅ The other ").append(succeeded).append(succeeded == 1 ? " project was" : " projects were")
+            .append(" analysed successfully");
+        if (!scope.succeeded().isEmpty()) {
+            note.append(" (")
+                .append(scope.succeeded().stream().limit(MAX_LISTED_PROJECTS).map(StatusReportRenderer::code).collect(Collectors.joining(", ")))
+                .append(scope.succeeded().size() > MAX_LISTED_PROJECTS ? ", ..." : "")
+                .append(")");
+        }
+        return note.append(", only the projects below are affected.").toString();
+    }
+
     static String failureDetails(FailureReport report, boolean includeLogs, String headingLevel, int budget) {
         var failures = report.failures();
         var shown = failures.subList(0, Math.min(MAX_SHOWN_FAILURES, failures.size()));
@@ -248,6 +276,9 @@ public final class StatusReportRenderer {
                 result.append(" – probably ").append(code(failure.tool()));
             }
             result.append("\n\n");
+            if (failure.location() != null && !failure.location().isBlank()) {
+                result.append("**Module:** ").append(code(failure.location())).append("\n\n");
+            }
             result.append("**What happened:** ").append(failure.summary()).append("\n\n");
             if (includeLogs && failure.errorLine() != null && !failure.errorLine().isBlank()) {
                 result.append("**Key error:** ").append(code(failure.errorLine())).append("\n\n");

@@ -20,10 +20,14 @@ env:
   mvn_parameter: '-B -ntp'
   cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
   cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}
+permissions: {}
+
 jobs:
   verify:
     name: Verify cdxgen pre-release from branch
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Free disk space
         run: |

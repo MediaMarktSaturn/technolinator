@@ -3,6 +3,7 @@ package com.mediamarktsaturn.technolinator.sbom;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.os.ChildEnvironment;
 import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
 import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import com.mediamarktsaturn.technolinator.os.Util;
@@ -165,13 +166,21 @@ public class CdxgenClient {
      */
     private static final String CDXGEN_CMD_FMT = "cdxgen --spec-version 1.7 -o %s%s%s%s%s%s --project-name %s --no-validate";
 
+    /**
+     * @param location the analysed folder relative to the repository root, empty for the root itself
+     */
     public record SbomCreationCommand(
         Path repoDir,
         String projectName,
         String commandLine,
         Map<String, String> environment,
-        List<String> excludeFiles
+        List<String> excludeFiles,
+        String location
     ) implements Command<SBOMGenerationResult> {
+
+        public SbomCreationCommand(Path repoDir, String projectName, String commandLine, Map<String, String> environment, List<String> excludeFiles) {
+            this(repoDir, projectName, commandLine, environment, excludeFiles, "");
+        }
 
         @Override
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
@@ -199,21 +208,32 @@ public class CdxgenClient {
                     repoName,
                     buildCdxgenCommand(recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError, repoName),
                     buildEnv(List.of(), fetchLicenses),
-                    buildExcludeList(List.of())
+                    buildExcludeList(List.of()),
+                    ""
                 )
             );
         } else {
             return configPaths.stream().map(configPath -> {
                     var projectName = determineProjectName(repoName, configPath);
+                    var analysisFolder = determineAnalysisFolder(repoDir, configPath);
                     return new SbomCreationCommand(
-                        determineAnalysisFolder(repoDir, configPath),
+                        analysisFolder,
                         projectName,
                         buildCdxgenCommand(analyseRecursive(configPath), requiredScopeOnlyFlag(configPath), evidenceFlag(configPath), formulationFlag(configPath), failOnError, projectName),
                         buildEnv(configPath, fetchLicenses),
-                        buildExcludeList(configPath)
+                        buildExcludeList(configPath),
+                        relativeLocation(repoDir, analysisFolder)
                     );
                 }
             ).toList();
+        }
+    }
+
+    private static String relativeLocation(Path repoDir, Path analysisFolder) {
+        try {
+            return repoDir.relativize(analysisFolder).normalize().toString().replace('\\', '/');
+        } catch (IllegalArgumentException e) {
+            return "";
         }
     }
 
@@ -251,7 +271,21 @@ public class CdxgenClient {
 
     static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
         metadata.writeToMDC();
-        return ProcessHandler.run(cmd.commandLine, cmd.repoDir(), cmd.environment());
+        var inheritedEnv = ConfigProvider.getConfig().getOptionalValue("app.analysis.cdxgen.inherited_env", String.class)
+            .filter(str -> !str.isBlank())
+            .map(str -> Arrays.stream(str.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList())
+            .orElse(Collections.emptyList());
+        return ProcessHandler.runIsolated(cmd.commandLine, cmd.repoDir(), childEnvironment(System.getenv(), inheritedEnv, cmd.environment()));
+    }
+
+    /**
+     * The environment cdxgen runs with: the explicitly configured one on top of the part of Technolinators environment
+     * the tools need, see {@link ChildEnvironment}.
+     */
+    static Map<String, String> childEnvironment(Map<String, String> parentEnv, List<String> inherited, Map<String, String> explicit) {
+        var env = ChildEnvironment.inherited(parentEnv, inherited);
+        env.putAll(explicit);
+        return env;
     }
 
     static Result<SBOMGenerationResult> parseSbom(SbomCreationCommand cmd, ProcessHandler.ProcessResult generationResult, Command.Metadata metadata) {
@@ -265,7 +299,7 @@ public class CdxgenClient {
                     yield parseSbomFile(sbomFile, cmd.projectName());
                 } else {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? pfe.withProjectName(cmd.projectName()) : f.cause());
+                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? pfe.withProject(cmd.projectName(), cmd.location()) : f.cause());
                 }
             }
         };

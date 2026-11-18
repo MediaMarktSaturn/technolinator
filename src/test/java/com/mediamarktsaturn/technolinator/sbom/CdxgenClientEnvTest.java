@@ -192,6 +192,27 @@ class CdxgenClientEnvTest {
     }
 
     @Test
+    void testChildEnvironmentOnlyContainsInheritedAndExplicitValues() {
+        // Given
+        var parent = Map.of(
+            "PATH", "/usr/bin",
+            "JAVA_HOME", "/sdk/java25",
+            "GITHUB_USER", "nobody",
+            "DTRACK_APIKEY", "secret"
+        );
+        var explicit = Map.of("JAVA_HOME", "/sdk/java21", "GITHUB_TOKEN", "token");
+
+        // When
+        var result = CdxgenClient.childEnvironment(parent, List.of("GITHUB_USER"), explicit);
+
+        // Then
+        assertThat(result)
+            .containsOnlyKeys("PATH", "JAVA_HOME", "GITHUB_USER", "GITHUB_TOKEN")
+            .containsEntry("JAVA_HOME", "/sdk/java21");
+        assertThat(CdxgenClient.childEnvironment(parent, List.of(), explicit)).doesNotContainKeys("GITHUB_USER", "DTRACK_APIKEY");
+    }
+
+    @Test
     void testSingleJdkVersionSelection() {
         // Given
         var config = ConfigBuilder.create()

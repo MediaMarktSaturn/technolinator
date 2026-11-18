@@ -28,6 +28,16 @@ class ProcessFailedExceptionTest {
     }
 
     @Test
+    void projectNameAndLocationCanBeAttached() {
+        var named = new ProcessFailedException("cdxgen", 1, List.of("a")).withProject("backend", "services/backend");
+
+        assertThat(named.projectName()).isEqualTo("backend");
+        assertThat(named.location()).isEqualTo("services/backend");
+        assertThat(named.withProjectName("other").location()).isEqualTo("services/backend");
+        assertThat(new ProcessFailedException("cdxgen", 1, List.of()).location()).isNull();
+    }
+
+    @Test
     void projectNameCanBeAttached() {
         var original = new ProcessFailedException("cdxgen", 1, List.of("a"));
 

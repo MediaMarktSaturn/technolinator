@@ -11,10 +11,14 @@ name: "Close Dependabot Pull Request"
     paths:
       - "src/test/**"
 
+permissions: {}
+
 jobs:
   run:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      pull-requests: write # comment on and close the PR
     if: ${{ github.actor == 'dependabot[bot]' }}
     steps:
       - uses: superbrothers/close-pull-request@9c18513d320d7b2c7185fb93396d0c664d5d8448 # v3.1.2

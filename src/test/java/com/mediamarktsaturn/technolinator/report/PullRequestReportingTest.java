@@ -178,7 +178,8 @@ class PullRequestReportingTest extends GitHubReportingTestSupport {
 
             var comment = botComment(pull.number);
             assertThat(comment.body).contains(FAILED_HEADER).contains("`shop-web`").contains("ERESOLVE");
-            assertThat(comment.body).doesNotContain("`shop-api`");
+            assertThat(comment.body).contains("1 of 2 projects").contains("analysed successfully (`shop-api`)");
+            assertThat(comment.body).doesNotContain("### `shop-api`");
         }
     }
 

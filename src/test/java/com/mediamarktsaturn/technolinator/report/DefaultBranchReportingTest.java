@@ -132,7 +132,8 @@ class DefaultBranchReportingTest extends GitHubReportingTestSupport {
 
             assertThat(github.openIssues()).singleElement().satisfies(issue -> {
                 assertThat(issue.body).contains("`shop-web`").contains("ERESOLVE");
-                assertThat(issue.body).doesNotContain("`shop-api`");
+                assertThat(issue.body).contains("1 of 2 projects").contains("analysed successfully (`shop-api`)");
+                assertThat(issue.body).doesNotContain("### `shop-api`");
             });
         }
     }
