@@ -6,20 +6,27 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import io.smallrye.mutiny.Uni;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Duration;
+import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.child;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.inactive;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.plainProject;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.project;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.repo;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.groups.Tuple.tuple;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -74,6 +81,8 @@ class HousekeepingServiceTest {
 
     private void given(GitHubRepositoryIndex index, List<DependencyTrackProject> projects) {
         when(indexer.build(any())).thenReturn(Uni.createFrom().item(index));
+        // by default, GitHub doesn't know any of the repositories missing in the listings
+        when(indexer.confirmGone(any(), any())).thenAnswer(invocation -> Uni.createFrom().item(Set.copyOf(invocation.<Collection<RepositoryReference>>getArgument(1))));
         when(dtrack.listProjects(false)).thenReturn(Uni.createFrom().item(projects));
     }
 
@@ -323,6 +332,98 @@ class HousekeepingServiceTest {
 
         // Then
         assertThat(processed).hasSize(3);
+    }
+
+    @Test
+    void treatsRepositoriesMissingInTheListingAsUnknownUnlessConfirmedGone() {
+        // Given
+        given(
+            index(repo("org", "app", false)),
+            List.of(
+                project("p1", "app", "org", "app"),
+                // renamed on GitHub, which redirects to the new name
+                project("p2", "renamed", "org", "renamed"),
+                project("p3", "deleted", "org", "deleted")
+            )
+        );
+        doReturn(Uni.createFrom().item(Set.of(new RepositoryReference("github.com", "org", "deleted")))).when(indexer).confirmGone(any(), any());
+
+        // When
+        run(service());
+
+        // Then
+        assertThat(processed).hasSize(3);
+        assertThat(processed.stream().filter(unit -> unit.repository().isEmpty()))
+            .extracting(unit -> unit.projects().getFirst().uuid(), HousekeepingUnit::repositoryState)
+            .containsExactlyInAnyOrder(
+                tuple("p2", GitHubRepositoryIndex.State.UNKNOWN),
+                tuple("p3", GitHubRepositoryIndex.State.GONE));
+    }
+
+    @Test
+    void treatsRepositoriesWithNamesakeInOtherAccountAsUnknown() {
+        // Given
+        given(
+            GitHubRepositoryIndex.builder()
+                .addInstallation("github.com", "org", true, List.of(repo("org", "app", false)))
+                .addInstallation("github.com", "other-org", true, List.of(repo("other-org", "transferred", false)))
+                .build(),
+            List.of(project("p1", "transferred", "org", "transferred"))
+        );
+
+        // When
+        run(service());
+
+        // Then
+        assertThat(processed.stream().filter(unit -> unit.repository().isEmpty()))
+            .extracting(HousekeepingUnit::repositoryState).containsExactly(GitHubRepositoryIndex.State.UNKNOWN);
+        verify(indexer, never()).confirmGone(any(), any());
+    }
+
+    @Test
+    void treatsRepositoriesAsUnknownIfTheyCanNotBeLookedUp() {
+        // Given
+        given(index(repo("org", "app", false)), List.of(project("p1", "deleted", "org", "deleted")));
+        doReturn(Uni.createFrom().failure(new IllegalStateException("github down"))).when(indexer).confirmGone(any(), any());
+
+        // When
+        run(service());
+
+        // Then
+        assertThat(processed.stream().filter(unit -> unit.repository().isEmpty()))
+            .extracting(HousekeepingUnit::repositoryState).containsExactly(GitHubRepositoryIndex.State.UNKNOWN);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void looksUpOnlyRepositoriesOfActiveProjectsAndTheirAncestors() {
+        // Given
+        given(
+            index(repo("org", "app", false)),
+            List.of(
+                // deleted long ago, nothing left to archive
+                inactive(project("p1", "old", "org", "old")),
+                // archived parent, whose active child without references follows it
+                inactive(project("p2", "parent", "org", "parent")),
+                new DependencyTrackProject("p3", "module", "main", true, Optional.of("p2"), List.of(), Optional.empty()),
+                // active project with archived child
+                project("p4", "deleted", "org", "deleted"),
+                inactive(child("p5", "deleted-module", "p4", "org", "deleted-module"))
+            )
+        );
+        ArgumentCaptor<Collection<RepositoryReference>> candidates = ArgumentCaptor.forClass(Collection.class);
+
+        // When
+        run(service());
+
+        // Then
+        verify(indexer).confirmGone(any(), candidates.capture());
+        assertThat(candidates.getValue()).containsExactlyInAnyOrder(
+            new RepositoryReference("github.com", "org", "parent"),
+            new RepositoryReference("github.com", "org", "deleted"));
+        // not confirmed, as not looked up
+        assertThat(processed.stream().filter(unit -> unit.projects().stream().anyMatch(project -> project.uuid().equals("p1"))))
+            .extracting(HousekeepingUnit::repositoryState).containsExactly(GitHubRepositoryIndex.State.UNKNOWN);
     }
 
     @Test

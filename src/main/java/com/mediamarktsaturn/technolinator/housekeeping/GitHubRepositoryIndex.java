@@ -1,6 +1,7 @@
 package com.mediamarktsaturn.technolinator.housekeeping;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -19,6 +20,10 @@ import java.util.Set;
  *     not being listed might just have been removed from the selection of the installation</li>
  * </ul>
  * In any other case, e.g. for accounts without installation, the state is {@link State#UNKNOWN}.
+ * <p>
+ * Not being listed doesn't mean not existing, though: GitHub redirects renamed and transferred repositories, so a repository might just be
+ * known under another name or account. Whoever acts on {@link State#GONE} should confirm it by looking the repository up on its own, and
+ * {@link #withUnconfirmedGone} turns the ones that couldn't be confirmed into {@link State#UNKNOWN}.
  * <p>
  * Instead of being built from complete listings, an index might consist of single repositories looked at on their own (see
  * {@link Builder#addRepository} and {@link Builder#addGoneRepository}), which only tell about themselves.
@@ -47,11 +52,13 @@ public final class GitHubRepositoryIndex {
     private final Map<String, Owner> owners;
     private final List<GitHubRepo> repositories;
     private final int failedInstallations;
+    private final Set<RepositoryReference> unconfirmedGone;
 
-    private GitHubRepositoryIndex(Map<String, Owner> owners, List<GitHubRepo> repositories, int failedInstallations) {
+    private GitHubRepositoryIndex(Map<String, Owner> owners, List<GitHubRepo> repositories, int failedInstallations, Set<RepositoryReference> unconfirmedGone) {
         this.owners = owners;
         this.repositories = repositories;
         this.failedInstallations = failedInstallations;
+        this.unconfirmedGone = unconfirmedGone;
     }
 
     public State lookup(RepositoryReference repository) {
@@ -61,9 +68,20 @@ public final class GitHubRepositoryIndex {
         }
         var found = owner.repositories.get(repository.name());
         if (found == null) {
-            return owner.exhaustive || owner.gone.contains(repository.name()) ? State.GONE : State.UNKNOWN;
+            var gone = owner.exhaustive || owner.gone.contains(repository.name());
+            return gone && !unconfirmedGone.contains(repository) ? State.GONE : State.UNKNOWN;
         }
         return found.archived() ? State.ARCHIVED : State.ACTIVE;
+    }
+
+    /**
+     * @return a copy of this index reporting the given repositories as {@link State#UNKNOWN} instead of {@link State#GONE},
+     * for the ones that couldn't be confirmed to be gone by looking them up on their own
+     */
+    public GitHubRepositoryIndex withUnconfirmedGone(Collection<RepositoryReference> repositories) {
+        var all = new HashSet<>(unconfirmedGone);
+        all.addAll(repositories);
+        return new GitHubRepositoryIndex(owners, this.repositories, failedInstallations, Set.copyOf(all));
     }
 
     /**
@@ -161,7 +179,7 @@ public final class GitHubRepositoryIndex {
             var all = new ArrayList<GitHubRepo>();
             owners.values().forEach(owner -> all.addAll(owner.repositories().values()));
             all.sort(Comparator.comparing(GitHubRepo::fullName));
-            return new GitHubRepositoryIndex(Map.copyOf(owners), List.copyOf(all), failedInstallations);
+            return new GitHubRepositoryIndex(Map.copyOf(owners), List.copyOf(all), failedInstallations, Set.of());
         }
     }
 }

@@ -33,8 +33,14 @@ flowchart TD
 | projects only              | `GONE`                 | The projects (or their nearest ancestor with a reference) reference exactly one repository, that certainly doesn't exist anymore |
 | projects only              | `UNKNOWN`              | No repository could be matched and nothing can be said: no or several references, accounts without installation of the app, a repository existing but named differently, or projects claimed by more than one repository ("contested", including their descendants) |
 
-A repository is considered `GONE` only if its owner has an installation with access to *all repositories*, the repository list was non-empty and doesn't contain it.
+A repository is considered `GONE` only if all of the following holds:
+
+* its owner has an installation with access to *all repositories*, the repository list was non-empty and doesn't contain it
+* GitHub doesn't know it when looked up on its own with that installation. GitHub keeps renamed and transferred repositories alive and redirects to them, so a repository missing in the list may well exist (and not be archived) under another name or owner. Only a plain "not found" counts, a redirect or a failing lookup makes it `UNKNOWN`
+* no repository of the same name exists under another owner of the listings, which might be the transferred one
+
 Repositories of installations restricted to *selected repositories* are never `GONE`: a deleted repository can't be told apart from a deselected one.
+The lookup is only done for repositories referenced by active projects (or their ancestors), as only those can get projects archived. Repositories having archived projects only aren't looked up, which saves GitHub requests for long-gone repositories in every run, and are `UNKNOWN` therefore.
 
 ### Reliability of the listings
 
@@ -87,7 +93,7 @@ Selected names that don't match anything are logged as a warning. `APP_ENABLED_R
 
 A run with a selection is **targeted**: it neither lists all repositories of all installations nor all Dependency-Track projects. Instead
 
-* the installations are listed (cheap), but only the named repositories are fetched, each one from the installation of its owner. A repository that's not found there (or was renamed/transferred) counts as gone, an owner without an active installation or a failing lookup as unknown, so nothing is archived on that basis.
+* the installations are listed (cheap), but only the named repositories are fetched, each one from the installation of its owner. A repository that's not found there counts as gone, a renamed/transferred one, an owner without an active installation or a failing lookup as unknown, so nothing is archived on that basis.
 * selected projects are fetched by UUID or searched by name, together with their parents and children.
 * the projects of a repository are searched by the repository's name, and matched like in the full run, including the ones referencing the repository under another name.
 
@@ -152,5 +158,57 @@ Safeguards:
 * Already archived projects are left alone.
 
 Archiving is reversible: the next BOM upload for the project reactivates it, e.g. when the repository was only temporarily unavailable or got renamed back.
-A repository renamed without Technolinator having seen the event gets its old projects archived; the next analysis creates or reactivates the projects under the new name.
+A repository renamed without Technolinator having seen the event keeps its old projects: they're `UNKNOWN`, as the repository isn't gone, and the next analysis creates or reactivates the projects under the new name.
 The action honors dry-run mode, which only logs the projects that would be archived.
+
+## Action `update-project-metadata`
+
+Backfills the external references and tags of Dependency-Track projects, the way the BOM upload sets them (`PATCH /project/{uuid}`), for projects created before Technolinator did so, e.g. the `owner=<owner>` tag.
+It applies to units with an `ACTIVE` repository and projects.
+
+| Environment variable                                       | Default | Description                                                                                    |
+|------------------------------------------------------------|---------|------------------------------------------------------------------------------------------------|
+| `APP_HOUSEKEEPING_UPDATE_PROJECT_METADATA_ENABLED`         | `true`  | Action switch. Runs only happen if triggered manually or `APP_HOUSEKEEPING_ENABLED` schedules them |
+| `APP_HOUSEKEEPING_UPDATE_PROJECT_METADATA_MAX_PER_RUN`     | `1000`  | Upper limit of projects looked at per run, which spreads the backfill over multiple runs. Checked per unit, so the last repository's projects might exceed it |
+
+Which projects: only the ones *definitely* belonging to the repository, decided by the same rules as for repository events (`RepositoryProjectMatcher`):
+projects referencing the repository (VCS or website), projects named exactly like the repository while having no repository reference at all, and children of these named `<repository>-...`.
+As the project doesn't have any relation to the GitHub organization in Dependency-Track, this relies on the name, and projects of same-named repositories of different installations are left alone (contested, see `UnitMatcher`).
+Archived projects, projects of archived repositories and `UNKNOWN` units aren't touched.
+
+What is set:
+
+* **References:** VCS (git URL), website (HTML URL) and release notes (`<website>/releases`) of the repository, replacing the ones of these types. References of other types are kept.
+* **Tags:** `owner=<owner>` and the GitHub topics of the repository. Tags of the form `key=value` are kept (`sbom-quality-score=...` and the backstage annotations, which the upload derives from the BOM analysis and `catalog-info.yaml`, neither being available to housekeeping). Other tags are replaced, as GitHub topics can't contain `=`.
+* Nothing else: description, state and parent of the project stay as they are, so archived versions don't get reactivated.
+
+Safeguards and costs:
+
+* Only projects lacking one of the references or the owner tag are looked at. GitHub is asked for the topics (2 requests per repository, with the installation's rate limit in mind) only if there's such a project, so a run after the backfill is for free. Topics changed on GitHub reach the projects with their next BOM upload.
+* Before updating, the project is fetched again, so tags changed meanwhile (e.g. by an upload during the run) aren't overwritten.
+* The action honors dry-run mode, which still reads the topics from GitHub, but only logs the projects that would be updated.
+
+## Action `reactivate-projects`
+
+The counterpart of `archive-orphaned-projects`: reactivates archived Dependency-Track projects of repositories that are `ACTIVE` (existing and not archived).
+It repairs projects archived by mistake, e.g. by faulty repository data, or whose repository got unarchived since.
+It applies to units with an `ACTIVE` repository and at least one archived project.
+
+| Environment variable                                   | Default | Description                                                                                    |
+|--------------------------------------------------------|---------|------------------------------------------------------------------------------------------------|
+| `APP_HOUSEKEEPING_REACTIVATE_PROJECTS_ENABLED`         | `true`  | Action switch. Runs only happen if triggered manually or `APP_HOUSEKEEPING_ENABLED` schedules them |
+| `APP_HOUSEKEEPING_REACTIVATE_PROJECTS_MAX_PER_RUN`     | `500`   | Upper limit of projects reactivated per run. Checked per unit, so the last repository's projects might exceed it |
+
+Which projects: only the ones *definitely* belonging to the repository, same rules as for `update-project-metadata`, and additionally:
+
+* Old versions stay archived: the BOM upload archives all other versions of a project, so only one version per project name is expected to be active. Hence nothing is reactivated if a version of the same name is active already.
+* Of several archived versions with the same name, the one with the latest BOM import is reactivated. If none of them has a BOM import, it can't be told and they're left alone.
+* **Parents are reactivated before their children**. If a project fails, its children (and the remaining ones of the unit) are left for the next run. Children of a parent staying archived (e.g. an old version superseded by an active one) stay archived as well.
+
+Limitations:
+
+* Projects of *renamed* repositories keep their old name and old references, so they don't match the repository anymore. They're `UNKNOWN` and not reactivated, but the next BOM upload under the new name creates or reactivates the projects.
+* The action can't tell archiving by mistake from archiving on purpose: projects archived manually while their repository is active are reactivated, too. Once the repair is done, consider switching the action off.
+* The project listing is taken at the start of the run, so a concurrent BOM upload might race with it. Both leave the project active.
+
+The action honors dry-run mode, which only logs the projects that would be reactivated. Recommended for the first run.

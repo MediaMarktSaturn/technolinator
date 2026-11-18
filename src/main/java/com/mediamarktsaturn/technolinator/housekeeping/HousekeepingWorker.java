@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.housekeeping;
 
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackProject;
+import com.mediamarktsaturn.technolinator.sbom.RepositoryProjectMatcher;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -10,7 +11,12 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
+import java.io.IOException;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -34,17 +40,28 @@ import java.util.function.Predicate;
  * Actions:
  * <ul>
  *     <li>{@value #ARCHIVE_ORPHANED_PROJECTS}: archives the Dependency-Track projects, whose GitHub repository is archived or doesn't exist anymore</li>
+ *     <li>{@value #REACTIVATE_PROJECTS}: reactivates archived Dependency-Track projects, that definitely belong to an active GitHub repository and aren't
+ *     superseded by an active version, which repairs projects archived by mistake</li>
+ *     <li>{@value #UPDATE_PROJECT_METADATA}: backfills the external references and tags of the projects definitely belonging to an active repository,
+ *     the way the BOM upload sets them</li>
  * </ul>
  */
 @ApplicationScoped
 public class HousekeepingWorker {
 
     public static final String ARCHIVE_ORPHANED_PROJECTS = "archive-orphaned-projects";
+    public static final String UPDATE_PROJECT_METADATA = "update-project-metadata";
+    public static final String REACTIVATE_PROJECTS = "reactivate-projects";
 
     private final DependencyTrackClient dtrackClient;
+    private final GitHubRepositoryTopics repositoryTopics;
     private final MeterRegistry meterRegistry;
     private final Duration actionTimeout;
     private final int maxArchivedPerRun;
+    private final boolean updateProjectMetadata;
+    private final int maxMetadataUpdatesPerRun;
+    private final boolean reactivateProjects;
+    private final int maxReactivatedPerRun;
     private final List<Action> actions;
 
     private final Map<String, RunState> runs = new ConcurrentHashMap<>();
@@ -52,17 +69,29 @@ public class HousekeepingWorker {
     @Inject
     public HousekeepingWorker(
         DependencyTrackClient dtrackClient,
+        GitHubRepositoryTopics repositoryTopics,
         MeterRegistry meterRegistry,
         @ConfigProperty(name = "app.housekeeping.task_timeout") Duration actionTimeout,
         @ConfigProperty(name = "app.housekeeping.archive-orphaned-projects.enabled") boolean archiveOrphanedProjects,
-        @ConfigProperty(name = "app.housekeeping.archive-orphaned-projects.max-per-run") int maxArchivedPerRun
+        @ConfigProperty(name = "app.housekeeping.archive-orphaned-projects.max-per-run") int maxArchivedPerRun,
+        @ConfigProperty(name = "app.housekeeping.update-project-metadata.enabled") boolean updateProjectMetadata,
+        @ConfigProperty(name = "app.housekeeping.update-project-metadata.max-per-run") int maxMetadataUpdatesPerRun,
+        @ConfigProperty(name = "app.housekeeping.reactivate-projects.enabled") boolean reactivateProjects,
+        @ConfigProperty(name = "app.housekeeping.reactivate-projects.max-per-run") int maxReactivatedPerRun
     ) {
         this.dtrackClient = dtrackClient;
+        this.repositoryTopics = repositoryTopics;
         this.meterRegistry = meterRegistry;
         this.actionTimeout = actionTimeout;
         this.maxArchivedPerRun = maxArchivedPerRun;
+        this.updateProjectMetadata = updateProjectMetadata;
+        this.maxMetadataUpdatesPerRun = maxMetadataUpdatesPerRun;
+        this.reactivateProjects = reactivateProjects;
+        this.maxReactivatedPerRun = maxReactivatedPerRun;
         this.actions = List.of(
-            new Action(ARCHIVE_ORPHANED_PROJECTS, () -> archiveOrphanedProjects, this::isOrphanedProjectsUnit, this::archiveOrphanedProjects)
+            new Action(ARCHIVE_ORPHANED_PROJECTS, () -> archiveOrphanedProjects, this::isOrphanedProjectsUnit, this::archiveOrphanedProjects),
+            new Action(REACTIVATE_PROJECTS, () -> reactivateProjects, this::hasInactiveProjectsOfActiveRepository, this::reactivateProjects),
+            new Action(UPDATE_PROJECT_METADATA, () -> updateProjectMetadata, this::isActiveRepositoryUnit, this::updateProjectMetadata)
         );
     }
 
@@ -95,6 +124,14 @@ public class HousekeepingWorker {
         run.writeToMDC();
         Log.infof("%s %d of %d projects, whose repository is archived or doesn't exist anymore",
             run.dryRun() ? "Would have archived" : "Archived", state.archived.get(), state.archiveCandidates.get());
+        if (reactivateProjects) {
+            Log.infof("%s %d of %d archived projects of active repositories",
+                run.dryRun() ? "Would have reactivated" : "Reactivated", state.reactivated.get(), state.reactivationCandidates.get());
+        }
+        if (updateProjectMetadata) {
+            Log.infof("%s %d of %d projects lacking references or tags of their repository",
+                run.dryRun() ? "Would have updated" : "Updated", state.metadataUpdated.get(), state.metadataCandidates.get());
+        }
     }
 
     /**
@@ -216,6 +253,190 @@ public class HousekeepingWorker {
                 : Uni.createFrom().failure(new IllegalStateException("Could not archive %d of %d projects".formatted(failed, wave.size()))));
     }
 
+    private boolean isActiveRepositoryUnit(HousekeepingUnit unit) {
+        return unit.repositoryState() == GitHubRepositoryIndex.State.ACTIVE && !unit.projects().isEmpty();
+    }
+
+    /**
+     * Adds the references to the repository and the tags (owner, topics) to the projects belonging to an active repository, that lack them,
+     * which is the case for projects created before Technolinator set them, or by other means.
+     * <p>
+     * Only projects definitely belonging to the repository are touched, which are the ones identified by the same rules as the BOM upload
+     * does ({@link RepositoryProjectMatcher#select}: by reference, or by their name if they don't have any). Projects matched by being part of a
+     * unit only are left alone, and so are the ones claimed by multiple repositories, see {@link UnitMatcher}.
+     * <p>
+     * Only projects lacking the references to the repository or its owner tag are looked at, the others are up to date as far as housekeeping is
+     * concerned, so GitHub is only asked for topics when there's something to do. Topics changed on GitHub reach the projects with their next BOM upload.
+     * Before changing, the project is fetched again, to not overwrite tags that changed meanwhile (e.g. by an upload during the run).
+     * Only references and tags are sent, so neither the description nor the state of a project (archived ones stay archived) are touched.
+     * As with the upload, references and tags are replaced by the desired ones, though the ones the upload derives from analysis
+     * (the form {@code key=value}, see {@link ProjectMetadata}) are kept, and so are references of other types.
+     * <p>
+     * No more than {@code max-per-run} projects are looked at per run, which spreads the backfill over multiple runs.
+     * The limit is checked per unit, so the projects of the last repository might exceed it.
+     */
+    private Uni<Void> updateProjectMetadata(HousekeepingUnit unit) {
+        var state = state(unit.run());
+        var repository = unit.repository().orElseThrow();
+        var candidates = RepositoryProjectMatcher.select(unit.projects(), repository.name(), repository.gitUrl(), repository.htmlUrl()).stream()
+            .filter(DependencyTrackProject::active)
+            .filter(project -> ProjectMetadata.lacksRepositoryMetadata(project, repository))
+            .toList();
+        if (candidates.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        var candidatesBefore = state.metadataCandidates.getAndAdd(candidates.size());
+        if (candidatesBefore >= maxMetadataUpdatesPerRun) {
+            if (!state.metadataLimitReported.getAndSet(true)) {
+                Log.warnf("Limit of %d updated projects per run reached, leaving the remaining ones for the next run", maxMetadataUpdatesPerRun);
+            }
+            return Uni.createFrom().voidItem();
+        }
+
+        List<String> topics;
+        try {
+            topics = repositoryTopics.topics(repository);
+        } catch (IOException e) {
+            return Uni.createFrom().failure(new IllegalStateException("Could not fetch topics of repository " + repository.fullName(), e));
+        }
+
+        if (unit.dryRun()) {
+            var updates = candidates.stream()
+                .filter(project -> ProjectMetadata.requiredUpdate(project, repository, topics).isPresent())
+                .map(DependencyTrackProject::displayName)
+                .toList();
+            state.metadataUpdated.addAndGet(updates.size());
+            if (!updates.isEmpty()) {
+                Log.infof("Would update references and tags of %d project(s) of repository %s: %s", updates.size(), repository.fullName(), updates);
+            }
+            return Uni.createFrom().voidItem();
+        }
+
+        Log.infof("Updating references and tags of %d project(s) of repository %s", candidates.size(), repository.fullName());
+        Uni<Integer> failures = Uni.createFrom().item(0);
+        for (var candidate : candidates) {
+            failures = failures.chain(failed -> updateMetadata(candidate, repository, topics, state).map(success -> success ? failed : failed + 1));
+        }
+        return failures.chain(failed -> failed == 0
+            ? Uni.createFrom().voidItem()
+            : Uni.createFrom().failure(new IllegalStateException("Could not update %d of %d projects".formatted(failed, candidates.size()))));
+    }
+
+    private Uni<Boolean> updateMetadata(DependencyTrackProject listed, GitHubRepo repository, List<String> topics, RunState state) {
+        return dtrackClient.getProject(listed.uuid())
+            .chain(current -> {
+                if (current.isEmpty() || !current.get().active()) {
+                    return Uni.createFrom().item(true);
+                }
+                var update = ProjectMetadata.requiredUpdate(current.get(), repository, topics);
+                if (update.isEmpty()) {
+                    return Uni.createFrom().item(true);
+                }
+                return dtrackClient.updateProjectReferencesAndTags(listed.uuid(), update.get().references(), update.get().tags())
+                    .invoke(updated -> {
+                        if (updated) {
+                            state.metadataUpdated.incrementAndGet();
+                        }
+                    });
+            })
+            .onFailure().recoverWithItem(failure -> {
+                Log.warnf(failure, "Could not update references and tags of project %s", listed.displayName());
+                return false;
+            });
+    }
+
+    private boolean hasInactiveProjectsOfActiveRepository(HousekeepingUnit unit) {
+        return isActiveRepositoryUnit(unit) && unit.projects().stream().anyMatch(project -> !project.active());
+    }
+
+    /**
+     * Reactivates archived projects of an active repository, which repairs projects archived by mistake, e.g. by faulty repository data
+     * or by archiving a repository that's unarchived since.
+     * <p>
+     * Archived projects are the normal case for old versions: the BOM upload archives all other versions of a project, so only one version
+     * of every project is expected to be active. Hence only projects definitely belonging to the repository ({@link RepositoryProjectMatcher#select},
+     * same as for the metadata) are considered, and only if no version of the same name is active. Of several archived versions, the one with the
+     * latest BOM import is reactivated, none if that can't be told.
+     * Parents are reactivated before their children, and children of a parent staying archived stay archived as well.
+     * <p>
+     * Mind that this reverts projects archived on purpose, too, while their repository is active. Switch the action off, if that's not wanted.
+     * No more than {@code max-per-run} projects are reactivated per run, checked per unit, so the last repository's projects might exceed it.
+     */
+    private Uni<Void> reactivateProjects(HousekeepingUnit unit) {
+        var state = state(unit.run());
+        var repository = unit.repository().orElseThrow();
+        var candidates = projectsToReactivate(unit, repository);
+        if (candidates.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        var candidatesBefore = state.reactivationCandidates.getAndAdd(candidates.size());
+        if (candidatesBefore >= maxReactivatedPerRun) {
+            if (!state.reactivationLimitReported.getAndSet(true)) {
+                Log.warnf("Limit of %d reactivated projects per run reached, leaving the remaining ones for the next run", maxReactivatedPerRun);
+            }
+            return Uni.createFrom().voidItem();
+        }
+
+        if (unit.dryRun()) {
+            state.reactivated.addAndGet(candidates.size());
+            Log.infof("Would reactivate %d project(s) of active repository %s: %s", candidates.size(), repository.fullName(),
+                candidates.stream().map(DependencyTrackProject::displayName).toList());
+            return Uni.createFrom().voidItem();
+        }
+
+        Log.infof("Reactivating %d project(s) of active repository %s", candidates.size(), repository.fullName());
+        Uni<Void> chain = Uni.createFrom().voidItem();
+        for (var wave : unit.groupParentsFirst(candidates)) {
+            chain = chain.chain(() -> reactivateWave(wave, state));
+        }
+        return chain;
+    }
+
+    private static List<DependencyTrackProject> projectsToReactivate(HousekeepingUnit unit, GitHubRepo repository) {
+        var byName = new LinkedHashMap<String, List<DependencyTrackProject>>();
+        RepositoryProjectMatcher.select(unit.projects(), repository.name(), repository.gitUrl(), repository.htmlUrl())
+            .forEach(project -> byName.computeIfAbsent(project.name(), name -> new ArrayList<>()).add(project));
+
+        var candidates = new LinkedHashMap<String, DependencyTrackProject>();
+        for (var versions : byName.values()) {
+            if (versions.stream().anyMatch(DependencyTrackProject::active)) {
+                continue;
+            }
+            if (versions.size() == 1) {
+                candidates.put(versions.getFirst().uuid(), versions.getFirst());
+            } else {
+                versions.stream()
+                    .filter(version -> version.lastBomImport().isPresent())
+                    .max(Comparator.comparing(version -> version.lastBomImport().orElseThrow()))
+                    .ifPresent(latest -> candidates.put(latest.uuid(), latest));
+            }
+        }
+
+        // children are better left archived than active below a parent staying archived, which cascades down the hierarchy
+        var archived = new HashMap<String, DependencyTrackProject>();
+        unit.projects().stream().filter(project -> !project.active()).forEach(project -> archived.put(project.uuid(), project));
+        boolean removed;
+        do {
+            removed = candidates.values().removeIf(candidate -> candidate.parentUuid()
+                .filter(parent -> archived.containsKey(parent) && !candidates.containsKey(parent))
+                .isPresent());
+        } while (removed);
+        return List.copyOf(candidates.values());
+    }
+
+    private Uni<Void> reactivateWave(List<DependencyTrackProject> wave, RunState state) {
+        return Uni.combine().all().unis(
+                wave.stream().map(project -> dtrackClient.reactivateProject(project.uuid())).toList()
+            ).with(Boolean.class, results -> (int) results.stream().filter(reactivated -> !reactivated).count())
+            .invoke(failed -> state.reactivated.addAndGet(wave.size() - failed))
+            .chain(failed -> failed == 0
+                ? Uni.createFrom().voidItem()
+                // children are better left archived than active below an archived parent
+                : Uni.createFrom().failure(new IllegalStateException("Could not reactivate %d of %d projects".formatted(failed, wave.size()))));
+    }
+
     private record Action(
         String name,
         BooleanSupplier enabled,
@@ -229,5 +450,13 @@ public class HousekeepingWorker {
         // in dry-run mode: would have been archived
         final AtomicInteger archived = new AtomicInteger();
         final AtomicBoolean limitReported = new AtomicBoolean();
+        final AtomicInteger metadataCandidates = new AtomicInteger();
+        // in dry-run mode: would have been updated
+        final AtomicInteger metadataUpdated = new AtomicInteger();
+        final AtomicBoolean metadataLimitReported = new AtomicBoolean();
+        final AtomicInteger reactivationCandidates = new AtomicInteger();
+        // in dry-run mode: would have been reactivated
+        final AtomicInteger reactivated = new AtomicInteger();
+        final AtomicBoolean reactivationLimitReported = new AtomicBoolean();
     }
 }

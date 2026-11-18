@@ -13,6 +13,9 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -180,6 +183,7 @@ public class HousekeepingService {
                 .map(listings -> new TargetedListing.Listing(listings.getItem1(), listings.getItem2()))
             : targetedListing.load(run, selection));
         return listing
+            .chain(listings -> selection.isAll() ? confirmGone(run, listings) : Uni.createFrom().item(listings))
             .chain(listings -> {
                 var index = listings.index();
                 var projects = listings.projects();
@@ -231,6 +235,74 @@ public class HousekeepingService {
                 Log.errorf(failure, "Housekeeping run %s failed, could not list the repositories of GitHub or the projects of Dependency-Track", run.id());
                 return aborted(progress.get().get());
             });
+    }
+
+    /**
+     * Repositories not listed by the installation of their account aren't necessarily gone: GitHub keeps renamed and transferred repositories alive
+     * (and redirects to them), while the projects of Dependency-Track still reference the old location. Archiving the projects of those,
+     * just because the old name is missing, would hit repositories that are neither archived nor deleted.
+     * So, the repositories referenced by projects that are missing in the listings are looked up on their own, and only the ones
+     * GitHub doesn't know at all stay {@link GitHubRepositoryIndex.State#GONE}, the others become {@link GitHubRepositoryIndex.State#UNKNOWN}.
+     * Also, a repository of the same name existing under another account may be the transferred one, even if GitHub can't tell.
+     * <p>
+     * Only the repositories that might get projects archived are looked up: the ones referenced by active projects or their ancestors
+     * (projects without references follow them, see {@link UnitMatcher}). Repositories deleted long ago, having archived projects only,
+     * would cost a request to GitHub in every run otherwise, without any effect. They're {@link GitHubRepositoryIndex.State#UNKNOWN}, as unconfirmed.
+     */
+    private Uni<TargetedListing.Listing> confirmGone(HousekeepingRun run, TargetedListing.Listing listing) {
+        var index = listing.index();
+        var missing = missingRepositories(index, listing.projects());
+        if (missing.isEmpty()) {
+            return Uni.createFrom().item(listing);
+        }
+        var candidates = missingRepositories(index, activeProjectsAndAncestors(listing.projects()));
+
+        var ownersByName = new HashMap<String, Set<String>>();
+        index.repositories().forEach(repository ->
+            ownersByName.computeIfAbsent(repository.reference().name(), name -> new HashSet<>()).add(repository.reference().ownerKey()));
+        var movedElsewhere = candidates.stream()
+            .filter(reference -> ownersByName.getOrDefault(reference.name(), Set.of()).stream().anyMatch(ownerKey -> !ownerKey.equals(reference.ownerKey())))
+            .collect(Collectors.toSet());
+        var toVerify = candidates.stream().filter(reference -> !movedElsewhere.contains(reference)).toList();
+
+        var confirmation = toVerify.isEmpty()
+            ? Uni.createFrom().item(Set.<RepositoryReference>of())
+            : indexer.confirmGone(run, toVerify)
+            .onFailure().invoke(failure -> {
+                run.writeToMDC();
+                Log.errorf(failure, "Could not look up the %d repositories missing in the listings, treating them as unknown", toVerify.size());
+            })
+            .onFailure().recoverWithItem(Set.of());
+        return confirmation
+            .map(confirmed -> {
+                var unconfirmed = missing.stream().filter(reference -> !confirmed.contains(reference)).toList();
+                run.writeToMDC();
+                Log.infof("Of %d repositories referenced by projects, but missing in the listings of GitHub, %d are confirmed gone, %d exist under another name or account or couldn't be looked up (%d of them have a namesake elsewhere), %d have archived projects only and weren't looked up",
+                    missing.size(), confirmed.size(), candidates.size() - confirmed.size(), movedElsewhere.size(), missing.size() - candidates.size());
+                return new TargetedListing.Listing(index.withUnconfirmedGone(unconfirmed), listing.projects());
+            });
+    }
+
+    private static List<RepositoryReference> missingRepositories(GitHubRepositoryIndex index, Collection<DependencyTrackProject> projects) {
+        return projects.stream()
+            .flatMap(project -> UnitMatcher.referencesOf(project).stream())
+            .distinct()
+            .filter(reference -> index.lookup(reference) == GitHubRepositoryIndex.State.GONE)
+            .toList();
+    }
+
+    private static Set<DependencyTrackProject> activeProjectsAndAncestors(List<DependencyTrackProject> projects) {
+        var byUuid = new HashMap<String, DependencyTrackProject>();
+        projects.forEach(project -> byUuid.putIfAbsent(project.uuid(), project));
+        var relevant = new HashSet<DependencyTrackProject>();
+        projects.stream().filter(DependencyTrackProject::active).forEach(project -> {
+            // stops at known ones, which guards against cyclic hierarchies, too
+            var current = project;
+            while (current != null && relevant.add(current)) {
+                current = current.parentUuid().map(byUuid::get).orElse(null);
+            }
+        });
+        return relevant;
     }
 
     private static HousekeepingSummary aborted(HousekeepingSummary summary) {

@@ -161,7 +161,7 @@ class GitHubRepositoryIndexerTest {
     }
 
     @Test
-    void treatsRenamedRepositoriesAsGone() throws Exception {
+    void treatsRenamedRepositoriesAsUnknown() throws Exception {
         // Given
         installation(1, "org-a", GHRepositorySelection.ALL, false, repository("new-name", false));
         Mockito.doReturn(repository("new-name", false)).when(clients.get(1L)).getRepository("org-a/old-name");
@@ -171,7 +171,24 @@ class GitHubRepositoryIndexerTest {
 
         // Then
         assertThat(index.repositories()).isEmpty();
-        assertThat(index.lookup(ref("org-a", "old-name"))).isEqualTo(GONE);
+        assertThat(index.lookup(ref("org-a", "old-name"))).isEqualTo(UNKNOWN);
+    }
+
+    @Test
+    void confirmsRepositoriesGoneOnlyIfGitHubDoesntKnowThem() throws Exception {
+        // Given
+        installation(1, "org-a", GHRepositorySelection.ALL, false, repository("new-name", false), repository("fine", false));
+        Mockito.doReturn(repository("new-name", false)).when(clients.get(1L)).getRepository("org-a/old-name");
+        Mockito.doThrow(new IOException("timeout")).when(clients.get(1L)).getRepository("org-a/broken");
+        installation(2, "org-b", GHRepositorySelection.SELECTED, false);
+
+        // When
+        var confirmed = indexer().confirmGone(RUN, List.of(
+            ref("org-a", "deleted"), ref("org-a", "old-name"), ref("org-a", "fine"), ref("org-a", "broken"), ref("org-b", "deleted"), ref("org-c", "deleted")
+        )).await().atMost(AWAIT);
+
+        // Then
+        assertThat(confirmed).containsExactly(ref("org-a", "deleted"));
     }
 
     @Test

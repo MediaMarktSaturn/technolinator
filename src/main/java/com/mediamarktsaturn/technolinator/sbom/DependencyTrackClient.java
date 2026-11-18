@@ -530,6 +530,16 @@ public class DependencyTrackClient {
     }
 
     /**
+     * Reactivates the project identified by [projectUuid], the opposite of {@link #archiveProject}.
+     * Only the state is changed, anything else of the project stays as it is.
+     *
+     * @return true if the project was reactivated successfully
+     */
+    public Uni<Boolean> reactivateProject(String projectUuid) {
+        return changeProjectState(projectUuid, true);
+    }
+
+    /**
      * Fetches a single project in any state.
      * Fails if the project can't be fetched, but not if it doesn't exist.
      */
@@ -687,20 +697,30 @@ public class DependencyTrackClient {
      * @return true if the project was deactivated successfully
      */
     Uni<Boolean> deactivateProject(String projectUUID) {
+        return changeProjectState(projectUUID, false);
+    }
+
+    /**
+     * Changes the state of the project only, 304 (not modified) means it's in that state already
+     *
+     * @return true if the project is in the desired state
+     */
+    private Uni<Boolean> changeProjectState(String projectUUID, boolean active) {
+        var action = active ? "enable" : "disable";
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
-            .sendJsonObject(JsonObject.of("active", false))
+            .sendJsonObject(JsonObject.of("active", active))
             .onFailure().retry().atMost(3)
             .onItem().invoke(deprecationCheck("PATCH /project/{uuid}"))
             .map(response -> {
-                if (response.statusCode() == 200) {
-                    Log.infof("Disabled project %s", projectUUID);
+                if (response.statusCode() == 200 || response.statusCode() == 304) {
+                    Log.infof("%s project %s", active ? "Enabled" : "Disabled", projectUUID);
                     return true;
                 }
-                Log.warnf("Failed to disable project %s with %s: %s", projectUUID, response.statusCode(), response.bodyAsString());
+                Log.warnf("Failed to %s project %s with %s: %s", action, projectUUID, response.statusCode(), response.bodyAsString());
                 return false;
             })
-            .onFailure().invoke(e -> Log.warnf(e, "Failed to disable project %s", projectUUID))
+            .onFailure().invoke(e -> Log.warnf(e, "Failed to %s project %s", action, projectUUID))
             .onFailure().recoverWithItem(false);
     }
 
@@ -709,6 +729,35 @@ public class DependencyTrackClient {
         if (parentProject instanceof Project.Available parent) {
             projectDetails.put("parent", JsonObject.of("uuid", parent.projectId()));
         }
+        return patchProjectMetaData(projectUUID, projectDetails).replaceWithVoid();
+    }
+
+    /**
+     * Replaces the external references and tags of the project, and nothing else: in contrast to {@link #updateProjectMetaData}
+     * the description, state and parent are left as they are, so it's safe to be used for projects not being uploaded currently, e.g. archived ones.
+     * Like with the upload, all references and tags of the project are replaced by the given ones.
+     *
+     * @return true if the project was updated successfully
+     */
+    public Uni<Boolean> updateProjectReferencesAndTags(String projectUUID, List<DependencyTrackProject.Reference> references, List<String> tags) {
+        return patchProjectMetaData(projectUUID, JsonObject.of(
+            "tags", tagsToJson(tags),
+            "externalReferences", new JsonArray(references.stream().map(DependencyTrackProject.Reference::toJson).toList())
+        ));
+    }
+
+    /**
+     * The references to a repository, like they're put to every project created for it: VCS, website and release notes
+     */
+    public static List<DependencyTrackProject.Reference> repositoryReferences(String vcsUrl, String websiteUrl) {
+        return List.of(
+            new DependencyTrackProject.Reference(ExternalReference.Type.VCS.getTypeName(), vcsUrl),
+            new DependencyTrackProject.Reference(ExternalReference.Type.WEBSITE.getTypeName(), websiteUrl),
+            new DependencyTrackProject.Reference(ExternalReference.Type.RELEASE_NOTES.getTypeName(), websiteUrl + "/releases")
+        );
+    }
+
+    private Uni<Boolean> patchProjectMetaData(String projectUUID, JsonObject projectDetails) {
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
             .putHeader(API_KEY, dtrackApikey)
             .sendJsonObject(projectDetails)
@@ -716,42 +765,34 @@ public class DependencyTrackClient {
             .map(Unchecked.function(response -> {
                 if (response.statusCode() == 200 || response.statusCode() == 304) {
                     Log.infof("Updated projects %s metadata", projectUUID);
-                    return response;
+                    return true;
                 }
                 // e.g. 409 on concurrent modification by Dependency-Track itself, worth another attempt
                 throw new DependencyTrackClientHttpException(response.statusCode(), response.bodyAsString());
             }))
             .onFailure().retry().withBackOff(pollInterval).atMost(3)
             .onFailure().invoke(e -> Log.errorf(e, "Failed to update projects %s metadata: %s", projectUUID, e.getMessage()))
-            .onFailure().recoverWithNull()
-            .replaceWithVoid();
+            .onFailure().recoverWithItem(false);
+    }
+
+    private static JsonArray tagsToJson(List<String> tags) {
+        return new JsonArray(tags.stream()
+            .filter(t -> t != null && !t.isBlank())
+            .map(tag -> JsonObject.of("name", tag))
+            .toList());
     }
 
     JsonObject createProjectBaseData(RepositoryDetails repoDetails, Optional<String> commitSha, Optional<String> version) {
-        var tagsArray = new JsonArray(repoDetails.topics().stream()
-            .filter(t -> t != null && !t.isBlank())
-            .map(tag -> JsonObject.of("name", tag)
-            ).toList());
+        var tagsArray = tagsToJson(repoDetails.topics());
         // prefix description with #commitSha# to allow VCS matching
         var shaDesc = createCommitShaDescriptionPrefix(commitSha);
         var shaAndVersionDesc = shaDesc + version.map(v -> v + " | ").orElse("");
         var description = Optional.ofNullable(repoDetails.description()).map(String::trim).map(shaAndVersionDesc::concat).orElse(shaAndVersionDesc);
         // dtrack allows a max of 255 chars for description
         var descValue = description.length() < 255 ? description : (description.substring(0, 251) + "...");
-        var extRefs = JsonArray.of(
-            JsonObject.of(
-                "type", ExternalReference.Type.VCS.getTypeName(),
-                "url", repoDetails.vcsUrl()
-            ),
-            JsonObject.of(
-                "type", ExternalReference.Type.WEBSITE.getTypeName(),
-                "url", repoDetails.websiteUrl()
-            ),
-            JsonObject.of(
-                "type", ExternalReference.Type.RELEASE_NOTES.getTypeName(),
-                "url", repoDetails.websiteUrl() + "/releases"
-            )
-        );
+        var extRefs = new JsonArray(repositoryReferences(repoDetails.vcsUrl(), repoDetails.websiteUrl()).stream()
+            .map(DependencyTrackProject.Reference::toJson)
+            .toList());
         return JsonObject.of(
             "tags", tagsArray,
             "description", descValue,

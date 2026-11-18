@@ -18,8 +18,10 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -80,9 +82,10 @@ public class GitHubRepositoryIndexer {
      * of the app (which is cheap), and fetches each of the repositories on its own with the installation of its account.
      * <p>
      * A repository is {@link GitHubRepositoryIndex.State#GONE} if its account has an installation with access to <em>all</em> repositories
-     * and GitHub doesn't know the repository (or knows it under another name or account, as it does for renamed or transferred ones).
-     * Repositories of accounts without (active) installation, of installations restricted to selected repositories, or that
-     * couldn't be fetched, are {@link GitHubRepositoryIndex.State#UNKNOWN} then.
+     * and GitHub doesn't know the repository.
+     * Repositories known under another name or account (GitHub redirects renamed and transferred ones) are alive, so they're
+     * {@link GitHubRepositoryIndex.State#UNKNOWN}, like the ones of accounts without (active) installation,
+     * of installations restricted to selected repositories, or that couldn't be fetched.
      * Fails if the installations of the app can't be listed.
      */
     public Uni<GitHubRepositoryIndex> build(HousekeepingRun run, Collection<Target> targets) {
@@ -108,6 +111,23 @@ public class GitHubRepositoryIndexer {
             .merge(installationConcurrency)
             .onItem().ignoreAsUni()
             .map(ignored -> builder.build());
+    }
+
+    /**
+     * Confirms that repositories, which aren't listed by their account's installation, really are gone, by looking them up on their own.
+     * Listings don't tell about repositories that got renamed or transferred, which GitHub redirects, so these aren't gone, although they're missing.
+     *
+     * @return the candidates that certainly don't exist, anything else (renamed, transferred, or failing to be looked up) is left out
+     */
+    public Uni<Set<RepositoryReference>> confirmGone(HousekeepingRun run, Collection<RepositoryReference> candidates) {
+        var targets = new LinkedHashSet<Target>();
+        candidates.forEach(candidate -> TargetedListing.parseRepository(candidate.owner() + "/" + candidate.name()).ifPresent(targets::add));
+        if (targets.isEmpty()) {
+            return Uni.createFrom().item(Set.of());
+        }
+        return build(run, targets).map(index -> candidates.stream()
+            .filter(candidate -> index.lookup(candidate) == GitHubRepositoryIndex.State.GONE)
+            .collect(Collectors.toUnmodifiableSet()));
     }
 
     private List<GHAppInstallation> activeInstallations() throws IOException {
@@ -137,9 +157,10 @@ public class GitHubRepositoryIndexer {
                         if (target.name().equalsIgnoreCase(repository.getName())
                             && (repository.getOwnerName() == null || login.equalsIgnoreCase(repository.getOwnerName()))) {
                             builder.addRepository(host, login, GitHubRepo.of(host, login, repository, client));
-                        } else if (all) {
-                            // GitHub redirects renamed and transferred repositories, but nothing exists under the requested name
-                            builder.addGoneRepository(host, login, target.name());
+                        } else {
+                            // GitHub redirects renamed and transferred repositories. Nothing exists under the requested name anymore,
+                            // but the repository is alive (and maybe not even archived), so it must not be reported as gone
+                            Log.infof("Repository %s/%s got renamed or transferred to %s, treating it as unknown", login, target.name(), repository.getFullName());
                         }
                     } catch (GHFileNotFoundException e) {
                         if (all) {
