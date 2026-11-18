@@ -102,13 +102,16 @@ public class ProcessHandler {
                 callback.onComplete(exit);
                 if (exit != 0) {
                     var lines = List.copyOf(outputLines);
+                    callback.onFailureOutput(lines);
                     return (ProcessResult) new ProcessResult.Failure(lines, exit, new ProcessFailedException(command, exit, lines));
                 } else {
                     return (ProcessResult) new ProcessResult.Success(List.copyOf(outputLines));
                 }
             }).onFailure().recoverWithItem(failure -> {
                 callback.onFailure(failure);
-                return (ProcessResult) new ProcessResult.Failure(List.copyOf(outputLines), null, failure);
+                var lines = List.copyOf(outputLines);
+                callback.onFailureOutput(lines);
+                return (ProcessResult) new ProcessResult.Failure(lines, null, failure);
             });
     }
 

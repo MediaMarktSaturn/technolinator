@@ -5,6 +5,7 @@ import io.quarkus.logging.Log;
 
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -21,6 +22,13 @@ public interface ProcessCallback {
     void onFailure(Throwable failure);
 
     void log(String message);
+
+    /**
+     * Called with the (complete, as far as retained) output of a process that failed.
+     */
+    default void onFailureOutput(List<String> outputLines) {
+        // no logging by default
+    }
 
     class DefaultProcessCallback implements ProcessCallback {
 
@@ -58,12 +66,29 @@ public interface ProcessCallback {
         public void onOutput(String logLine) {
             if (Log.isDebugEnabled()) {
                 metadata.writeToMDC();
-                // hide (sensitive) env values from output
-                for (var env : SENSITIVE_ENV.entrySet()) {
-                    logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
-                }
-                Log.debugf("[%s]: %s", metadata.traceId(), logLine);
+                Log.debugf("[%s]: %s", metadata.traceId(), redact(logLine));
             }
+        }
+
+        @Override
+        public void onFailureOutput(List<String> outputLines) {
+            // with debug enabled, every line has been logged already
+            if (outputLines.isEmpty() || Log.isDebugEnabled()) {
+                return;
+            }
+            metadata.writeToMDC();
+            Log.warnf("[%s] output of the failed process (%d lines):", metadata.traceId(), outputLines.size());
+            outputLines.forEach(line -> Log.warnf("[%s]: %s", metadata.traceId(), redact(line)));
+        }
+
+        /**
+         * hide (sensitive) env values from output
+         */
+        private static String redact(String logLine) {
+            for (var env : SENSITIVE_ENV.entrySet()) {
+                logLine = logLine.replace(env.getValue(), "*" + env.getKey() + "*");
+            }
+            return logLine;
         }
 
         @Override
