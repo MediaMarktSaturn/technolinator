@@ -26,6 +26,18 @@ The parameter `repository` (`owner/repo`) is required exactly once. The response
 
 > **The endpoint is not protected.** Anyone who can reach it can make Technolinator analyze (i.e. build) any repository it has access to. Don't expose it beyond the trusted network, e.g. by not routing `/analyze` through the ingress.
 
+## Environment of cdxgen
+
+cdxgen and the build tools it starts (Maven, Gradle, npm, ...) run on the code of the analysed repository, so they don't get Technolinators whole environment: secrets like the GitHub app key or the Dependency-Track api key are not handed down.
+They get
+
+* the variables Technolinator sets for cdxgen itself (`GITHUB_TOKEN`, `MVN_ARGS`, `GRADLE_ARGS`, `JAVA_HOME`, ...),
+* the `env` entries of the [repository config](Repository_Config.md), with `${VAR}` substitutions resolved from the variables allowed by `ALLOWED_ENV_SUBSTITUTIONS`,
+* a minimal set of inherited variables the tools need to work: `PATH`, `HOME`, `USER`, `LANG`/`LC_*`, `TZ`, temp dirs, the tool locations (`JAVA*_HOME`, `MAVEN_*`, `GRADLE_*`, `NODE_HOME`, `GO*`, `SDK_DIR`, ...), proxy and CA settings (`HTTP(S)_PROXY`, `NO_PROXY`, `SSL_CERT_*`), `GIT_ASKPASS` and `CDXGEN_*`,
+* everything listed in `APP_CDXGEN_INHERITED_ENV` (comma separated names, a trailing `*` makes a prefix), e.g. `GITHUB_USER` if a build reads it.
+
+Builds needing further values should get them via the `env` of the repository config.
+
 ## Failure reporting
 
 If an analysis fails for a reason the repository owners can act on (e.g. a broken build the SBOM generator can't cope with, an unresolvable dependency, a repeated timeout), Technolinator tells them on GitHub:
@@ -37,6 +49,10 @@ If an analysis fails for a reason the repository owners can act on (e.g. a broke
   * The issue is assigned to the users listed in the repository's `CODEOWNERS` (individual users only, teams can't be assigned).
   * Repositories with disabled issues are skipped.
 * **Pull-requests:** the status is put into the one Technolinator comment of the pull-request, which is updated with every attempt. It is merged with the vulnerability report, so there is still only one comment. If the analysis succeeds later on, the comment is updated with a short note and stays. Logs are omitted for pull-requests from forks, unless `APP_FAILURE_REPORTING_INCLUDE_LOG_ON_FORK_PRS` is set.
+
+Repositories analysed as several projects (see `projects` in the [repository config](Repository_Config.md)) fail partially: the report names each failing project and its folder (`Module`), and states how many of the projects were analysed successfully. Only the failing projects are affected and shown in detail.
+
+The tool log is condensed before it is shown: cdxgen's environment audit tables and long dependency trees (printed by build tools in debug mode) are cut out, so the actual error stays visible.
 
 Failures which the repository can't fix (checkout failures, Dependency-Track unavailable, unexpected errors) are not reported but only logged and counted in the metrics `analysis_failures`, `failure_report_actions` and `failure_report_errors`.
 

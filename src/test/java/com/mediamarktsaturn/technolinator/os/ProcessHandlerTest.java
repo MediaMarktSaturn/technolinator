@@ -96,6 +96,20 @@ class ProcessHandlerTest {
     }
 
     @Test
+    void testIsolatedEnvDoesNotInheritCurrentEnv() {
+        // Given
+        var env = Map.of("TEST", "explicit");
+
+        // When
+        var result = await(ProcessHandler.runIsolated("/usr/bin/env", ProcessHandler.CURRENT_DIR, env, ProcessCallback.NOOP));
+
+        // Then
+        assertThat(result).isInstanceOfSatisfying(ProcessHandler.ProcessResult.Success.class, success -> {
+            assertThat(success.outputLines()).containsExactly("TEST=explicit");
+        });
+    }
+
+    @Test
     void testFailingEnv() {
         // Given
         var env = Map.of("TEST", "zonk");

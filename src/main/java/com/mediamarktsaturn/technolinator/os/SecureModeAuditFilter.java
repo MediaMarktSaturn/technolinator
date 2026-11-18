@@ -4,7 +4,7 @@ import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
- * Removes the "SECURE MODE: Environment audit" table, cdxgen prints on every run, from line based process output:
+ * Removes the environment audit tables, cdxgen prints on every run, from line based process output:
  * <pre>
  * +------------------------+------------+--------------------------+-------------+
  * |                       SECURE MODE: Environment audit                         |
@@ -16,16 +16,23 @@ import java.util.regex.Pattern;
  * |                        |            | GITHUB_USER              | like envir  |
  * +------------------------+------------+--------------------------+-------------+
  * </pre>
- * The table is recognised structurally rather than by its content: it starts with a border line directly followed
- * by a row carrying the "SECURE MODE" title, and spans all subsequent border and row lines. Every other table
- * and any other output is passed through unchanged.
+ * Besides this "SECURE MODE: Environment audit" table, cdxgen can print further tables of the same report right after it:
+ * "SBOM Generation Environment Assessment", "Findings", "Effective Configuration" and "Recommendations for TLP:...".
+ * In debug mode it additionally prints a "cdxgen debug activity summary" table at the end of a run, with one multi-line entry
+ * per file read, command executed or environment variable read, which is just as useless here.
+ * <p>
+ * A table is recognised structurally rather than by its content: it starts with a border line directly followed
+ * by a row carrying one of these titles, and spans all subsequent border and row lines. A border line directly
+ * following a border line ends the table, as it is the top of the next one, which is dropped as well if it's
+ * a report table, but otherwise passed through. Every other table and any other output is passed through unchanged,
+ * especially the abort message of the secure mode, which explains why cdxgen stopped.
  * <p>
  * The filter is stateful and must be used for a single process only, call {@link #flush(Consumer)} when the output ended.
  */
 final class SecureModeAuditFilter {
 
     private static final char ESC = '\u001B';
-    private static final Pattern ANSI_ESCAPE = Pattern.compile("\u001B\\[[0-9;]*[A-Za-z]");
+    private static final Pattern ANSI_ESCAPE = Pattern.compile("\u001B\\[[0-9;?]*[A-Za-z]");
 
     /**
      * Horizontal table line, e.g. +-----+-----+ including the unicode box drawing variants (light, heavy, double, rounded)
@@ -38,15 +45,21 @@ final class SecureModeAuditFilter {
     private static final Pattern ROW = Pattern.compile("\\s*[|│┃║].*[|│┃║]\\s*");
 
     /**
-     * Title row of the table, e.g. |    SECURE MODE: Environment audit    |
+     * Title row of an audit report table, e.g. |    SECURE MODE: Environment audit    |
      */
-    private static final Pattern TITLE_ROW = Pattern.compile("\\s*[|│┃║]\\s*SECURE\\s+MODE\\b.*[|│┃║]\\s*", Pattern.CASE_INSENSITIVE);
+    private static final Pattern TITLE_ROW = Pattern.compile(
+        "\\s*[|│┃║]\\s*(?:SECURE\\s+MODE\\b|SBOM\\s+Generation\\s+Environment\\s+Assessment\\b"
+            + "|cdxgen\\s+(?:debug|dry-run)\\s+activity\\s+summary\\b"
+            + "|[^\\w|│┃║]*(?:Findings\\b|Effective\\s+Configuration\\b|Recommendations\\s+for\\s+TLP\\b))"
+            + ".*[|│┃║]\\s*",
+        Pattern.CASE_INSENSITIVE);
 
     /**
      * A border line held back until the next line tells whether it opens the audit table
      */
     private String pendingBorder;
     private boolean inAuditTable;
+    private boolean lastWasBorder;
 
     /**
      * Processes a line of output, passing it on to the sink unless it's part of the audit table
@@ -54,14 +67,21 @@ final class SecureModeAuditFilter {
     void accept(String line, Consumer<String> sink) {
         var plain = stripAnsi(line);
         if (inAuditTable) {
-            if (BORDER.matcher(plain).matches() || ROW.matcher(plain).matches()) {
+            var border = BORDER.matcher(plain).matches();
+            if (border && lastWasBorder) {
+                // top of a following table
+                inAuditTable = false;
+            } else if (border || ROW.matcher(plain).matches()) {
+                lastWasBorder = border;
                 return;
+            } else {
+                inAuditTable = false;
             }
-            inAuditTable = false;
         } else if (pendingBorder != null) {
             if (TITLE_ROW.matcher(plain).matches()) {
                 pendingBorder = null;
                 inAuditTable = true;
+                lastWasBorder = false;
                 return;
             }
             flush(sink);

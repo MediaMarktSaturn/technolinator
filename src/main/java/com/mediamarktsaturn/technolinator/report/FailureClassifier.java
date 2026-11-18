@@ -225,6 +225,10 @@ public final class FailureClassifier {
     }
 
     private static String toolOf(String line) {
+        if (LogExcerpter.isDependencyTreeLine(line)) {
+            // coordinates like `org.apache.maven:...` say nothing about the tool being run
+            return null;
+        }
         for (var marker : TOOL_MARKERS) {
             if (marker.pattern().matcher(line).find()) {
                 return marker.tool();

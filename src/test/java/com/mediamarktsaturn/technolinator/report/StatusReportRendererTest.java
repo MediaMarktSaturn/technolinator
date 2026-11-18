@@ -203,6 +203,40 @@ class StatusReportRendererTest {
         assertThat(StatusReportRenderer.pullRequestFailureComment(report, true, "other\n".repeat(100_000), MARKER).length()).isLessThan(65_536);
     }
 
+    @Test
+    void partialFailureOfMultiProjectRepositoryIsSaidSo() {
+        var failure = new FailureReport.ToolFailure("shop-importer", "gradle", "cdxgen -o bom.json", 1, "The Gradle build failed",
+            "FAILURE: Build failed", "Fix it.", "log", "hash", FailureKind.REPO_ACTIONABLE, "services/importer");
+        var base = report(T0, "sha", failure);
+        var partial = new FailureReport(base.repoFullName(), base.repoHtmlUrl(), base.branch(), base.commitSha(), base.started(), base.traceId(),
+            base.failures(), new FailureReport.Scope(9, 1, List.of("shop-backend", "shop-frontend")));
+
+        var issue = StatusReportRenderer.issueBody(partial, T0, List.of());
+        var comment = StatusReportRenderer.pullRequestFailureComment(partial, true, null, MARKER);
+
+        assertThat(issue).contains("could not create the SBOM of 1 of 9 projects")
+            .contains("The other 8 projects were analysed successfully (`shop-backend`, `shop-frontend`), only the projects below are affected.")
+            .contains("### `shop-importer` – probably `gradle`")
+            .contains("**Module:** `services/importer`");
+        assertThat(comment).contains("could not create the SBOM of 1 of 9 projects").contains("The other 8 projects were analysed successfully")
+            .contains("**Module:** `services/importer`");
+        assertThat(partial.errorHash()).isEqualTo(base.errorHash());
+    }
+
+    @Test
+    void singleProjectAndUnknownScopeKeepTheGeneralWording() {
+        var report = report(T0, "sha", failure("shop", "error", "log"));
+        var allFailed = new FailureReport(report.repoFullName(), report.repoHtmlUrl(), report.branch(), report.commitSha(), report.started(),
+            report.traceId(), report.failures(), new FailureReport.Scope(3, 3, List.of()));
+
+        for (var r : List.of(report, allFailed)) {
+            assertThat(StatusReportRenderer.issueBody(r, T0, List.of()))
+                .contains("could not create the SBOM of this repository")
+                .doesNotContain("analysed successfully")
+                .doesNotContain("**Module:**");
+        }
+    }
+
     private static FailureReport.ToolFailure withKind(FailureReport.ToolFailure f, FailureKind kind) {
         return new FailureReport.ToolFailure(f.project(), f.tool(), f.command(), f.exitCode(), f.summary(), f.errorLine(), f.hint(), f.excerpt(), f.errorHash(), kind);
     }

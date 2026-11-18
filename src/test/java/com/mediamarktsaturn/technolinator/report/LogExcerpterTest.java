@@ -49,6 +49,66 @@ class LogExcerpterTest {
     }
 
     @Test
+    void hyphenatedNamesAreNoErrors() {
+        var lines = List.of("|         \\--- io.arrow-kt:arrow-exception-utils:2.2.2.1", "Resolving error-prone-annotations", "an-error-handler registered", "[ERROR] boom");
+
+        assertThat(LogExcerpter.firstErrorLineIndex(lines)).isEqualTo(3);
+    }
+
+    @Test
+    void dependencyTreeLinesAreRecognised() {
+        assertThat(LogExcerpter.isDependencyTreeLine("+--- org.apache.maven:maven-core:3.9.6")).isTrue();
+        assertThat(LogExcerpter.isDependencyTreeLine("|    \\--- org.slf4j:slf4j-api:2.0.19 (*)")).isTrue();
+        assertThat(LogExcerpter.isDependencyTreeLine("[INFO] |  \\- org.slf4j:slf4j-api:2.0.19:compile")).isTrue();
+        assertThat(LogExcerpter.isDependencyTreeLine("[INFO] BUILD FAILURE")).isFalse();
+        assertThat(LogExcerpter.isDependencyTreeLine("+------+------+")).isFalse();
+    }
+
+    @Test
+    void longDependencyTreesAreCollapsed() {
+        var input = new ArrayList<String>();
+        input.add("> Task :dependencies");
+        for (var i = 0; i < 50; i++) {
+            input.add("+--- io.arrow-kt:arrow-exception-utils-" + i + ":2.2.2.1");
+        }
+        input.add("BUILD FAILED in 27s");
+
+        var lines = LogExcerpter.cleanLines(input);
+
+        assertThat(lines).hasSize(1 + LogExcerpter.TREE_KEEP_LINES + 1 + 1);
+        assertThat(lines).contains("[... 47 lines omitted ...]").startsWith("> Task :dependencies").endsWith("BUILD FAILED in 27s");
+    }
+
+    @Test
+    void unresolvedDependenciesInTreesAreKept() {
+        var input = new ArrayList<String>();
+        for (var i = 0; i < 50; i++) {
+            input.add("+--- com.acme:lib-" + i + ":1.0" + (i == 30 ? " FAILED" : ""));
+        }
+
+        var lines = LogExcerpter.cleanLines(input);
+
+        assertThat(lines).contains("+--- com.acme:lib-30:1.0 FAILED").doesNotContain("+--- com.acme:lib-20:1.0");
+        assertThat(LogExcerpter.firstErrorLine(lines)).isEqualTo("+--- com.acme:lib-30:1.0 FAILED");
+    }
+
+    @Test
+    void theRealErrorBeatsTheNoiseOfDependencyTrees() {
+        var input = new ArrayList<String>();
+        input.add("FAILURE: Build failed with an exception.");
+        for (var i = 0; i < 300; i++) {
+            input.add("+--- io.arrow-kt:arrow-exception-utils:" + i);
+        }
+        input.add("> Cannot find a Java installation matching languageVersion=25");
+
+        var lines = LogExcerpter.cleanLines(input);
+        var excerpt = LogExcerpter.excerpt(lines, 2_000);
+
+        assertThat(LogExcerpter.firstErrorLine(lines)).isEqualTo("FAILURE: Build failed with an exception.");
+        assertThat(excerpt).contains("FAILURE: Build failed").contains("Cannot find a Java installation").doesNotContain("arrow-exception-utils:150");
+    }
+
+    @Test
     void secretsAreRedactedBeforeLongLinesAreCut() {
         var redactor = new SecretRedactor(List.of("SECRET-VALUE-1234"));
         var line = "x".repeat(LogExcerpter.MAX_LINE_LENGTH - 5) + "SECRET-VALUE-1234";

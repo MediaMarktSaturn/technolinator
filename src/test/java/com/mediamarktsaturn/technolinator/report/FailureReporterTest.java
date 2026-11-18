@@ -106,6 +106,24 @@ class FailureReporterTest {
     }
 
     @Test
+    void partialFailureOfMultiProjectRepositoryKnowsScopeAndLocation() {
+        var failed = Result.<CdxgenClient.SBOMGenerationResult>failure(
+            new ProcessFailedException("cdxgen -o bom.json", 1, List.of("[ERROR] Could not resolve dependencies for project importer"), "importer", "services/importer"));
+        var yield = Result.success(CdxgenClient.SBOMGenerationResult.yield(null, List.of(), null, "backend"));
+
+        var evaluation = on().evaluate(ctx(), List.of(yield, failed, ok()), false, Optional.empty());
+
+        assertThat(evaluation.verdict()).isEqualTo(Verdict.FAILED);
+        var report = evaluation.report();
+        assertThat(report.scope()).isEqualTo(new FailureReport.Scope(3, 1, List.of("backend")));
+        assertThat(report.scope().isPartial()).isTrue();
+        assertThat(report.failures()).singleElement().satisfies(f -> {
+            assertThat(f.project()).isEqualTo("importer");
+            assertThat(f.location()).isEqualTo("services/importer");
+        });
+    }
+
+    @Test
     void failingToolIsReportedWithRedactedLogs() {
         var failed = processFailure("backend", "[INFO] start", "[ERROR] Could not resolve dependencies for project backend", "Authorization: Bearer " + SECRET);
 

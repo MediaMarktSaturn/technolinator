@@ -41,6 +41,16 @@ class FailureClassifierTest {
     }
 
     @Test
+    void dependencyTreesDoNotMislead() {
+        // `maven` in the coordinates must not make a gradle run a maven one, `exception` in a name is no error
+        var result = classify(1, "Executing gradlew dependencies", "+--- org.apache.maven:maven-core:3.9.6",
+            "|    \\--- io.arrow-kt:arrow-exception-utils:2.2.2.1", "Unexpected Exception while resolving");
+
+        assertThat(result.tool()).isEqualTo("gradle");
+        assertThat(result.errorLine()).isEqualTo("Unexpected Exception while resolving");
+    }
+
+    @Test
     void outOfMemory() {
         var result = classify(1, "[INFO] building", "Exception in thread \"main\" java.lang.OutOfMemoryError: Java heap space");
 

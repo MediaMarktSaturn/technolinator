@@ -38,10 +38,21 @@ public class ProcessHandler {
 
     static Uni<ProcessResult> run(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
         // deferred, so that every subscription (e.g. a retry) runs its own process with its own state
-        return Uni.createFrom().deferred(() -> start(command, workingDir, env, callback));
+        return Uni.createFrom().deferred(() -> start(command, workingDir, env, false, callback));
     }
 
-    private static Uni<ProcessResult> start(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
+    /**
+     * Runs the command with exactly the given environment, nothing is inherited from the current process.
+     */
+    public static Uni<ProcessResult> runIsolated(String command, Path workingDir, Map<String, String> env) {
+        return runIsolated(command, workingDir, env, new ProcessCallback.DefaultProcessCallback());
+    }
+
+    static Uni<ProcessResult> runIsolated(String command, Path workingDir, Map<String, String> env, ProcessCallback callback) {
+        return Uni.createFrom().deferred(() -> start(command, workingDir, env, true, callback));
+    }
+
+    private static Uni<ProcessResult> start(String command, Path workingDir, Map<String, String> env, boolean isolated, ProcessCallback callback) {
         callback.log("Starting '%s' in %s".formatted(command, workingDir));
         var outputLines = new ArrayDeque<String>();
         var process = new AtomicReference<Process>();
@@ -52,6 +63,9 @@ public class ProcessHandler {
                     var processBuilder = new ProcessBuilder(commandParts)
                         .directory(workingDir.toFile())
                         .redirectErrorStream(true);
+                    if (isolated) {
+                        processBuilder.environment().clear();
+                    }
                     processBuilder.environment().putAll(env);
 
                     var started = processBuilder.start();

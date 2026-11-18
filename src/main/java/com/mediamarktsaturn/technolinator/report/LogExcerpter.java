@@ -20,12 +20,32 @@ public final class LogExcerpter {
      * Logs which would lose fewer lines than this by being condensed are shown completely, as a few missing lines aren't worth the doubt.
      */
     static final int MIN_OMITTED_LINES = 50;
+    /**
+     * Runs of dependency tree lines (build tools print hundreds of them in debug mode) are cut down to this many lines.
+     */
+    static final int TREE_KEEP_LINES = 3;
+    /**
+     * Shorter runs of dependency tree lines are not worth condensing.
+     */
+    static final int MIN_TREE_RUN = 10;
     private static final int GAP_MARKER_COST = 40;
 
     private static final Pattern ANSI = Pattern.compile("\u001B(?:\\[[0-?]*[ -/]*[@-~]|\\][^\u0007\u001B]*(?:\u0007|\u001B\\\\)|[@-Z\\\\-_])");
     private static final Pattern CONTROL_CHARS = Pattern.compile("[\\x00-\\x08\\x0B-\\x1F\\x7F]");
+    /**
+     * Words indicating a problem. Hyphenated names don't count, as dependencies like {@code arrow-exception-utils} or
+     * {@code failure-detector} are no errors.
+     */
     private static final Pattern ERROR_LINE = Pattern.compile(
-        "(?i)\\b(fatal|failed|failure|panic)\\b|(error|exception)\\b|could not|cannot |unable to|ERR!|\\[ERROR]");
+        "(?i)(?<![\\w-])(fatal|failed|failure|panic)(?![\\w-])|(?<!-)(error|exception)(?![\\w-])|could not|cannot |unable to|ERR!|\\[ERROR]");
+    /**
+     * A line of a dependency tree as printed by Gradle ({@code |    +--- group:name:1.0}) or Maven ({@code [INFO] |  \- group:name:jar:1.0}).
+     */
+    private static final Pattern DEPENDENCY_TREE_LINE = Pattern.compile("^(?:\\[INFO] )?[| ]*[+\\\\]-{1,3} \\S.*");
+    /**
+     * Gradle marks dependencies which can't be resolved in the tree.
+     */
+    private static final Pattern UNRESOLVED_TREE_LINE = Pattern.compile("\\sFAILED\\s*$");
     private static final Pattern GAP_MARKER = Pattern.compile("\\[\\.\\.\\. (\\d{1,9}) lines? omitted \\.\\.\\.]");
 
     private LogExcerpter() {
@@ -66,7 +86,61 @@ public final class LogExcerpter {
         while (!cleaned.isEmpty() && cleaned.getLast().isEmpty()) {
             cleaned.removeLast();
         }
-        return cleaned;
+        return collapseDependencyTrees(cleaned);
+    }
+
+    /**
+     * @return whether the line is part of a dependency tree, which is the output of the build tool and never the cause of a failure
+     */
+    public static boolean isDependencyTreeLine(String line) {
+        return DEPENDENCY_TREE_LINE.matcher(line).matches();
+    }
+
+    /**
+     * Dependency trees are huge in debug mode and would use all of the space of an excerpt, which is better spent on the errors.
+     * So of long runs of tree lines only the beginning, and the lines of unresolvable dependencies, are kept.
+     */
+    private static List<String> collapseDependencyTrees(List<String> lines) {
+        var result = new ArrayList<String>(lines.size());
+        var i = 0;
+        while (i < lines.size()) {
+            if (!isDependencyTreeLine(lines.get(i))) {
+                result.add(lines.get(i++));
+                continue;
+            }
+            var end = i;
+            while (end < lines.size() && isDependencyTreeLine(lines.get(end))) {
+                end++;
+            }
+            if (end - i < MIN_TREE_RUN) {
+                result.addAll(lines.subList(i, end));
+            } else {
+                var omitted = 0;
+                for (var j = i; j < end; j++) {
+                    var line = lines.get(j);
+                    if (j - i < TREE_KEEP_LINES || UNRESOLVED_TREE_LINE.matcher(line).find()) {
+                        addGap(result, omitted);
+                        omitted = 0;
+                        result.add(line);
+                    } else {
+                        omitted++;
+                    }
+                }
+                addGap(result, omitted);
+            }
+            i = end;
+        }
+        return result;
+    }
+
+    private static void addGap(List<String> lines, int omitted) {
+        if (omitted > 0) {
+            lines.add(gapMarker(omitted));
+        }
+    }
+
+    private static String gapMarker(int omitted) {
+        return "[... " + omitted + (omitted == 1 ? " line" : " lines") + " omitted ...]";
     }
 
     private static void flushRepeats(List<String> cleaned, int repeated) {
@@ -102,11 +176,18 @@ public final class LogExcerpter {
      */
     public static int firstErrorLineIndex(List<String> cleanedLines) {
         for (var i = 0; i < cleanedLines.size(); i++) {
-            if (ERROR_LINE.matcher(cleanedLines.get(i)).find()) {
+            if (isErrorLine(cleanedLines.get(i))) {
                 return i;
             }
         }
         return -1;
+    }
+
+    private static boolean isErrorLine(String line) {
+        if (isDependencyTreeLine(line)) {
+            return UNRESOLVED_TREE_LINE.matcher(line).find();
+        }
+        return ERROR_LINE.matcher(line).find();
     }
 
     /**
@@ -144,7 +225,7 @@ public final class LogExcerpter {
         var budget = maxChars - size(lines, tailStart, count);
         var keep = new boolean[tailStart];
         for (var i = 0; i < tailStart; i++) {
-            if (keep[i] || !ERROR_LINE.matcher(lines.get(i)).find()) {
+            if (keep[i] || !isErrorLine(lines.get(i))) {
                 continue;
             }
             var from = Math.max(0, i - CONTEXT_LINES);
@@ -198,7 +279,7 @@ public final class LogExcerpter {
 
     private static void appendGap(StringBuilder result, int omitted) {
         if (omitted > 0) {
-            result.append("[... ").append(omitted).append(omitted == 1 ? " line" : " lines").append(" omitted ...]\n");
+            result.append(gapMarker(omitted)).append('\n');
         }
     }
 
