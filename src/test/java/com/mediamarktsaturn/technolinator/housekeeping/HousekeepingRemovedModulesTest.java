@@ -14,17 +14,22 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.child;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.currentStates;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.inactive;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.known;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.project;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.repo;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.settings;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.uploadedAt;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -38,19 +43,25 @@ class HousekeepingRemovedModulesTest {
     private DependencyTrackClient dtrack;
     private GitHubRepositoryConfig config;
     private SimpleMeterRegistry meters;
+    private Map<String, DependencyTrackProject> current;
 
     @BeforeEach
     void setUp() {
         dtrack = mock(DependencyTrackClient.class);
         config = mock(GitHubRepositoryConfig.class);
         meters = new SimpleMeterRegistry();
+        current = currentStates(dtrack);
         when(dtrack.archiveProject(anyString())).thenReturn(Uni.createFrom().item(true));
         when(dtrack.reactivateProject(anyString())).thenReturn(Uni.createFrom().item(true));
     }
 
     private HousekeepingWorker worker(boolean removedModules, int maxPerRun, boolean reactivate) {
-        var worker = new HousekeepingWorker(dtrack, mock(GitHubRepositoryTopics.class), config, meters, Duration.ofSeconds(10),
-            false, 10, false, 10, reactivate, 10, false, 10, removedModules, maxPerRun);
+        var worker = new HousekeepingWorker(dtrack, mock(GitHubRepositoryTopics.class), config, meters, settings(
+            HousekeepingWorker.Feature.off(),
+            HousekeepingWorker.Feature.off(),
+            removedModules ? HousekeepingWorker.Feature.on(maxPerRun) : HousekeepingWorker.Feature.off(),
+            reactivate ? HousekeepingWorker.Feature.on(10) : HousekeepingWorker.Feature.off(),
+            HousekeepingWorker.Feature.off()));
         worker.begin(RUN);
         worker.begin(DRY_RUN);
         return worker;
@@ -60,8 +71,8 @@ class HousekeepingRemovedModulesTest {
         return worker(true, 10, false);
     }
 
-    private static boolean process(HousekeepingWorker worker, HousekeepingUnit unit) {
-        return worker.process(unit).await().atMost(Duration.ofSeconds(10));
+    private boolean process(HousekeepingWorker worker, HousekeepingUnit unit) {
+        return worker.process(known(current, unit)).await().atMost(Duration.ofSeconds(10));
     }
 
     private static TechnolinatorConfig module(String name, TechnolinatorConfig... children) {
@@ -78,7 +89,7 @@ class HousekeepingRemovedModulesTest {
     }
 
     private double actions(String status) {
-        return meters.counter("housekeeping_action", "action", HousekeepingWorker.ARCHIVE_REMOVED_MODULES, "status", status).count();
+        return meters.counter("housekeeping_action", "action", HousekeepingWorker.SYNC_PROJECT_STATES, "status", status).count();
     }
 
     private static HousekeepingUnit unit(HousekeepingRun run, List<DependencyTrackProject> projects) {
@@ -91,7 +102,7 @@ class HousekeepingRemovedModulesTest {
 
     @Test
     void reportsActionAsEnabled() {
-        assertThat(worker().enabledActions()).containsExactly(HousekeepingWorker.ARCHIVE_REMOVED_MODULES);
+        assertThat(worker().enabledActions()).containsExactly(HousekeepingWorker.SYNC_PROJECT_STATES);
         assertThat(worker(false, 10, false).enabled()).isFalse();
     }
 
@@ -460,5 +471,63 @@ class HousekeepingRemovedModulesTest {
         assertThat(success).isTrue();
         verify(dtrack).reactivateProject("removed");
         verifyNoInteractions(config);
+    }
+
+    @Test
+    void readsConfigurationOnceForArchivingAndReactivating() throws IOException {
+        // Given
+        stubConfig(root(module("first"), module("second")));
+        var unit = unit(RUN, projects(
+            project("parent", "app", "org", "app"),
+            child("removed", "app-removed", "parent", "org", "app"),
+            inactive(child("second", "app-second", "parent", "org", "app"))));
+
+        // When
+        var success = process(worker(true, 10, true), unit);
+
+        // Then
+        assertThat(success).isTrue();
+        verify(config, times(1)).config(Mockito.any());
+        verify(dtrack).archiveProject("removed");
+        verify(dtrack).reactivateProject("second");
+        assertThat(actions("OK")).isEqualTo(1);
+    }
+
+    @Test
+    void doesNotReactivateChildrenBelowAProjectArchivedAtTheSameTime() throws IOException {
+        // Given
+        stubConfig(root(module("first")));
+        // "first" is configured, but below a removed module, which gets archived
+        var unit = unit(RUN, projects(
+            project("parent", "app", "org", "app"),
+            child("removed", "app-removed", "parent", "org", "app"),
+            inactive(child("first", "app-first", "removed", "org", "app"))));
+
+        // When
+        var success = process(worker(true, 10, true), unit);
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack).archiveProject("removed");
+        verify(dtrack, never()).reactivateProject(anyString());
+    }
+
+    @Test
+    void reactivatesEvenIfArchivingRemovedModulesHitsTheLimit() throws IOException {
+        // Given
+        stubConfig(root(module("first"), module("second")));
+        var unit = unit(RUN, projects(
+            project("parent", "app", "org", "app"),
+            child("removed", "app-removed", "parent", "org", "app"),
+            child("removed-too", "app-removed-too", "parent", "org", "app"),
+            inactive(child("second", "app-second", "parent", "org", "app"))));
+
+        // When
+        var success = process(worker(true, 1, true), unit);
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack, never()).archiveProject(anyString());
+        verify(dtrack).reactivateProject("second");
     }
 }

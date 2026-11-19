@@ -2,10 +2,18 @@ package com.mediamarktsaturn.technolinator.housekeeping;
 
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackProject;
+import io.smallrye.mutiny.Uni;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
 
 /**
  * Builders for the data housekeeping tests work with
@@ -74,5 +82,45 @@ final class HousekeepingTestData {
      */
     static List<DependencyTrackProject.Reference> uploadReferences(String owner, String repoName) {
         return DependencyTrackClient.repositoryReferences(gitUrl(owner, repoName), webUrl(owner, repoName));
+    }
+
+    static DependencyTrackProject withVersion(DependencyTrackProject project, String version) {
+        return new DependencyTrackProject(project.uuid(), project.name(), version, project.active(), project.parentUuid(),
+            project.repositoryUrls(), project.lastBomImport());
+    }
+
+    /**
+     * Lets the mocked client answer the lookups of the current state of projects ({@code getProject}, {@code searchProjects}) from the returned map
+     * (uuid to project), which represents Dependency-Track as it is now. Projects not in the map are deleted.
+     * Tests can stub single projects differently afterwards.
+     */
+    static Map<String, DependencyTrackProject> currentStates(DependencyTrackClient dtrack) {
+        var current = new ConcurrentHashMap<String, DependencyTrackProject>();
+        when(dtrack.getProject(anyString())).thenAnswer(invocation ->
+            Uni.createFrom().item(Optional.ofNullable(current.get(invocation.<String>getArgument(0)))));
+        when(dtrack.searchProjects(anyString())).thenAnswer(invocation -> {
+            var text = invocation.<String>getArgument(0).toLowerCase(Locale.ROOT);
+            return Uni.createFrom().item(current.values().stream().filter(project -> project.name().toLowerCase(Locale.ROOT).contains(text)).toList());
+        });
+        return current;
+    }
+
+    /**
+     * Adds the projects of the unit to the [current] states, unless they're known already, so by default the snapshot of the unit is up to date
+     */
+    static HousekeepingUnit known(Map<String, DependencyTrackProject> current, HousekeepingUnit unit) {
+        unit.projects().forEach(project -> current.putIfAbsent(project.uuid(), project));
+        return unit;
+    }
+
+    static HousekeepingWorker.Settings settings(
+        HousekeepingWorker.Feature followRenamedRepositories,
+        HousekeepingWorker.Feature archiveOrphanedProjects,
+        HousekeepingWorker.Feature archiveRemovedModules,
+        HousekeepingWorker.Feature reactivateProjects,
+        HousekeepingWorker.Feature updateProjectMetadata
+    ) {
+        return new HousekeepingWorker.Settings(Duration.ofSeconds(10), followRenamedRepositories, archiveOrphanedProjects,
+            archiveRemovedModules, reactivateProjects, updateProjectMetadata);
     }
 }

@@ -110,15 +110,6 @@ public record HousekeepingUnit(
     }
 
     /**
-     * Groups the active projects by their depth in the hierarchy, deepest first. So the projects of a group never are parents of each other,
-     * and all children are contained in a group preceding the one of their parent.
-     * Dependency-Track rejects archiving a parent having active children, so this is the order to work on projects in.
-     */
-    public List<List<DependencyTrackProject>> activeProjectsChildrenFirst() {
-        return groupByDepth(activeProjects(), true);
-    }
-
-    /**
      * Groups the given projects, which are expected to be part of this unit, by their depth in the hierarchy, parents first.
      * So the projects of a group never are parents of each other, and all parents are contained in a group preceding the ones of their children.
      * This is the order to work on projects in, whose children shouldn't be active without their parent.
