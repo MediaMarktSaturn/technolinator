@@ -1,5 +1,7 @@
 package com.mediamarktsaturn.technolinator.housekeeping;
 
+import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.sbom.ConfiguredProjects;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackProject;
 import com.mediamarktsaturn.technolinator.sbom.RepositoryProjectMatcher;
@@ -20,6 +22,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -43,6 +46,8 @@ import java.util.function.Predicate;
  *     <li>{@value #FOLLOW_RENAMED_REPOSITORIES}: renames the Dependency-Track projects of a repository that got renamed (and updates their references),
  *     for the cases where the rename event wasn't handled</li>
  *     <li>{@value #ARCHIVE_ORPHANED_PROJECTS}: archives the Dependency-Track projects, whose GitHub repository is archived or doesn't exist anymore</li>
+ *     <li>{@value #ARCHIVE_REMOVED_MODULES}: archives the child projects of an active repository, whose module isn't described by the repository's
+ *     {@code technolinator.yml} (or the repository itself) anymore</li>
  *     <li>{@value #REACTIVATE_PROJECTS}: reactivates archived Dependency-Track projects, that definitely belong to an active GitHub repository and aren't
  *     superseded by an active version, which repairs projects archived by mistake</li>
  *     <li>{@value #UPDATE_PROJECT_METADATA}: backfills the external references and tags of the projects definitely belonging to an active repository,
@@ -53,12 +58,14 @@ import java.util.function.Predicate;
 public class HousekeepingWorker {
 
     public static final String ARCHIVE_ORPHANED_PROJECTS = "archive-orphaned-projects";
+    public static final String ARCHIVE_REMOVED_MODULES = "archive-removed-modules";
     public static final String UPDATE_PROJECT_METADATA = "update-project-metadata";
     public static final String REACTIVATE_PROJECTS = "reactivate-projects";
     public static final String FOLLOW_RENAMED_REPOSITORIES = "follow-renamed-repositories";
 
     private final DependencyTrackClient dtrackClient;
     private final GitHubRepositoryTopics repositoryTopics;
+    private final GitHubRepositoryConfig repositoryConfig;
     private final MeterRegistry meterRegistry;
     private final Duration actionTimeout;
     private final int maxArchivedPerRun;
@@ -68,14 +75,39 @@ public class HousekeepingWorker {
     private final int maxReactivatedPerRun;
     private final boolean followRenamedRepositories;
     private final int maxRenamedPerRun;
+    private final boolean archiveRemovedModules;
+    private final int maxRemovedModulesPerRun;
     private final List<Action> actions;
 
     private final Map<String, RunState> runs = new ConcurrentHashMap<>();
+
+    /**
+     * Without the archiving of removed modules, which needs to read the repository configuration
+     */
+    public HousekeepingWorker(
+        DependencyTrackClient dtrackClient,
+        GitHubRepositoryTopics repositoryTopics,
+        MeterRegistry meterRegistry,
+        Duration actionTimeout,
+        boolean archiveOrphanedProjects,
+        int maxArchivedPerRun,
+        boolean updateProjectMetadata,
+        int maxMetadataUpdatesPerRun,
+        boolean reactivateProjects,
+        int maxReactivatedPerRun,
+        boolean followRenamedRepositories,
+        int maxRenamedPerRun
+    ) {
+        this(dtrackClient, repositoryTopics, null, meterRegistry, actionTimeout, archiveOrphanedProjects, maxArchivedPerRun,
+            updateProjectMetadata, maxMetadataUpdatesPerRun, reactivateProjects, maxReactivatedPerRun,
+            followRenamedRepositories, maxRenamedPerRun, false, 0);
+    }
 
     @Inject
     public HousekeepingWorker(
         DependencyTrackClient dtrackClient,
         GitHubRepositoryTopics repositoryTopics,
+        GitHubRepositoryConfig repositoryConfig,
         MeterRegistry meterRegistry,
         @ConfigProperty(name = "app.housekeeping.task_timeout") Duration actionTimeout,
         @ConfigProperty(name = "app.housekeeping.archive-orphaned-projects.enabled") boolean archiveOrphanedProjects,
@@ -85,10 +117,13 @@ public class HousekeepingWorker {
         @ConfigProperty(name = "app.housekeeping.reactivate-projects.enabled") boolean reactivateProjects,
         @ConfigProperty(name = "app.housekeeping.reactivate-projects.max-per-run") int maxReactivatedPerRun,
         @ConfigProperty(name = "app.housekeeping.follow-renamed-repositories.enabled") boolean followRenamedRepositories,
-        @ConfigProperty(name = "app.housekeeping.follow-renamed-repositories.max-per-run") int maxRenamedPerRun
+        @ConfigProperty(name = "app.housekeeping.follow-renamed-repositories.max-per-run") int maxRenamedPerRun,
+        @ConfigProperty(name = "app.housekeeping.archive-removed-modules.enabled") boolean archiveRemovedModules,
+        @ConfigProperty(name = "app.housekeeping.archive-removed-modules.max-per-run") int maxRemovedModulesPerRun
     ) {
         this.dtrackClient = dtrackClient;
         this.repositoryTopics = repositoryTopics;
+        this.repositoryConfig = repositoryConfig;
         this.meterRegistry = meterRegistry;
         this.actionTimeout = actionTimeout;
         this.maxArchivedPerRun = maxArchivedPerRun;
@@ -98,9 +133,12 @@ public class HousekeepingWorker {
         this.maxReactivatedPerRun = maxReactivatedPerRun;
         this.followRenamedRepositories = followRenamedRepositories;
         this.maxRenamedPerRun = maxRenamedPerRun;
+        this.archiveRemovedModules = archiveRemovedModules;
+        this.maxRemovedModulesPerRun = maxRemovedModulesPerRun;
         this.actions = List.of(
             new Action(FOLLOW_RENAMED_REPOSITORIES, () -> followRenamedRepositories, this::isRenamedRepositoryUnit, this::followRenamedRepository),
             new Action(ARCHIVE_ORPHANED_PROJECTS, () -> archiveOrphanedProjects, this::isOrphanedProjectsUnit, this::archiveOrphanedProjects),
+            new Action(ARCHIVE_REMOVED_MODULES, () -> archiveRemovedModules, this::hasChildProjectsOfActiveRepository, this::archiveRemovedModules),
             new Action(REACTIVATE_PROJECTS, () -> reactivateProjects, this::hasInactiveProjectsOfActiveRepository, this::reactivateProjects),
             new Action(UPDATE_PROJECT_METADATA, () -> updateProjectMetadata, this::isActiveRepositoryUnit, this::updateProjectMetadata)
         );
@@ -139,6 +177,10 @@ public class HousekeepingWorker {
         }
         Log.infof("%s %d of %d projects, whose repository is archived or doesn't exist anymore",
             run.dryRun() ? "Would have archived" : "Archived", state.archived.get(), state.archiveCandidates.get());
+        if (archiveRemovedModules) {
+            Log.infof("%s %d of %d projects of modules, that aren't part of their repository's configuration anymore",
+                run.dryRun() ? "Would have archived" : "Archived", state.removedModulesArchived.get(), state.removedModuleCandidates.get());
+        }
         if (reactivateProjects) {
             Log.infof("%s %d of %d archived projects of active repositories",
                 run.dryRun() ? "Would have reactivated" : "Reactivated", state.reactivated.get(), state.reactivationCandidates.get());
@@ -416,6 +458,138 @@ public class HousekeepingWorker {
     }
 
     /**
+     * @return the active and archived child projects of the unit, that definitely belong to its repository, see {@link RepositoryProjectMatcher#select}
+     */
+    private static List<DependencyTrackProject> childProjects(HousekeepingUnit unit, GitHubRepo repository, boolean active) {
+        return RepositoryProjectMatcher.select(unit.projects(), repository.name(), repository.gitUrl(), repository.htmlUrl()).stream()
+            .filter(project -> project.active() == active)
+            .filter(project -> project.parentUuid().isPresent())
+            .toList();
+    }
+
+    /**
+     * The names of the projects a repository's configuration describes, and whether the configuration enables the analysis
+     */
+    private record ConfiguredModules(Set<String> names, boolean enabled) {
+
+        boolean describes(DependencyTrackProject project) {
+            return names.stream().anyMatch(name -> name.equalsIgnoreCase(project.name()));
+        }
+    }
+
+    private ConfiguredModules configuredModules(GitHubRepo repository) throws IOException {
+        var config = repositoryConfig.config(repository);
+        return new ConfiguredModules(
+            ConfiguredProjects.projectNames(repository.name(), config),
+            config.map(TechnolinatorConfig::enable).orElse(true)
+        );
+    }
+
+    private boolean hasChildProjectsOfActiveRepository(HousekeepingUnit unit) {
+        return unit.repositoryState() == GitHubRepositoryIndex.State.ACTIVE
+            && unit.activeProjects().stream().anyMatch(project -> project.parentUuid().isPresent());
+    }
+
+    /**
+     * Archives the child projects of an active repository, whose module doesn't exist anymore: the project isn't named like one of the modules
+     * described by the {@code projects} of the repository's {@code .github/technolinator.yml}, as the analysis of the default branch names them
+     * (see {@link ConfiguredProjects}). Without such configuration, the repository is the only project, so all its children are obsolete.
+     * Without this, the projects created by earlier analyses of modules, that were removed from git (or from the configuration) since,
+     * would stay active forever.
+     * <p>
+     * Only children definitely belonging to the repository are looked at ({@link RepositoryProjectMatcher#select}, same as for the metadata), the
+     * parent project isn't touched. Further safeguards:
+     * <ul>
+     *     <li>nothing happens if the configuration can't be read (or parsed), or disables the analysis of the repository</li>
+     *     <li>children with a BOM uploaded after the run started are ignored, they might be created by an analysis with a newer configuration</li>
+     *     <li>a project having active descendants, that aren't obsolete themselves, is left alone, as Dependency-Track rejects archiving it</li>
+     *     <li>no more than {@code max-per-run} projects are archived per run, checked per unit, so the last repository's projects might exceed it</li>
+     * </ul>
+     * The next BOM upload of a project reactivates it, so archiving is easily reverted. {@link #reactivateProjects} doesn't revert it.
+     */
+    private Uni<Void> archiveRemovedModules(HousekeepingUnit unit) {
+        var run = unit.run();
+        var state = state(run);
+        var repository = unit.repository().orElseThrow();
+
+        if (childProjects(unit, repository, true).isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        ConfiguredModules configured;
+        try {
+            configured = configuredModules(repository);
+        } catch (IOException e) {
+            return Uni.createFrom().failure(new IllegalStateException("Could not read the configuration of repository " + repository.fullName(), e));
+        }
+        if (!configured.enabled()) {
+            Log.debugf("Analysis of repository %s is disabled by its configuration, leaving its projects alone", repository.fullName());
+            return Uni.createFrom().voidItem();
+        }
+
+        var obsolete = new LinkedHashMap<String, DependencyTrackProject>();
+        childProjects(unit, repository, true).stream()
+            .filter(project -> !configured.describes(project))
+            .forEach(project -> obsolete.put(project.uuid(), project));
+        if (obsolete.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+
+        var recentlyUploaded = obsolete.values().stream()
+            .filter(project -> project.lastBomImport().filter(imported -> imported.isAfter(run.startedAt())).isPresent())
+            .toList();
+        if (!recentlyUploaded.isEmpty()) {
+            Log.infof("Repository %s has projects of removed modules, but project %s got a BOM uploaded since the run started, ignoring",
+                repository.fullName(), recentlyUploaded.getFirst().displayName());
+            return Uni.createFrom().voidItem();
+        }
+
+        // a parent can't be archived with active children, that are no obsolete modules themselves, which cascades up the hierarchy
+        var active = unit.activeProjects();
+        boolean removed;
+        do {
+            removed = obsolete.values().removeIf(candidate -> active.stream()
+                .anyMatch(project -> project.parentUuid().filter(candidate.uuid()::equals).isPresent() && !obsolete.containsKey(project.uuid())));
+        } while (removed);
+        if (obsolete.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        var projects = List.copyOf(obsolete.values());
+
+        var candidatesBefore = state.removedModuleCandidates.getAndAdd(projects.size());
+        if (candidatesBefore >= maxRemovedModulesPerRun) {
+            if (!state.removedModulesLimitReported.getAndSet(true)) {
+                Log.warnf("Limit of %d archived projects of removed modules per run reached, leaving the remaining ones for the next run", maxRemovedModulesPerRun);
+            }
+            return Uni.createFrom().voidItem();
+        }
+
+        if (unit.dryRun()) {
+            state.removedModulesArchived.addAndGet(projects.size());
+            Log.infof("Would archive %d project(s) of modules removed from repository %s: %s", projects.size(), repository.fullName(),
+                projects.stream().map(DependencyTrackProject::displayName).toList());
+            projects.forEach(project -> HousekeepingActionLog.project(ARCHIVE_REMOVED_MODULES, true, unit, project));
+            return Uni.createFrom().voidItem();
+        }
+
+        Log.infof("Archiving %d project(s) of modules removed from repository %s", projects.size(), repository.fullName());
+        Uni<Void> chain = Uni.createFrom().voidItem();
+        for (var wave : unit.groupChildrenFirst(projects)) {
+            chain = chain.chain(() -> archiveRemovedModulesWave(unit, wave, state));
+        }
+        return chain;
+    }
+
+    private Uni<Void> archiveRemovedModulesWave(HousekeepingUnit unit, List<DependencyTrackProject> wave, RunState state) {
+        return Uni.combine().all().unis(
+                wave.stream().map(project -> logged(ARCHIVE_REMOVED_MODULES, unit, project, dtrackClient.archiveProject(project.uuid()))).toList()
+            ).with(Boolean.class, results -> (int) results.stream().filter(archived -> !archived).count())
+            .invoke(failed -> state.removedModulesArchived.addAndGet(wave.size() - failed))
+            .chain(failed -> failed == 0
+                ? Uni.createFrom().voidItem()
+                : Uni.createFrom().failure(new ProjectsFailedException("Could not archive %d of %d projects".formatted(failed, wave.size()))));
+    }
+
+    /**
      * Writes the structured log record for the outcome of the change of the project, a failure counting as unsuccessful.
      */
     private static Uni<Boolean> logged(String action, HousekeepingUnit unit, DependencyTrackProject project, Uni<Boolean> change, String... details) {
@@ -552,7 +726,17 @@ public class HousekeepingWorker {
     private Uni<Void> reactivateProjects(HousekeepingUnit unit) {
         var state = state(unit.run());
         var repository = unit.repository().orElseThrow();
-        var candidates = projectsToReactivate(unit, repository);
+        var candidates = projectsToReactivate(unit, repository, project -> false);
+        if (archiveRemovedModules && candidates.stream().anyMatch(candidate -> candidate.parentUuid().isPresent())) {
+            // modules removed from git stay archived, see archiveRemovedModules
+            ConfiguredModules configured;
+            try {
+                configured = configuredModules(repository);
+            } catch (IOException e) {
+                return Uni.createFrom().failure(new IllegalStateException("Could not read the configuration of repository " + repository.fullName(), e));
+            }
+            candidates = projectsToReactivate(unit, repository, project -> project.parentUuid().isPresent() && !configured.describes(project));
+        }
         if (candidates.isEmpty()) {
             return Uni.createFrom().voidItem();
         }
@@ -581,7 +765,7 @@ public class HousekeepingWorker {
         return chain;
     }
 
-    private static List<DependencyTrackProject> projectsToReactivate(HousekeepingUnit unit, GitHubRepo repository) {
+    private static List<DependencyTrackProject> projectsToReactivate(HousekeepingUnit unit, GitHubRepo repository, Predicate<DependencyTrackProject> excluded) {
         var byName = new LinkedHashMap<String, List<DependencyTrackProject>>();
         RepositoryProjectMatcher.select(unit.projects(), repository.name(), repository.gitUrl(), repository.htmlUrl())
             .forEach(project -> byName.computeIfAbsent(project.name(), name -> new ArrayList<>()).add(project));
@@ -602,6 +786,7 @@ public class HousekeepingWorker {
         }
 
         // children are better left archived than active below a parent staying archived, which cascades down the hierarchy
+        candidates.values().removeIf(excluded);
         var archived = new HashMap<String, DependencyTrackProject>();
         unit.projects().stream().filter(project -> !project.active()).forEach(project -> archived.put(project.uuid(), project));
         boolean removed;
@@ -654,6 +839,10 @@ public class HousekeepingWorker {
         // in dry-run mode: would have been reactivated
         final AtomicInteger reactivated = new AtomicInteger();
         final AtomicBoolean reactivationLimitReported = new AtomicBoolean();
+        final AtomicInteger removedModuleCandidates = new AtomicInteger();
+        // in dry-run mode: would have been archived
+        final AtomicInteger removedModulesArchived = new AtomicInteger();
+        final AtomicBoolean removedModulesLimitReported = new AtomicBoolean();
         final AtomicInteger renameCandidates = new AtomicInteger();
         // in dry-run mode: would have been renamed
         final AtomicInteger renamed = new AtomicInteger();

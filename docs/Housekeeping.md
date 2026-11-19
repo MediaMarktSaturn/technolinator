@@ -134,7 +134,7 @@ HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=my-o
 
 | Key                | Values                                                                                                          |
 |--------------------|-----------------------------------------------------------------------------------------------------------------|
-| `action`           | `follow_renamed_repositories`, `archive_orphaned_projects`, `reactivate_projects`, `update_project_metadata` (the action name with underscores) |
+| `action`           | `follow_renamed_repositories`, `archive_orphaned_projects`, `archive_removed_modules`, `reactivate_projects`, `update_project_metadata` (the action name with underscores) |
 | `status`           | `done`, `dry_run` (would have been done), `failed`                                                              |
 | `repository`       | `owner/repo`; for projects of a renamed repository the new one; `-` for units without a repository (gone or unknown) |
 | `repository_state` | `active`, `archived`, `gone`, `moved`, `unknown`                                                                |
@@ -211,6 +211,31 @@ Archiving is reversible: the next BOM upload for the project reactivates it, e.g
 A repository renamed without Technolinator having seen the event isn't gone, so its projects aren't archived: they're renamed by [`follow-renamed-repositories`](#action-follow-renamed-repositories). A repository transferred to another account counts as gone, unless a repository of the same name exists in an account Technolinator is installed for.
 The action honors dry-run mode, which only logs the projects that would be archived.
 
+## Action `archive-removed-modules`
+
+Archives (deactivates) the child Dependency-Track projects of an **active** repository, whose module doesn't exist in git anymore.
+With a [multi-project configuration](Repository_Config.md) (`projects` in `.github/technolinator.yml`), every module becomes a child project of a parent project named like the repository. If a module is removed from the configuration (or from git, and with it from the configuration), the project of an earlier analysis would stay active forever.
+This action reads the `.github/technolinator.yml` of the default branch and archives the children that aren't described by it any longer.
+It applies to units with an `ACTIVE` repository and at least one active child project.
+
+| Environment variable                                     | Default | Description                                                                                    |
+|----------------------------------------------------------|---------|------------------------------------------------------------------------------------------------|
+| `APP_HOUSEKEEPING_ARCHIVE_REMOVED_MODULES_ENABLED`       | `true`  | Action switch. Runs only happen if triggered manually or `APP_HOUSEKEEPING_ENABLED` schedules them |
+| `APP_HOUSEKEEPING_ARCHIVE_REMOVED_MODULES_MAX_PER_RUN`   | `500`   | Upper limit of projects archived per run, as protection against mass-archiving by faulty data. Checked per unit, so the last repository's projects might exceed it |
+
+Which projects are expected: the very same names the analysis gives the projects it uploads, that is the repository name followed by the `project.name` of every level of the `projects` hierarchy, joined by dashes (`my-repo-api`, `my-repo-services-billing`), compared case-insensitively. Without any configuration, or without `projects`, the repository itself is the only project, so all its children are obsolete. Archived projects of all versions are covered.
+
+Safeguards:
+
+* Only **children** are archived, the parent project (named like the repository) is never touched. Only children *definitely belonging* to the repository are considered, by the same rules as for `update-project-metadata`.
+* Nothing happens if the configuration can't be read or parsed: the unit fails and is retried with the next run. A repository with `enable: false` in its configuration is left alone.
+* Units with an obsolete project having a BOM import after the run started are skipped.
+* An obsolete project with active descendants, that aren't obsolete themselves, is skipped, as Dependency-Track rejects archiving it. Otherwise, projects are archived **children before parents**. If one fails, the remaining ones of the unit are left for the next run.
+* Costs two GitHub requests per repository having active child projects.
+
+Archiving is reversible: the next BOM upload for the project reactivates it, e.g. when the module is added to the configuration again. [`reactivate-projects`](#action-reactivate-projects) doesn't undo it: it leaves archived children alone that the configuration doesn't describe (as long as this action is enabled).
+The action honors dry-run mode, which only logs the projects that would be archived.
+
 ## Action `update-project-metadata`
 
 Backfills the external references and tags of Dependency-Track projects, the way the BOM upload sets them (`PATCH /project/{uuid}`), for projects created before Technolinator did so, e.g. the `owner=<owner>` tag.
@@ -242,6 +267,7 @@ Safeguards and costs:
 
 The counterpart of `archive-orphaned-projects`: reactivates archived Dependency-Track projects of repositories that are `ACTIVE` (existing and not archived).
 It repairs projects archived by mistake, e.g. by faulty repository data, or whose repository got unarchived since.
+Child projects archived by [`archive-removed-modules`](#action-archive-removed-modules) stay archived, as long as that action is enabled.
 It applies to units with an `ACTIVE` repository and at least one archived project.
 
 | Environment variable                                   | Default | Description                                                                                    |

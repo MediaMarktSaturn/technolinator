@@ -127,6 +127,15 @@ public record HousekeepingUnit(
         return groupByDepth(subset, false);
     }
 
+    /**
+     * Groups the given projects, which are expected to be part of this unit, by their depth in the hierarchy, children first.
+     * So the projects of a group never are parents of each other, and all children are contained in a group preceding the one of their parent.
+     * This is the order to work on projects in, whose parents can't be archived with active children.
+     */
+    public List<List<DependencyTrackProject>> groupChildrenFirst(List<DependencyTrackProject> subset) {
+        return groupByDepth(subset, true);
+    }
+
     private List<List<DependencyTrackProject>> groupByDepth(List<DependencyTrackProject> subset, boolean deepestFirst) {
         Map<String, String> parents = new HashMap<>();
         projects.forEach(project -> project.parentUuid().ifPresent(parent -> parents.put(project.uuid(), parent)));
