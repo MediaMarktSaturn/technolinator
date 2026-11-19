@@ -61,7 +61,6 @@ class HousekeepingUnitTest {
 
         // Then
         assertThat(unit.activeProjects()).containsExactly(active);
-        assertThat(unit.activeProjectsChildrenFirst()).containsExactly(List.of(active));
     }
 
     @Test
@@ -74,7 +73,8 @@ class HousekeepingUnitTest {
         var standalone = project("standalone", "app-tool", "org", "app");
 
         // When
-        var waves = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(parent, module, submodule, otherModule, standalone)).activeProjectsChildrenFirst();
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(parent, module, submodule, otherModule, standalone));
+        var waves = unit.groupChildrenFirst(unit.activeProjects());
 
         // Then
         assertThat(waves).hasSize(3);
@@ -91,7 +91,8 @@ class HousekeepingUnitTest {
         var submodule = child("submodule", "app-api-impl", "module", "org", "app");
 
         // When
-        var waves = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(parent, archivedModule, submodule)).activeProjectsChildrenFirst();
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(parent, archivedModule, submodule));
+        var waves = unit.groupChildrenFirst(unit.activeProjects());
 
         // Then
         assertThat(waves).containsExactly(List.of(submodule), List.of(parent));
@@ -104,7 +105,8 @@ class HousekeepingUnitTest {
         var b = child("b", "app-b", "a", "org", "app");
 
         // When
-        var waves = HousekeepingUnit.withoutRepository(RUN, List.of(a, b), GONE).activeProjectsChildrenFirst();
+        var unit = HousekeepingUnit.withoutRepository(RUN, List.of(a, b), GONE);
+        var waves = unit.groupChildrenFirst(unit.activeProjects());
 
         // Then
         assertThat(waves.stream().mapToInt(List::size).sum()).isEqualTo(2);

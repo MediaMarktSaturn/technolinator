@@ -10,13 +10,14 @@ import java.util.Optional;
  * The one log line for every piece of work a housekeeping action acted on, to be used for monitoring dashboards.
  * All of them are found by searching for {@link #TAG}, and are related to the run by the {@code traceId}.
  * <pre>
- * HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=org/repo repository_state=archived project=0b8a3f1e-... name=repo version=main
+ * HOUSEKEEPING_ACTION action=sync_project_states status=done repository=org/repo repository_state=archived project=0b8a3f1e-... name=repo version=main change=archive reason=repository_archived
  * </pre>
  * One line is written per project that was archived, reactivated, renamed or updated, or whose treatment failed. Whatever was skipped
  * (limits, units not applying, projects being up to date already) is not logged, as nothing was acted on.
  * A failure not related to a single project (e.g. a timeout) is written once for the unit, with {@code project=-}.
- * Some actions append further keys, e.g. the renaming of projects tells the {@code new_name} and whether the {@code change} was a {@code rename}
- * or an {@code archive} instead. For units of projects of a renamed repository, the {@code repository} is the one renamed to.
+ * Some actions append further keys: changes of the state of projects tell the {@code change} ({@code archive}, {@code reactivate}) and the
+ * {@code reason}, see {@link ProjectStateChanger}, and the renaming of projects tells the {@code new_name} with {@code change=rename}.
+ * For units of projects of a renamed repository, the {@code repository} is the one renamed to.
  * <p>
  * Values are joined by underscores, like for the {@code GITHUB_REPORT}, so that log search splitting words at hyphens can't confuse them.
  * Values that still contain whitespace, quotes or equal signs are quoted.

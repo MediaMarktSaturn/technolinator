@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.technolinator.housekeeping;
 
+import com.mediamarktsaturn.technolinator.housekeeping.HousekeepingWorker.Feature;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackProject;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -14,19 +15,24 @@ import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.GONE;
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.UNKNOWN;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.child;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.currentStates;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.inactive;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.known;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.plainProject;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.project;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.repo;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.settings;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.uploadReferences;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.uploadedAt;
 import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.withMetadata;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.withVersion;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -46,62 +52,81 @@ class HousekeepingWorkerTest {
 
     private DependencyTrackClient dtrack;
     private GitHubRepositoryTopics topics;
+    private GitHubRepositoryConfig config;
     private SimpleMeterRegistry meters;
+    private Map<String, DependencyTrackProject> current;
 
     @BeforeEach
     void setUp() throws IOException {
         dtrack = mock(DependencyTrackClient.class);
         topics = mock(GitHubRepositoryTopics.class);
+        config = mock(GitHubRepositoryConfig.class);
         meters = new SimpleMeterRegistry();
+        current = currentStates(dtrack);
         when(dtrack.archiveProject(anyString())).thenReturn(Uni.createFrom().item(true));
+        when(dtrack.reactivateProject(anyString())).thenReturn(Uni.createFrom().item(true));
         when(topics.topics(any())).thenReturn(List.of("java", "quarkus"));
     }
 
-    private HousekeepingWorker worker(boolean archive, int maxPerRun) {
-        return worker(archive, maxPerRun, Duration.ofSeconds(10));
-    }
-
-    private HousekeepingWorker worker(boolean archive, int maxPerRun, Duration timeout) {
-        return worker(archive, maxPerRun, timeout, false, 10, false, 10);
-    }
-
-    private HousekeepingWorker metadataWorker(int maxPerRun) {
-        return worker(false, 10, Duration.ofSeconds(10), true, maxPerRun, false, 10);
-    }
-
-    private HousekeepingWorker reactivateWorker(int maxPerRun) {
-        return worker(false, 10, Duration.ofSeconds(10), false, 10, true, maxPerRun);
-    }
-
-    private HousekeepingWorker worker(boolean archive, int maxPerRun, Duration timeout, boolean updateMetadata, int maxMetadataPerRun,
-                                      boolean reactivate, int maxReactivatedPerRun) {
-        var worker = new HousekeepingWorker(dtrack, topics, meters, timeout, archive, maxPerRun, updateMetadata, maxMetadataPerRun,
-            reactivate, maxReactivatedPerRun, false, 10);
+    private HousekeepingWorker worker(HousekeepingWorker.Settings settings) {
+        var worker = new HousekeepingWorker(dtrack, topics, config, meters, settings);
         worker.begin(RUN);
         worker.begin(DRY_RUN);
         return worker;
     }
 
-    private double actions(String status) {
-        return meters.counter("housekeeping_action", "action", HousekeepingWorker.ARCHIVE_ORPHANED_PROJECTS, "status", status).count();
+    private HousekeepingWorker archiveWorker(int maxPerRun) {
+        return worker(settings(Feature.off(), Feature.on(maxPerRun), Feature.off(), Feature.off(), Feature.off()));
     }
 
-    private static boolean process(HousekeepingWorker worker, HousekeepingUnit unit) {
-        return worker.process(unit).await().atMost(Duration.ofSeconds(10));
+    private HousekeepingWorker metadataWorker(int maxPerRun) {
+        return worker(settings(Feature.off(), Feature.off(), Feature.off(), Feature.off(), Feature.on(maxPerRun)));
+    }
+
+    private HousekeepingWorker reactivateWorker(int maxPerRun) {
+        return worker(settings(Feature.off(), Feature.off(), Feature.off(), Feature.on(maxPerRun), Feature.off()));
+    }
+
+    private HousekeepingWorker followWorker(int maxPerRun) {
+        return worker(settings(Feature.on(maxPerRun), Feature.off(), Feature.off(), Feature.off(), Feature.off()));
+    }
+
+    private double actions(String action, String status) {
+        return meters.counter("housekeeping_action", "action", action, "status", status).count();
+    }
+
+    private double actions(String status) {
+        return actions(HousekeepingWorker.SYNC_PROJECT_STATES, status);
+    }
+
+    /**
+     * Processes the unit, whose projects are in Dependency-Track as listed, unless the test says otherwise
+     */
+    private boolean process(HousekeepingWorker worker, HousekeepingUnit unit) {
+        return worker.process(known(current, unit)).await().atMost(Duration.ofSeconds(10));
     }
 
     @Test
     void reportsEnabledActions() {
-        assertThat(worker(true, 10).enabled()).isTrue();
-        assertThat(worker(true, 10).enabledActions()).containsExactly(HousekeepingWorker.ARCHIVE_ORPHANED_PROJECTS);
-        assertThat(worker(false, 10).enabled()).isFalse();
-        assertThat(worker(false, 10).enabledActions()).isEmpty();
+        assertThat(archiveWorker(10).enabled()).isTrue();
+        assertThat(archiveWorker(10).enabledActions()).containsExactly(HousekeepingWorker.SYNC_PROJECT_STATES);
+        var none = worker(settings(Feature.off(), Feature.off(), Feature.off(), Feature.off(), Feature.off()));
+        assertThat(none.enabled()).isFalse();
+        assertThat(none.enabledActions()).isEmpty();
+    }
+
+    @Test
+    void reportsAllRulesOfProjectStatesAsOneAction() {
+        var worker = worker(settings(Feature.on(10), Feature.on(10), Feature.on(10), Feature.on(10), Feature.on(10)));
+        assertThat(worker.enabledActions()).containsExactly(
+            HousekeepingWorker.FOLLOW_RENAMED_REPOSITORIES, HousekeepingWorker.SYNC_PROJECT_STATES, HousekeepingWorker.UPDATE_PROJECT_METADATA);
+        assertThat(reactivateWorker(10).enabledActions()).containsExactly(HousekeepingWorker.SYNC_PROJECT_STATES);
     }
 
     @Test
     void doesNothingIfDisabled() {
         // Given
-        var worker = worker(false, 10);
+        var worker = worker(settings(Feature.off(), Feature.off(), Feature.off(), Feature.off(), Feature.off()));
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
 
         // When
@@ -115,7 +140,7 @@ class HousekeepingWorkerTest {
     @Test
     void archivesProjectsOfArchivedRepository() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
 
         // When
@@ -123,6 +148,7 @@ class HousekeepingWorkerTest {
 
         // Then
         assertThat(success).isTrue();
+        verify(dtrack).getProject("p");
         verify(dtrack).archiveProject("p");
         assertThat(actions("OK")).isEqualTo(1);
     }
@@ -130,7 +156,7 @@ class HousekeepingWorkerTest {
     @Test
     void archivesProjectsOfGoneRepositoryButNotInactiveOnes() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.withoutRepository(RUN, List.of(
             project("p", "app", "org", "app"),
             inactive(project("old", "app", "org", "app"))
@@ -148,7 +174,7 @@ class HousekeepingWorkerTest {
     @Test
     void archivesChildrenBeforeParents() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
             project("parent", "app", "org", "app"),
             child("module", "app-api", "parent", "org", "app"),
@@ -169,7 +195,7 @@ class HousekeepingWorkerTest {
     @Test
     void leavesProjectsOfActiveRepositoryAlone() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(project("p", "app", "org", "app")));
 
         // When
@@ -184,7 +210,7 @@ class HousekeepingWorkerTest {
     @Test
     void leavesProjectsOfUnknownRepositoryAlone() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.withoutRepository(RUN, List.of(plainProject("p", "app")), UNKNOWN);
 
         // When
@@ -198,7 +224,7 @@ class HousekeepingWorkerTest {
     @Test
     void ignoresRepositoryWithoutProjects() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of());
 
         // When
@@ -212,7 +238,7 @@ class HousekeepingWorkerTest {
     @Test
     void doesNotChangeAnythingInDryRun() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(DRY_RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
 
         // When
@@ -226,7 +252,7 @@ class HousekeepingWorkerTest {
     @Test
     void skipsUnitWithProjectUploadedSinceRunStart() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
             project("old", "app-old", "org", "app"),
             uploadedAt(project("fresh", "app", "org", "app"), STARTED.plusSeconds(1))
@@ -237,13 +263,52 @@ class HousekeepingWorkerTest {
 
         // Then
         assertThat(success).isTrue();
-        verifyNoInteractions(dtrack);
+        verify(dtrack, never()).archiveProject(anyString());
+    }
+
+    @Test
+    void skipsUnitWithProjectUploadedDuringTheRun() {
+        // Given
+        var worker = archiveWorker(10);
+        var listed = project("p", "app", "org", "app");
+        // the snapshot of the run doesn't know about it, but the current state does
+        current.put("p", uploadedAt(listed, STARTED.plus(Duration.ofHours(2))));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(listed, child("module", "app-api", "p", "org", "app")));
+
+        // When
+        var success = process(worker, unit);
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack, never()).archiveProject(anyString());
+    }
+
+    @Test
+    void leavesProjectsArchivedOrDeletedMeanwhileAlone() {
+        // Given
+        var worker = archiveWorker(10);
+        var parent = project("parent", "app", "org", "app");
+        var archivedMeanwhile = child("archived", "app-api", "parent", "org", "app");
+        var deletedMeanwhile = child("deleted", "app-web", "parent", "org", "app");
+        current.put("parent", parent);
+        current.put("archived", inactive(archivedMeanwhile));
+        // "deleted" isn't in Dependency-Track anymore
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(parent, archivedMeanwhile, deletedMeanwhile));
+
+        // When
+        var success = worker.process(unit).await().atMost(Duration.ofSeconds(10));
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack).archiveProject("parent");
+        verify(dtrack, never()).archiveProject("archived");
+        verify(dtrack, never()).archiveProject("deleted");
     }
 
     @Test
     void archivesUnitWithProjectUploadedBeforeRunStart() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
             uploadedAt(project("p", "app", "org", "app"), STARTED.minusSeconds(60))
         ));
@@ -259,8 +324,7 @@ class HousekeepingWorkerTest {
     @Test
     void limitsArchivedProjectsPerRun() {
         // Given
-        var worker = worker(true, 1);
-        worker.begin(RUN);
+        var worker = archiveWorker(1);
         var first = HousekeepingUnit.of(RUN, repo("org", "first", true), List.of(project("p1", "first", "org", "first")));
         var second = HousekeepingUnit.of(RUN, repo("org", "second", true), List.of(project("p2", "second", "org", "second")));
 
@@ -277,11 +341,31 @@ class HousekeepingWorkerTest {
     }
 
     @Test
+    void limitIsNotExceededBySingleUnit() {
+        // Given
+        var worker = archiveWorker(2);
+        var big = HousekeepingUnit.of(RUN, repo("org", "big", true), List.of(
+            project("b1", "big", "org", "big"), project("b2", "big-api", "org", "big"), project("b3", "big-web", "org", "big")));
+        var small = HousekeepingUnit.of(RUN, repo("org", "small", true), List.of(project("s1", "small", "org", "small")));
+
+        // When
+        var bigSuccess = process(worker, big);
+        var smallSuccess = process(worker, small);
+
+        // Then
+        assertThat(bigSuccess).isTrue();
+        assertThat(smallSuccess).isTrue();
+        verify(dtrack, never()).archiveProject("b1");
+        verify(dtrack, never()).archiveProject("b2");
+        verify(dtrack, never()).archiveProject("b3");
+        verify(dtrack).archiveProject("s1");
+    }
+
+    @Test
     void limitIsPerRun() {
         // Given
-        var worker = worker(true, 1);
+        var worker = archiveWorker(1);
         var nextRun = new HousekeepingRun("run-3", STARTED.plusSeconds(86400), false);
-        worker.begin(RUN);
         worker.begin(nextRun);
 
         // When
@@ -294,9 +378,25 @@ class HousekeepingWorkerTest {
     }
 
     @Test
+    void unitsLeftAloneDontCountAgainstTheLimit() {
+        // Given
+        var worker = archiveWorker(1);
+        var uploaded = project("p1", "first", "org", "first");
+        current.put("p1", uploadedAt(uploaded, STARTED.plusSeconds(60)));
+
+        // When
+        process(worker, HousekeepingUnit.of(RUN, repo("org", "first", true), List.of(uploaded)));
+        process(worker, HousekeepingUnit.of(RUN, repo("org", "second", true), List.of(project("p2", "second", "org", "second"))));
+
+        // Then
+        verify(dtrack, never()).archiveProject("p1");
+        verify(dtrack).archiveProject("p2");
+    }
+
+    @Test
     void reportsFailureAndLeavesParentsOfFailedChildren() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         when(dtrack.archiveProject("module")).thenReturn(Uni.createFrom().item(false));
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
             project("parent", "app", "org", "app"),
@@ -317,7 +417,7 @@ class HousekeepingWorkerTest {
     @Test
     void reportsFailureOfClient() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         when(dtrack.archiveProject("p")).thenReturn(Uni.createFrom().failure(new IllegalStateException("boom")));
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
 
@@ -330,9 +430,29 @@ class HousekeepingWorkerTest {
     }
 
     @Test
+    void failsWithoutChangesIfTheCurrentStateCantBeFetched() {
+        // Given
+        var worker = archiveWorker(10);
+        when(dtrack.getProject("module")).thenReturn(Uni.createFrom().failure(new IllegalStateException("dtrack down")));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
+            project("parent", "app", "org", "app"),
+            child("module", "app-api", "parent", "org", "app"),
+            project("other", "app-web", "org", "app")
+        ));
+
+        // When
+        var success = process(worker, unit);
+
+        // Then
+        assertThat(success).isFalse();
+        verify(dtrack, never()).archiveProject(anyString());
+        assertThat(actions("ERROR")).isEqualTo(1);
+    }
+
+    @Test
     void failsActionTakingTooLong() {
         // Given
-        var worker = worker(true, 10, Duration.ofMillis(200));
+        var worker = worker(new HousekeepingWorker.Settings(Duration.ofMillis(200), Feature.off(), Feature.on(10), Feature.off(), Feature.off(), Feature.off()));
         when(dtrack.archiveProject("p")).thenReturn(Uni.createFrom().nothing());
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
 
@@ -346,13 +466,13 @@ class HousekeepingWorkerTest {
 
     @Test
     void endWithoutBeginIsHarmless() {
-        new HousekeepingWorker(dtrack, topics, meters, Duration.ofSeconds(1), true, 10, true, 10, true, 10, true, 10).end(RUN);
+        new HousekeepingWorker(dtrack, topics, config, meters, settings(Feature.on(1), Feature.on(1), Feature.on(1), Feature.on(1), Feature.on(1))).end(RUN);
     }
 
     @Test
     void skipsUnitsOfRunNotInProgress() {
         // Given
-        var worker = worker(true, 10);
+        var worker = archiveWorker(10);
         worker.end(RUN);
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
 
@@ -368,7 +488,7 @@ class HousekeepingWorkerTest {
     @Test
     void dryRunAppliesLimitWithoutChangingAnything() {
         // Given
-        var worker = worker(true, 1);
+        var worker = archiveWorker(2);
 
         // When
         process(worker, HousekeepingUnit.of(DRY_RUN, repo("org", "first", true), List.of(
@@ -380,8 +500,10 @@ class HousekeepingWorkerTest {
         assertThat(actions("OK")).isEqualTo(2);
     }
 
+    // update-project-metadata
+
     private double metadataActions(String status) {
-        return meters.counter("housekeeping_action", "action", HousekeepingWorker.UPDATE_PROJECT_METADATA, "status", status).count();
+        return actions(HousekeepingWorker.UPDATE_PROJECT_METADATA, status);
     }
 
     @SuppressWarnings("unchecked")
@@ -625,29 +747,31 @@ class HousekeepingWorkerTest {
         verify(dtrack, never()).updateProjectReferencesAndTags(eq("p2"), anyList(), anyList());
     }
 
-    private double reactivationActions(String status) {
-        return meters.counter("housekeeping_action", "action", HousekeepingWorker.REACTIVATE_PROJECTS, "status", status).count();
-    }
-
-    private void stubReactivation() {
-        when(dtrack.reactivateProject(anyString())).thenReturn(Uni.createFrom().item(true));
-    }
-
-    private static DependencyTrackProject withVersion(DependencyTrackProject project, String version) {
-        return new DependencyTrackProject(project.uuid(), project.name(), version, project.active(), project.parentUuid(),
-            project.repositoryUrls(), project.lastBomImport());
-    }
-
     @Test
-    void reportsReactivationActionAsEnabled() {
-        assertThat(reactivateWorker(10).enabledActions()).containsExactly(HousekeepingWorker.REACTIVATE_PROJECTS);
+    void limitsMetadataUpdatesWithinUnit() {
+        // Given
+        var worker = metadataWorker(2);
+        var first = plainProject("p1", "app");
+        var second = project("p2", "app-api", "org", "app");
+        var third = project("p3", "app-web", "org", "app");
+        stubFetchAndUpdate(first, second, third);
+
+        // When
+        var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(first, second, third)));
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack).updateProjectReferencesAndTags(eq("p1"), anyList(), anyList());
+        verify(dtrack).updateProjectReferencesAndTags(eq("p2"), anyList(), anyList());
+        verify(dtrack, never()).updateProjectReferencesAndTags(eq("p3"), anyList(), anyList());
     }
+
+    // reactivate-projects rule
 
     @Test
     void reactivatesArchivedProjectOfActiveRepository() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         var archived = inactive(project("p", "app", "org", "app"));
 
         // When
@@ -655,16 +779,16 @@ class HousekeepingWorkerTest {
 
         // Then
         assertThat(success).isTrue();
+        verify(dtrack).searchProjects("app");
         verify(dtrack).reactivateProject("p");
         verify(dtrack, never()).archiveProject(anyString());
-        assertThat(reactivationActions("OK")).isEqualTo(1);
+        assertThat(actions("OK")).isEqualTo(1);
     }
 
     @Test
     void reactivatesProjectMatchedByNameOnly() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
 
         // When
         var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(inactive(plainProject("p", "app")))));
@@ -678,12 +802,28 @@ class HousekeepingWorkerTest {
     void leavesArchivedVersionsAloneIfAnotherVersionOfTheSameNameIsActive() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
-        var current = withVersion(plainProject("current", "app"), "v2");
+        var currentVersion = withVersion(plainProject("current", "app"), "v2");
         var old = inactive(withVersion(plainProject("old", "app"), "v1"));
 
         // When
-        var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(current, old)));
+        var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(currentVersion, old)));
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack, never()).reactivateProject(anyString());
+    }
+
+    @Test
+    void doesNotReactivateIfAnotherVersionGotActiveMeanwhile() {
+        // Given
+        var worker = reactivateWorker(10);
+        var parent = inactive(withVersion(project("parent", "app", "org", "app"), "v1"));
+        var kid = inactive(child("kid", "app-api", "parent", "org", "app"));
+        // uploaded during the run, which archived the other versions
+        current.put("new-parent", withVersion(project("new-parent", "app", "org", "app"), "v2"));
+
+        // When
+        var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(parent, kid)));
 
         // Then
         assertThat(success).isTrue();
@@ -694,7 +834,6 @@ class HousekeepingWorkerTest {
     void reactivatesOnlyTheLatestUploadOfSeveralArchivedVersions() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         var oldest = uploadedAt(inactive(withVersion(plainProject("oldest", "app"), "v1")), STARTED.minus(Duration.ofDays(30)));
         var latest = uploadedAt(inactive(withVersion(plainProject("latest", "app"), "v3")), STARTED.minus(Duration.ofDays(2)));
         var middle = uploadedAt(inactive(withVersion(plainProject("middle", "app"), "v2")), STARTED.minus(Duration.ofDays(10)));
@@ -715,7 +854,6 @@ class HousekeepingWorkerTest {
     void leavesSeveralArchivedVersionsAloneIfNoneHasBeenUploaded() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         var v1 = inactive(withVersion(plainProject("v1", "app"), "v1"));
         var v2 = inactive(withVersion(plainProject("v2", "app"), "v2"));
 
@@ -731,7 +869,6 @@ class HousekeepingWorkerTest {
     void reactivatesParentsBeforeChildren() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         var parent = inactive(project("parent", "app", "org", "app"));
         var kid = inactive(child("kid", "app-api", "parent", "org", "app"));
         var grandKid = inactive(child("grandkid", "app-impl", "kid", "org", "app"));
@@ -751,9 +888,8 @@ class HousekeepingWorkerTest {
     void leavesChildrenArchivedIfTheirParentStaysArchived() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         // the parent is superseded by an active version, so it stays archived and so do its children
-        var current = withVersion(project("current", "app", "org", "app"), "v2");
+        var currentVersion = withVersion(project("current", "app", "org", "app"), "v2");
         var oldParent = inactive(withVersion(project("old-parent", "app", "org", "app"), "v1"));
         var kid = inactive(child("kid", "app-api", "old-parent", "org", "app"));
         var grandKid = inactive(child("grandkid", "app-impl", "kid", "org", "app"));
@@ -761,7 +897,7 @@ class HousekeepingWorkerTest {
         var sibling = inactive(child("sibling", "app-web", "current", "org", "app"));
 
         // When
-        var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(current, oldParent, kid, grandKid, sibling)));
+        var success = process(worker, HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(currentVersion, oldParent, kid, grandKid, sibling)));
 
         // Then
         assertThat(success).isTrue();
@@ -775,7 +911,6 @@ class HousekeepingWorkerTest {
     void doesNotReactivateProjectsOfArchivedOrUnknownRepositories() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         var archived = inactive(plainProject("p", "app"));
 
         // When
@@ -792,7 +927,6 @@ class HousekeepingWorkerTest {
     void doesNotReactivateProjectsNotDefinitelyBelongingToTheRepository() {
         // Given
         var worker = reactivateWorker(10);
-        stubReactivation();
         var onlyPrefix = inactive(plainProject("prefix", "app-other"));
         var elsewhere = inactive(project("elsewhere", "app-lib", "stranger", "lib"));
 
@@ -801,7 +935,7 @@ class HousekeepingWorkerTest {
 
         // Then
         assertThat(success).isTrue();
-        verify(dtrack, never()).reactivateProject(anyString());
+        verifyNoInteractions(dtrack);
     }
 
     @Test
@@ -828,7 +962,7 @@ class HousekeepingWorkerTest {
 
         // Then
         assertThat(success).isFalse();
-        assertThat(reactivationActions("ERROR")).isEqualTo(1);
+        assertThat(actions("ERROR")).isEqualTo(1);
     }
 
     @Test
@@ -851,7 +985,6 @@ class HousekeepingWorkerTest {
     void limitsReactivationsPerRun() {
         // Given
         var worker = reactivateWorker(1);
-        stubReactivation();
 
         // When
         process(worker, HousekeepingUnit.of(RUN, repo("org", "first", false), List.of(inactive(plainProject("p1", "first")))));
@@ -862,15 +995,10 @@ class HousekeepingWorkerTest {
         verify(dtrack, never()).reactivateProject("p2");
     }
 
-    private HousekeepingWorker followWorker(int maxPerRun) {
-        var worker = new HousekeepingWorker(dtrack, topics, meters, Duration.ofSeconds(10), false, 10, false, 10, false, 10, true, maxPerRun);
-        worker.begin(RUN);
-        worker.begin(DRY_RUN);
-        return worker;
-    }
+    // follow-renamed-repositories
 
     private double renameActions(String status) {
-        return meters.counter("housekeeping_action", "action", HousekeepingWorker.FOLLOW_RENAMED_REPOSITORIES, "status", status).count();
+        return actions(HousekeepingWorker.FOLLOW_RENAMED_REPOSITORIES, status);
     }
 
     private static HousekeepingUnit renamedUnit(HousekeepingRun run, DependencyTrackProject... projects) {
@@ -932,7 +1060,6 @@ class HousekeepingWorkerTest {
         stubRename(parent, DependencyTrackClient.RenameStatus.CONFLICT);
         stubRename(module, DependencyTrackClient.RenameStatus.CONFLICT);
         stubRename(oldVersion, DependencyTrackClient.RenameStatus.CONFLICT);
-        when(dtrack.archiveProject(anyString())).thenReturn(Uni.createFrom().item(true));
 
         // When
         var success = process(worker, renamedUnit(RUN, parent, module, oldVersion));

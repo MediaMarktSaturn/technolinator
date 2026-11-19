@@ -254,19 +254,7 @@ public class CdxgenClient {
      * Last element of each inner list represents the leaf as actual project config, the preceding elements are ancestors of it.
      */
     List<List<TechnolinatorConfig>> buildConfigPaths(Optional<TechnolinatorConfig> root) {
-        var paths = new ArrayList<List<TechnolinatorConfig>>();
-        root.ifPresent(config -> buildConfigPaths(config, new ArrayList<>(), paths));
-        return paths;
-    }
-
-    private void buildConfigPaths(TechnolinatorConfig config, List<TechnolinatorConfig> path, List<List<TechnolinatorConfig>> paths) {
-        path.add(config);
-        if (config.projects() == null || config.projects().isEmpty()) {
-            paths.add(new ArrayList<>(path));
-        } else {
-            config.projects().forEach(child -> buildConfigPaths(child, path, paths));
-        }
-        path.remove(path.size() - 1);
+        return ConfiguredProjects.configPaths(root);
     }
 
     static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
@@ -423,13 +411,7 @@ public class CdxgenClient {
     }
 
     String determineProjectName(String repoName, List<TechnolinatorConfig> path) {
-        var names = sliceConfig(path, TechnolinatorConfig::project, TechnolinatorConfig.ProjectConfig::name);
-        if (names.isEmpty()) {
-            return repoName;
-        } else {
-            // the name ends up as a single argument of the command line, so it must not contain whitespace
-            return repoName + names.stream().map(String::trim).collect(Collectors.joining("-", "-", "")).replaceAll("\\s+", "-");
-        }
+        return ConfiguredProjects.projectName(repoName, path);
     }
 
     boolean analyseRecursive(List<TechnolinatorConfig> path) {

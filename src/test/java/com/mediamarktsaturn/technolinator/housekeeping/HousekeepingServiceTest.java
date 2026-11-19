@@ -49,7 +49,7 @@ class HousekeepingServiceTest {
         dtrack = mock(DependencyTrackClient.class);
         worker = mock(HousekeepingWorker.class);
         meters = new SimpleMeterRegistry();
-        when(worker.enabledActions()).thenReturn(List.of("archive-orphaned-projects"));
+        when(worker.enabledActions()).thenReturn(List.of(HousekeepingWorker.SYNC_PROJECT_STATES));
         when(worker.process(any())).thenAnswer(invocation -> {
             processed.add(invocation.getArgument(0));
             return Uni.createFrom().item(true);
