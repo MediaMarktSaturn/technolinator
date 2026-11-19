@@ -1,0 +1,233 @@
+package com.mediamarktsaturn.technolinator.housekeeping;
+
+import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.smallrye.mutiny.Uni;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
+
+import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.GONE;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.child;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.inactive;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.plainProject;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.project;
+import static com.mediamarktsaturn.technolinator.housekeeping.HousekeepingTestData.repo;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * The structured log lines of the housekeeping actions, see {@link HousekeepingActionLog}
+ */
+class HousekeepingActionLogTest {
+
+    private static final Instant STARTED = Instant.parse("2026-01-01T02:00:00Z");
+    private static final HousekeepingRun RUN = new HousekeepingRun("run-1", STARTED, false);
+    private static final HousekeepingRun DRY_RUN = new HousekeepingRun("run-2", STARTED, true);
+
+    private final List<String> messages = new CopyOnWriteArrayList<>();
+    private final Handler handler = new Handler() {
+        @Override
+        public void publish(LogRecord record) {
+            messages.add(record.getMessage());
+        }
+
+        @Override
+        public void flush() {
+        }
+
+        @Override
+        public void close() {
+        }
+    };
+
+    private DependencyTrackClient dtrack;
+    private GitHubRepositoryTopics topics;
+    private HousekeepingWorker worker;
+
+    @BeforeEach
+    void setUp() throws IOException {
+        Logger.getLogger("").addHandler(handler);
+        dtrack = mock(DependencyTrackClient.class);
+        topics = mock(GitHubRepositoryTopics.class);
+        when(topics.topics(any())).thenReturn(List.of("java"));
+        worker = new HousekeepingWorker(dtrack, topics, new SimpleMeterRegistry(), Duration.ofSeconds(10),
+            true, 10, true, 10, true, 10);
+        worker.begin(RUN);
+        worker.begin(DRY_RUN);
+    }
+
+    @AfterEach
+    void tearDown() {
+        Logger.getLogger("").removeHandler(handler);
+    }
+
+    private List<String> actionLines() {
+        return messages.stream().filter(message -> message != null && message.startsWith(HousekeepingActionLog.TAG)).toList();
+    }
+
+    private boolean process(HousekeepingUnit unit) {
+        return worker.process(unit).await().atMost(Duration.ofSeconds(10));
+    }
+
+    @Test
+    void logsEveryArchivedProject() {
+        // Given
+        when(dtrack.archiveProject(anyString())).thenReturn(Uni.createFrom().item(true));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
+            project("parent", "app", "org", "app"),
+            child("module", "app-api", "parent", "org", "app"),
+            inactive(project("old", "app", "org", "app"))
+        ));
+
+        // When
+        process(unit);
+
+        // Then
+        assertThat(actionLines()).containsExactlyInAnyOrder(
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=org/app repository_state=archived project=parent name=app version=main",
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=org/app repository_state=archived project=module name=app-api version=main"
+        );
+    }
+
+    @Test
+    void logsProjectsOfGoneRepositoryWithoutRepository() {
+        // Given
+        when(dtrack.archiveProject(anyString())).thenReturn(Uni.createFrom().item(true));
+        var unit = HousekeepingUnit.withoutRepository(RUN, List.of(project("p", "app", "org", "app")), GONE);
+
+        // When
+        process(unit);
+
+        // Then
+        assertThat(actionLines()).containsExactly(
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=- repository_state=gone project=p name=app version=main");
+    }
+
+    @Test
+    void logsWhatWouldBeDoneInDryRun() {
+        // Given
+        var unit = HousekeepingUnit.of(DRY_RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
+
+        // When
+        process(unit);
+
+        // Then
+        assertThat(actionLines()).containsExactly(
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=dry_run repository=org/app repository_state=archived project=p name=app version=main");
+    }
+
+    @Test
+    void logsFailedProjectOnlyOnce() {
+        // Given
+        when(dtrack.archiveProject("module")).thenReturn(Uni.createFrom().item(false));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(
+            project("parent", "app", "org", "app"),
+            child("module", "app-api", "parent", "org", "app")
+        ));
+
+        // When
+        var success = process(unit);
+
+        // Then
+        assertThat(success).isFalse();
+        assertThat(actionLines()).containsExactly(
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=failed repository=org/app repository_state=archived project=module name=app-api version=main");
+    }
+
+    @Test
+    void logsFailingClientForProject() {
+        // Given
+        when(dtrack.archiveProject("p")).thenReturn(Uni.createFrom().failure(new IllegalStateException("boom")));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
+
+        // When
+        var success = process(unit);
+
+        // Then
+        assertThat(success).isFalse();
+        assertThat(actionLines()).containsExactly(
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=failed repository=org/app repository_state=archived project=p name=app version=main");
+    }
+
+    @Test
+    void logsFailureOfUnitNotRelatedToProject() {
+        // Given
+        worker = new HousekeepingWorker(dtrack, topics, new SimpleMeterRegistry(), Duration.ofMillis(200), true, 10, false, 10, false, 10);
+        worker.begin(RUN);
+        when(dtrack.archiveProject("p")).thenReturn(Uni.createFrom().nothing());
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
+
+        // When
+        var success = process(unit);
+
+        // Then
+        assertThat(success).isFalse();
+        assertThat(actionLines()).containsExactly(
+            "HOUSEKEEPING_ACTION action=archive_orphaned_projects status=failed repository=org/app repository_state=archived project=- name=- version=-");
+    }
+
+    @Test
+    void logsReactivatedProjects() {
+        // Given
+        when(dtrack.reactivateProject(anyString())).thenReturn(Uni.createFrom().item(true));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(inactive(project("p", "app", "org", "app"))));
+
+        // When
+        process(unit);
+
+        // Then
+        assertThat(actionLines()).contains(
+            "HOUSEKEEPING_ACTION action=reactivate_projects status=done repository=org/app repository_state=active project=p name=app version=main");
+    }
+
+    @Test
+    void logsUpdatedAndFailedMetadata() {
+        // Given
+        var updated = plainProject("updated", "app");
+        var failing = child("failing", "app-api", "updated", "org", "app");
+        for (var project : List.of(updated, failing)) {
+            when(dtrack.getProject(project.uuid())).thenReturn(Uni.createFrom().item(Optional.of(project)));
+        }
+        when(dtrack.updateProjectReferencesAndTags(eq("updated"), anyList(), anyList())).thenReturn(Uni.createFrom().item(true));
+        when(dtrack.updateProjectReferencesAndTags(eq("failing"), anyList(), anyList())).thenReturn(Uni.createFrom().item(false));
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(updated, failing));
+
+        // When
+        var success = process(unit);
+
+        // Then
+        assertThat(success).isFalse();
+        assertThat(actionLines()).containsExactlyInAnyOrder(
+            "HOUSEKEEPING_ACTION action=update_project_metadata status=done repository=org/app repository_state=active project=updated name=app version=main",
+            "HOUSEKEEPING_ACTION action=update_project_metadata status=failed repository=org/app repository_state=active project=failing name=app-api version=main"
+        );
+    }
+
+    @Test
+    void doesNotLogWhatWasNotActedOn() {
+        // Given
+        var complete = HousekeepingTestData.withMetadata(project("p", "app", "org", "app"), HousekeepingTestData.uploadReferences("org", "app"), List.of("owner=org"));
+
+        // When
+        process(HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(complete)));
+
+        // Then
+        assertThat(actionLines()).isEmpty();
+    }
+}

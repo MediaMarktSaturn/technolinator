@@ -123,6 +123,26 @@ Failures are isolated per unit and action: they're logged and counted, but never
 All log lines of one run share its `traceId`; the final log line contains the summary (installations, repositories, projects, units by kind, failures).
 Units in flight when the run timeout elapses aren't interrupted.
 
+### Structured action log
+
+Every piece of work an action acted on gets one log line tagged `HOUSEKEEPING_ACTION`, in the same `key=value` style as the `GITHUB_REPORT` lines, for building dashboards on top of the logs:
+
+```
+HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=my-org/my-repo repository_state=archived project=0b8a3f1e-... name=my-repo version=main
+```
+
+| Key                | Values                                                                                                          |
+|--------------------|-----------------------------------------------------------------------------------------------------------------|
+| `action`           | `archive_orphaned_projects`, `reactivate_projects`, `update_project_metadata` (the action name with underscores) |
+| `status`           | `done`, `dry_run` (would have been done), `failed`                                                              |
+| `repository`       | `owner/repo`, `-` for units without a repository (gone or unknown)                                              |
+| `repository_state` | `active`, `archived`, `gone`, `unknown`                                                                         |
+| `project`, `name`, `version` | the Dependency-Track project acted on, `-` if the failure isn't related to a single project            |
+
+One line is written per project archived, reactivated or updated, or whose change failed. A failure that isn't related to a single project (e.g. the action timeout, or GitHub failing to deliver the topics) is written once per unit and action with `project=-`.
+Nothing is written for what was not acted on: units the action doesn't apply to, projects already up to date, or skipped by a limit or safeguard.
+Values containing whitespace, quotes or `=` are quoted. The lines carry the `traceId` of the run (and the `repository` where known) in the log context, so they can be tied to the run and its summary. `failed` lines are logged as warnings, the others as info.
+
 ## Adding housekeeping
 
 All housekeeping lives in `HousekeepingWorker`. An action is an entry in the list built in its constructor:
@@ -134,6 +154,7 @@ new Action("my-action", () -> myActionEnabled, this::appliesToMyAction, this::my
 * `name` is used for the metric and logs, and by convention for the switch `app.housekeeping.my-action.enabled` (inject it as `@ConfigProperty` in the constructor and add it to `application.properties`)
 * `applies` decides from the `HousekeepingUnit` (repository, projects, repository state), whether the action is of interest
 * `work` performs it. It runs on a worker thread, so blocking calls are fine, and has to respect `unit.dryRun()`. A failed `Uni` is logged, counted as `ERROR` and doesn't affect other actions or units.
+  It should write a `HousekeepingActionLog` line for every project it changes (or would change in dry-run mode), see [Structured action log](#structured-action-log).
 
 Actions only get to see one unit at a time, but may keep per-run state keyed by `HousekeepingRun#id()` (see `begin`/`end` of the worker).
 `GitHubRepo#github()` returns a GitHub client authenticated as the installation of the repository. The `GHRepository` held in `GitHubRepo#listed` is bound to a token that may expire during a long run, so use `github()` for later writes.

@@ -137,6 +137,12 @@ commandTests:
       expectedOutput:
           - 'Composer - Dependency Manager for PHP.*'
 
+    - name: "Bundler installed"
+      command: 'bundle'
+      args: ["--version"]
+      expectedOutput:
+          - 'Bundler version 2.*'
+
     - name: "Java 17 available"
       command: '$JAVA17_HOME/bin/java'
       args: ["--version"]

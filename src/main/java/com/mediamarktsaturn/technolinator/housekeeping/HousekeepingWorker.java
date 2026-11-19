@@ -169,6 +169,9 @@ public class HousekeepingWorker {
             .onFailure().recoverWithItem(failure -> {
                 unit.writeToMDC();
                 Log.errorf(failure, "Housekeeping action %s failed for %s", action.name, unit.subject());
+                if (!(failure instanceof ProjectsFailedException)) {
+                    HousekeepingActionLog.unitFailed(action.name, unit);
+                }
                 return false;
             })
             .invoke(success -> meterRegistry.counter("housekeeping_action", "action", action.name, "status", success ? "OK" : "ERROR").increment());
@@ -231,26 +234,43 @@ public class HousekeepingWorker {
             state.archived.addAndGet(projects.size());
             Log.infof("Would archive %d project(s) of %s, which %s: %s", projects.size(), subject, reason,
                 projects.stream().map(DependencyTrackProject::displayName).toList());
+            projects.forEach(project -> HousekeepingActionLog.project(ARCHIVE_ORPHANED_PROJECTS, true, unit, project));
             return Uni.createFrom().voidItem();
         }
 
         Log.infof("Archiving %d project(s) of %s, which %s", projects.size(), subject, reason);
         Uni<Void> chain = Uni.createFrom().voidItem();
         for (var wave : unit.activeProjectsChildrenFirst()) {
-            chain = chain.chain(() -> archiveWave(wave, state));
+            chain = chain.chain(() -> archiveWave(unit, wave, state));
         }
         return chain;
     }
 
-    private Uni<Void> archiveWave(List<DependencyTrackProject> wave, RunState state) {
+    private Uni<Void> archiveWave(HousekeepingUnit unit, List<DependencyTrackProject> wave, RunState state) {
         return Uni.combine().all().unis(
-                wave.stream().map(project -> dtrackClient.archiveProject(project.uuid())).toList()
+                wave.stream().map(project -> logged(ARCHIVE_ORPHANED_PROJECTS, unit, project, dtrackClient.archiveProject(project.uuid()))).toList()
             ).with(Boolean.class, results -> (int) results.stream().filter(archived -> !archived).count())
             .invoke(failed -> state.archived.addAndGet(wave.size() - failed))
             .chain(failed -> failed == 0
                 ? Uni.createFrom().voidItem()
                 // parents can't be archived with active children, so the remaining waves are left for the next run
-                : Uni.createFrom().failure(new IllegalStateException("Could not archive %d of %d projects".formatted(failed, wave.size()))));
+                : Uni.createFrom().failure(new ProjectsFailedException("Could not archive %d of %d projects".formatted(failed, wave.size()))));
+    }
+
+    /**
+     * Writes the structured log record for the outcome of the change of the project, a failure counting as unsuccessful.
+     */
+    private static Uni<Boolean> logged(String action, HousekeepingUnit unit, DependencyTrackProject project, Uni<Boolean> change) {
+        return change
+            .onFailure().recoverWithItem(failure -> {
+                unit.writeToMDC();
+                Log.warnf(failure, "Housekeeping action %s failed for project %s", action, project.displayName());
+                return false;
+            })
+            .invoke(success -> {
+                unit.writeToMDC();
+                HousekeepingActionLog.project(action, success ? HousekeepingActionLog.Status.DONE : HousekeepingActionLog.Status.FAILED, unit, project);
+            });
     }
 
     private boolean isActiveRepositoryUnit(HousekeepingUnit unit) {
@@ -304,11 +324,12 @@ public class HousekeepingWorker {
         if (unit.dryRun()) {
             var updates = candidates.stream()
                 .filter(project -> ProjectMetadata.requiredUpdate(project, repository, topics).isPresent())
-                .map(DependencyTrackProject::displayName)
                 .toList();
             state.metadataUpdated.addAndGet(updates.size());
             if (!updates.isEmpty()) {
-                Log.infof("Would update references and tags of %d project(s) of repository %s: %s", updates.size(), repository.fullName(), updates);
+                Log.infof("Would update references and tags of %d project(s) of repository %s: %s", updates.size(), repository.fullName(),
+                    updates.stream().map(DependencyTrackProject::displayName).toList());
+                updates.forEach(project -> HousekeepingActionLog.project(UPDATE_PROJECT_METADATA, true, unit, project));
             }
             return Uni.createFrom().voidItem();
         }
@@ -316,14 +337,14 @@ public class HousekeepingWorker {
         Log.infof("Updating references and tags of %d project(s) of repository %s", candidates.size(), repository.fullName());
         Uni<Integer> failures = Uni.createFrom().item(0);
         for (var candidate : candidates) {
-            failures = failures.chain(failed -> updateMetadata(candidate, repository, topics, state).map(success -> success ? failed : failed + 1));
+            failures = failures.chain(failed -> updateMetadata(unit, candidate, repository, topics, state).map(success -> success ? failed : failed + 1));
         }
         return failures.chain(failed -> failed == 0
             ? Uni.createFrom().voidItem()
-            : Uni.createFrom().failure(new IllegalStateException("Could not update %d of %d projects".formatted(failed, candidates.size()))));
+            : Uni.createFrom().failure(new ProjectsFailedException("Could not update %d of %d projects".formatted(failed, candidates.size()))));
     }
 
-    private Uni<Boolean> updateMetadata(DependencyTrackProject listed, GitHubRepo repository, List<String> topics, RunState state) {
+    private Uni<Boolean> updateMetadata(HousekeepingUnit unit, DependencyTrackProject listed, GitHubRepo repository, List<String> topics, RunState state) {
         return dtrackClient.getProject(listed.uuid())
             .chain(current -> {
                 if (current.isEmpty() || !current.get().active()) {
@@ -338,10 +359,17 @@ public class HousekeepingWorker {
                         if (updated) {
                             state.metadataUpdated.incrementAndGet();
                         }
+                    })
+                    .invoke(updated -> {
+                        unit.writeToMDC();
+                        HousekeepingActionLog.project(UPDATE_PROJECT_METADATA,
+                            updated ? HousekeepingActionLog.Status.DONE : HousekeepingActionLog.Status.FAILED, unit, listed);
                     });
             })
             .onFailure().recoverWithItem(failure -> {
+                unit.writeToMDC();
                 Log.warnf(failure, "Could not update references and tags of project %s", listed.displayName());
+                HousekeepingActionLog.project(UPDATE_PROJECT_METADATA, HousekeepingActionLog.Status.FAILED, unit, listed);
                 return false;
             });
     }
@@ -383,13 +411,14 @@ public class HousekeepingWorker {
             state.reactivated.addAndGet(candidates.size());
             Log.infof("Would reactivate %d project(s) of active repository %s: %s", candidates.size(), repository.fullName(),
                 candidates.stream().map(DependencyTrackProject::displayName).toList());
+            candidates.forEach(project -> HousekeepingActionLog.project(REACTIVATE_PROJECTS, true, unit, project));
             return Uni.createFrom().voidItem();
         }
 
         Log.infof("Reactivating %d project(s) of active repository %s", candidates.size(), repository.fullName());
         Uni<Void> chain = Uni.createFrom().voidItem();
         for (var wave : unit.groupParentsFirst(candidates)) {
-            chain = chain.chain(() -> reactivateWave(wave, state));
+            chain = chain.chain(() -> reactivateWave(unit, wave, state));
         }
         return chain;
     }
@@ -426,15 +455,24 @@ public class HousekeepingWorker {
         return List.copyOf(candidates.values());
     }
 
-    private Uni<Void> reactivateWave(List<DependencyTrackProject> wave, RunState state) {
+    private Uni<Void> reactivateWave(HousekeepingUnit unit, List<DependencyTrackProject> wave, RunState state) {
         return Uni.combine().all().unis(
-                wave.stream().map(project -> dtrackClient.reactivateProject(project.uuid())).toList()
+                wave.stream().map(project -> logged(REACTIVATE_PROJECTS, unit, project, dtrackClient.reactivateProject(project.uuid()))).toList()
             ).with(Boolean.class, results -> (int) results.stream().filter(reactivated -> !reactivated).count())
             .invoke(failed -> state.reactivated.addAndGet(wave.size() - failed))
             .chain(failed -> failed == 0
                 ? Uni.createFrom().voidItem()
                 // children are better left archived than active below an archived parent
-                : Uni.createFrom().failure(new IllegalStateException("Could not reactivate %d of %d projects".formatted(failed, wave.size()))));
+                : Uni.createFrom().failure(new ProjectsFailedException("Could not reactivate %d of %d projects".formatted(failed, wave.size()))));
+    }
+
+    /**
+     * Failure of an action because of projects it couldn't change, which are logged on their own already.
+     */
+    private static final class ProjectsFailedException extends IllegalStateException {
+        ProjectsFailedException(String message) {
+            super(message);
+        }
     }
 
     private record Action(

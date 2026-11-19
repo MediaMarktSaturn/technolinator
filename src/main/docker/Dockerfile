@@ -51,6 +51,7 @@ RUN \
     microdnf install --nodocs -y tzdata && \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
     microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git python3 pip php php-cli php-zip php-json && \
+    microdnf install --nodocs -y ruby ruby-devel rubygem-bundler gcc gcc-c++ make redhat-rpm-config && \
     curl -s https://raw.githubusercontent.com/composer/getcomposer.org/main/web/installer | php -- --filename=composer --install-dir=/usr/bin --quiet && \
     microdnf clean all -y
 
@@ -145,7 +146,11 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
     SENSITIVE_ENV_VARS="QUARKUS_GITHUB_APP_APP_ID,QUARKUS_GITHUB_APP_WEBHOOK_SECRET,QUARKUS_GITHUB_APP_PRIVATE_KEY,GITHUB_TOKEN,DTRACK_APIKEY" \
     ALLOWED_ENV_SUBSTITUTIONS=""
 
-ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin:$GO_HOME/bin"
+# ruby gems are installed by the unprivileged app user (via bundler), so use a writable location
+ENV GEM_HOME="$APP_DATA/.gem" \
+    BUNDLE_USER_HOME="$APP_DATA/.bundle"
+
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin:$GO_HOME/bin:$GEM_HOME/bin"
 
 ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager --add-opens java.base/java.lang=ALL-UNNAMED"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"
