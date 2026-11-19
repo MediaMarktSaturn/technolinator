@@ -11,9 +11,9 @@ ARG NYDUS_VERSION
 ARG DEPSCAN_VERSION
 
 # sdkman provided jdks
-ARG JAVA_17_VERSION='17.0.21.0+9-tem'
+ARG JAVA_17_VERSION='17.0.21.1+2-tem'
 ARG JAVA_21_VERSION='21.0.13.0+9-tem'
-ARG JAVA_25_VERSION='25.0.5.0+8-tem'
+ARG JAVA_25_VERSION='25.0.5.1+2-tem'
 ARG GRADLE_VERSION='9.9.1'
 ARG NODE_VERSION='24'
 ARG GO_VERSION='1.27.4'
@@ -64,6 +64,11 @@ RUN \
     nvm install $NODE_VERSION && \
     mv /root/.nvm/versions/node/* $NODE_HOME && \
     rm -rf /root/.nvm
+
+# install yarn
+RUN \
+    export PATH="$PATH:$NODE_HOME/bin" && \
+    npm install -g yarn
 
 ENV GO_HOME="$APP_DIR/go"
 

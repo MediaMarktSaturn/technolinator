@@ -131,6 +131,12 @@ commandTests:
       expectedOutput:
           - '11.*'
 
+    - name: "Yarn available"
+      command: 'yarn'
+      args: ["-v"]
+      expectedOutput:
+          - '1.*'
+
     - name: "Composer installed"
       command: 'composer'
       args: ["about"]
@@ -198,13 +204,13 @@ metadataTest:
         - key: GIT_ASKPASS
           value: '/app/git_askpass.sh'
         - key: JAVA_HOME
-          value: '/app/sdks/java/25.0.5.0+8-tem'
+          value: '/app/sdks/java/25.0.5.1+2-tem'
         - key: JAVA17_HOME
-          value: '/app/sdks/java/17.0.21.0+9-tem'
+          value: '/app/sdks/java/17.0.21.1+2-tem'
         - key: JAVA21_HOME
           value: '/app/sdks/java/21.0.13.0+9-tem'
         - key: JAVA25_HOME
-          value: '/app/sdks/java/25.0.5.0+8-tem'
+          value: '/app/sdks/java/25.0.5.1+2-tem'
         - key: MAVEN_HOME
           value: '/app/sdks/maven/current'
         - key: GRADLE_HOME
