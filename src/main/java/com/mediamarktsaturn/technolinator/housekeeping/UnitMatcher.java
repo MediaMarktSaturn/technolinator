@@ -26,8 +26,8 @@ import java.util.function.Function;
  * <p>
  * Projects not belonging to any repository are given to the worker anyway, grouped by the repository they reference, or else by the one
  * their nearest ancestor referencing exactly one repository does.
- * The state of the unit tells whether that repository is certainly gone, or whether nothing can be said. A project referencing a repository,
- * that exists but wasn't matched (e.g. because it's named differently), is not considered gone.
+ * The state of the unit tells whether that repository is certainly gone, was renamed (the unit knows the new repository then), or whether
+ * nothing can be said. A project referencing a repository, that exists but wasn't matched (e.g. because it's named differently), is not considered gone.
  * <p>
  * Repositories are filtered like the event handling does, by the names in {@code app.enabled_repos}. This includes the projects
  * related to the filtered repositories, which are left alone. Projects that can't be related to a repository, are left alone if a filter is set.
@@ -145,8 +145,14 @@ final class UnitMatcher {
         byReference.forEach((reference, projects) -> {
             if (isEnabled(enabledRepos, reference.name())) {
                 // if the repository exists although the projects weren't matched to it, it's not for us to judge
-                var state = index.lookup(reference) == GitHubRepositoryIndex.State.GONE ? GitHubRepositoryIndex.State.GONE : GitHubRepositoryIndex.State.UNKNOWN;
-                units.add(HousekeepingUnit.withoutRepository(run, projects, state));
+                var state = index.lookup(reference);
+                var movedTo = state == GitHubRepositoryIndex.State.MOVED ? index.movedTo(reference) : Optional.<GitHubRepo>empty();
+                if (movedTo.isPresent()) {
+                    units.add(HousekeepingUnit.ofRenamedRepository(run, projects, reference, movedTo.get()));
+                } else {
+                    units.add(HousekeepingUnit.withoutRepository(run, projects,
+                        state == GitHubRepositoryIndex.State.GONE ? GitHubRepositoryIndex.State.GONE : GitHubRepositoryIndex.State.UNKNOWN));
+                }
             }
         });
         if (enabledRepos.isEmpty()) {

@@ -12,9 +12,11 @@ import java.util.Optional;
  * <pre>
  * HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=org/repo repository_state=archived project=0b8a3f1e-... name=repo version=main
  * </pre>
- * One line is written per project that was archived, reactivated or updated, or whose treatment failed. Whatever was skipped
+ * One line is written per project that was archived, reactivated, renamed or updated, or whose treatment failed. Whatever was skipped
  * (limits, units not applying, projects being up to date already) is not logged, as nothing was acted on.
  * A failure not related to a single project (e.g. a timeout) is written once for the unit, with {@code project=-}.
+ * Some actions append further keys, e.g. the renaming of projects tells the {@code new_name} and whether the {@code change} was a {@code rename}
+ * or an {@code archive} instead. For units of projects of a renamed repository, the {@code repository} is the one renamed to.
  * <p>
  * Values are joined by underscores, like for the {@code GITHUB_REPORT}, so that log search splitting words at hyphens can't confuse them.
  * Values that still contain whitespace, quotes or equal signs are quoted.
@@ -43,16 +45,18 @@ public final class HousekeepingActionLog {
 
     /**
      * Records the outcome of an action for a project of the unit
+     *
+     * @param details additional keys and values (alternating) to append, e.g. {@code "new_name", "my-repo"}
      */
-    static void project(String action, Status status, HousekeepingUnit unit, DependencyTrackProject project) {
-        write(action, status, unit, Optional.of(project));
+    static void project(String action, Status status, HousekeepingUnit unit, DependencyTrackProject project, String... details) {
+        write(action, status, unit, Optional.of(project), details);
     }
 
     /**
      * Records a successful or planned action for a project of the unit
      */
-    static void project(String action, boolean dryRun, HousekeepingUnit unit, DependencyTrackProject project) {
-        project(action, dryRun ? Status.DRY_RUN : Status.DONE, unit, project);
+    static void project(String action, boolean dryRun, HousekeepingUnit unit, DependencyTrackProject project, String... details) {
+        project(action, dryRun ? Status.DRY_RUN : Status.DONE, unit, project, details);
     }
 
     /**
@@ -62,21 +66,24 @@ public final class HousekeepingActionLog {
         write(action, Status.FAILED, unit, Optional.empty());
     }
 
-    private static void write(String action, Status status, HousekeepingUnit unit, Optional<DependencyTrackProject> project) {
-        var line = "%s action=%s status=%s repository=%s repository_state=%s project=%s name=%s version=%s".formatted(
+    private static void write(String action, Status status, HousekeepingUnit unit, Optional<DependencyTrackProject> project, String... details) {
+        var line = new StringBuilder("%s action=%s status=%s repository=%s repository_state=%s project=%s name=%s version=%s".formatted(
             TAG,
             snake(action),
             snake(status.name()),
-            value(unit.repository().map(GitHubRepo::fullName).orElse(null)),
+            value(unit.repositoryOrRenamed().map(GitHubRepo::fullName).orElse(null)),
             snake(unit.repositoryState().name()),
             value(project.map(DependencyTrackProject::uuid).orElse(null)),
             value(project.map(DependencyTrackProject::name).orElse(null)),
             value(project.map(DependencyTrackProject::version).orElse(null))
-        );
+        ));
+        for (int i = 0; i + 1 < details.length; i += 2) {
+            line.append(' ').append(details[i]).append('=').append(value(details[i + 1]));
+        }
         if (status == Status.FAILED) {
-            Log.warn(line);
+            Log.warn(line.toString());
         } else {
-            Log.info(line);
+            Log.info(line.toString());
         }
     }
 

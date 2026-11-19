@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.UUID;
@@ -238,11 +239,13 @@ public class HousekeepingService {
     }
 
     /**
-     * Repositories not listed by the installation of their account aren't necessarily gone: GitHub keeps renamed and transferred repositories alive
+     * Repositories not listed by the installation of their account aren't necessarily gone: GitHub keeps renamed repositories alive
      * (and redirects to them), while the projects of Dependency-Track still reference the old location. Archiving the projects of those,
      * just because the old name is missing, would hit repositories that are neither archived nor deleted.
      * So, the repositories referenced by projects that are missing in the listings are looked up on their own, and only the ones
-     * GitHub doesn't know at all stay {@link GitHubRepositoryIndex.State#GONE}, the others become {@link GitHubRepositoryIndex.State#UNKNOWN}.
+     * GitHub doesn't know at all (or that were transferred to another account) stay {@link GitHubRepositoryIndex.State#GONE}.
+     * The ones renamed within their account become {@link GitHubRepositoryIndex.State#MOVED}, so their projects can follow, the others
+     * {@link GitHubRepositoryIndex.State#UNKNOWN}.
      * Also, a repository of the same name existing under another account may be the transferred one, even if GitHub can't tell.
      * <p>
      * Only the repositories that might get projects archived are looked up: the ones referenced by active projects or their ancestors
@@ -266,20 +269,21 @@ public class HousekeepingService {
         var toVerify = candidates.stream().filter(reference -> !movedElsewhere.contains(reference)).toList();
 
         var confirmation = toVerify.isEmpty()
-            ? Uni.createFrom().item(Set.<RepositoryReference>of())
+            ? Uni.createFrom().item(new GitHubRepositoryIndexer.Confirmation(Set.of(), Map.of()))
             : indexer.confirmGone(run, toVerify)
             .onFailure().invoke(failure -> {
                 run.writeToMDC();
                 Log.errorf(failure, "Could not look up the %d repositories missing in the listings, treating them as unknown", toVerify.size());
             })
-            .onFailure().recoverWithItem(Set.of());
+            .onFailure().recoverWithItem(new GitHubRepositoryIndexer.Confirmation(Set.of(), Map.of()));
         return confirmation
             .map(confirmed -> {
-                var unconfirmed = missing.stream().filter(reference -> !confirmed.contains(reference)).toList();
+                var unconfirmed = missing.stream().filter(reference -> !confirmed.gone().contains(reference)).toList();
                 run.writeToMDC();
-                Log.infof("Of %d repositories referenced by projects, but missing in the listings of GitHub, %d are confirmed gone, %d exist under another name or account or couldn't be looked up (%d of them have a namesake elsewhere), %d have archived projects only and weren't looked up",
-                    missing.size(), confirmed.size(), candidates.size() - confirmed.size(), movedElsewhere.size(), missing.size() - candidates.size());
-                return new TargetedListing.Listing(index.withUnconfirmedGone(unconfirmed), listing.projects());
+                Log.infof("Of %d repositories referenced by projects, but missing in the listings of GitHub, %d are confirmed gone, %d got renamed, %d exist under another account or couldn't be looked up (%d of them have a namesake elsewhere), %d have archived projects only and weren't looked up",
+                    missing.size(), confirmed.gone().size(), confirmed.moved().size(),
+                    candidates.size() - confirmed.gone().size() - confirmed.moved().size(), movedElsewhere.size(), missing.size() - candidates.size());
+                return new TargetedListing.Listing(index.withUnconfirmedGone(unconfirmed).withMoved(confirmed.moved()), listing.projects());
             });
     }
 

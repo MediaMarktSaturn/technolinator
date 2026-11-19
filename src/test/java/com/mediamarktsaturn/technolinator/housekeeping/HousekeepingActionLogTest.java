@@ -67,7 +67,7 @@ class HousekeepingActionLogTest {
         topics = mock(GitHubRepositoryTopics.class);
         when(topics.topics(any())).thenReturn(List.of("java"));
         worker = new HousekeepingWorker(dtrack, topics, new SimpleMeterRegistry(), Duration.ofSeconds(10),
-            true, 10, true, 10, true, 10);
+            true, 10, true, 10, true, 10, true, 10);
         worker.begin(RUN);
         worker.begin(DRY_RUN);
     }
@@ -168,7 +168,7 @@ class HousekeepingActionLogTest {
     @Test
     void logsFailureOfUnitNotRelatedToProject() {
         // Given
-        worker = new HousekeepingWorker(dtrack, topics, new SimpleMeterRegistry(), Duration.ofMillis(200), true, 10, false, 10, false, 10);
+        worker = new HousekeepingWorker(dtrack, topics, new SimpleMeterRegistry(), Duration.ofMillis(200), true, 10, false, 10, false, 10, false, 10);
         worker.begin(RUN);
         when(dtrack.archiveProject("p")).thenReturn(Uni.createFrom().nothing());
         var unit = HousekeepingUnit.of(RUN, repo("org", "app", true), List.of(project("p", "app", "org", "app")));
@@ -217,6 +217,44 @@ class HousekeepingActionLogTest {
             "HOUSEKEEPING_ACTION action=update_project_metadata status=done repository=org/app repository_state=active project=updated name=app version=main",
             "HOUSEKEEPING_ACTION action=update_project_metadata status=failed repository=org/app repository_state=active project=failing name=app-api version=main"
         );
+    }
+
+    @Test
+    void logsRenamedProjectsAndSupersededOnes() {
+        // Given
+        var renamed = project("renamed", "old", "org", "old");
+        var superseded = child("superseded", "old-api", "renamed", "org", "old");
+        when(dtrack.renameProjectOfRepository(eq(renamed), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(Uni.createFrom().item(DependencyTrackClient.RenameStatus.RENAMED));
+        when(dtrack.renameProjectOfRepository(eq(superseded), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(Uni.createFrom().item(DependencyTrackClient.RenameStatus.CONFLICT));
+        when(dtrack.archiveProject("superseded")).thenReturn(Uni.createFrom().item(true));
+        var unit = HousekeepingUnit.ofRenamedRepository(RUN, List.of(renamed, superseded),
+            new RepositoryReference("github.com", "org", "old"), repo("org", "new", false));
+
+        // When
+        var success = process(unit);
+
+        // Then
+        assertThat(success).isTrue();
+        assertThat(actionLines()).containsExactlyInAnyOrder(
+            "HOUSEKEEPING_ACTION action=follow_renamed_repositories status=done repository=org/new repository_state=moved project=renamed name=old version=main change=rename new_name=new",
+            "HOUSEKEEPING_ACTION action=follow_renamed_repositories status=done repository=org/new repository_state=moved project=superseded name=old-api version=main change=archive"
+        );
+    }
+
+    @Test
+    void logsWhatWouldBeRenamedInDryRun() {
+        // Given
+        var unit = HousekeepingUnit.ofRenamedRepository(DRY_RUN, List.of(child("module", "old-api", "parent", "org", "old")),
+            new RepositoryReference("github.com", "org", "old"), repo("org", "new", false));
+
+        // When
+        process(unit);
+
+        // Then
+        assertThat(actionLines()).containsExactly(
+            "HOUSEKEEPING_ACTION action=follow_renamed_repositories status=dry_run repository=org/new repository_state=moved project=module name=old-api version=main change=rename new_name=new-api");
     }
 
     @Test

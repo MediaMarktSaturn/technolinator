@@ -11,6 +11,7 @@ import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHAppInstallation;
 import org.kohsuke.github.GHFileNotFoundException;
+import org.kohsuke.github.GHRepository;
 import org.kohsuke.github.GHRepositorySelection;
 
 import java.io.IOException;
@@ -21,7 +22,9 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -83,9 +86,9 @@ public class GitHubRepositoryIndexer {
      * <p>
      * A repository is {@link GitHubRepositoryIndex.State#GONE} if its account has an installation with access to <em>all</em> repositories
      * and GitHub doesn't know the repository.
-     * Repositories known under another name or account (GitHub redirects renamed and transferred ones) are alive, so they're
-     * {@link GitHubRepositoryIndex.State#UNKNOWN}, like the ones of accounts without (active) installation,
-     * of installations restricted to selected repositories, or that couldn't be fetched.
+     * Repositories renamed within their account (GitHub redirects them) are {@link GitHubRepositoryIndex.State#MOVED}, and transferred ones
+     * are {@link GitHubRepositoryIndex.State#GONE}. Repositories of accounts without (active) installation, of installations restricted
+     * to selected repositories, or that couldn't be fetched, are {@link GitHubRepositoryIndex.State#UNKNOWN}.
      * Fails if the installations of the app can't be listed.
      */
     public Uni<GitHubRepositoryIndex> build(HousekeepingRun run, Collection<Target> targets) {
@@ -115,19 +118,40 @@ public class GitHubRepositoryIndexer {
 
     /**
      * Confirms that repositories, which aren't listed by their account's installation, really are gone, by looking them up on their own.
-     * Listings don't tell about repositories that got renamed or transferred, which GitHub redirects, so these aren't gone, although they're missing.
+     * Listings don't tell about repositories that got renamed, which GitHub redirects, so these aren't gone, although they're missing.
+     * Repositories transferred to another account are gone, as they don't belong to the account anymore.
      *
-     * @return the candidates that certainly don't exist, anything else (renamed, transferred, or failing to be looked up) is left out
+     * @return the candidates that certainly don't exist (anymore), and the ones renamed within their account together with their new repository.
+     * Anything else (failing to be looked up) is left out
      */
-    public Uni<Set<RepositoryReference>> confirmGone(HousekeepingRun run, Collection<RepositoryReference> candidates) {
+    public Uni<Confirmation> confirmGone(HousekeepingRun run, Collection<RepositoryReference> candidates) {
         var targets = new LinkedHashSet<Target>();
         candidates.forEach(candidate -> TargetedListing.parseRepository(candidate.owner() + "/" + candidate.name()).ifPresent(targets::add));
         if (targets.isEmpty()) {
-            return Uni.createFrom().item(Set.of());
+            return Uni.createFrom().item(new Confirmation(Set.of(), Map.of()));
         }
-        return build(run, targets).map(index -> candidates.stream()
-            .filter(candidate -> index.lookup(candidate) == GitHubRepositoryIndex.State.GONE)
-            .collect(Collectors.toUnmodifiableSet()));
+        return build(run, targets).map(index -> new Confirmation(
+            candidates.stream()
+                .filter(candidate -> index.lookup(candidate) == GitHubRepositoryIndex.State.GONE)
+                .collect(Collectors.toUnmodifiableSet()),
+            candidates.stream()
+                .filter(candidate -> index.lookup(candidate) == GitHubRepositoryIndex.State.MOVED)
+                .collect(Collectors.toUnmodifiableMap(Function.identity(), candidate -> index.movedTo(candidate).orElseThrow(), (first, second) -> first))));
+    }
+
+    /**
+     * @param gone  repositories that certainly don't exist (anymore)
+     * @param moved repositories that got renamed within their account, with the repository they're named now
+     */
+    public record Confirmation(Set<RepositoryReference> gone, Map<RepositoryReference, GitHubRepo> moved) {
+    }
+
+    private static String ownerOf(GHRepository repository) {
+        var fullName = repository.getFullName();
+        if (fullName != null && fullName.indexOf('/') > 0) {
+            return fullName.substring(0, fullName.indexOf('/'));
+        }
+        return repository.getOwnerName();
     }
 
     private List<GHAppInstallation> activeInstallations() throws IOException {
@@ -154,13 +178,18 @@ public class GitHubRepositoryIndexer {
                 for (var target : targets) {
                     try {
                         var repository = client.current().getRepository(login + "/" + target.name());
-                        if (target.name().equalsIgnoreCase(repository.getName())
-                            && (repository.getOwnerName() == null || login.equalsIgnoreCase(repository.getOwnerName()))) {
+                        var owner = ownerOf(repository);
+                        if (owner != null && !login.equalsIgnoreCase(owner)) {
+                            // GitHub redirects transferred repositories. They aren't of this account anymore, which is treated like being deleted
+                            Log.infof("Repository %s/%s got transferred to %s, treating it as gone", login, target.name(), repository.getFullName());
+                            builder.addGoneRepository(host, login, target.name());
+                        } else if (target.name().equalsIgnoreCase(repository.getName())) {
                             builder.addRepository(host, login, GitHubRepo.of(host, login, repository, client));
                         } else {
-                            // GitHub redirects renamed and transferred repositories. Nothing exists under the requested name anymore,
-                            // but the repository is alive (and maybe not even archived), so it must not be reported as gone
-                            Log.infof("Repository %s/%s got renamed or transferred to %s, treating it as unknown", login, target.name(), repository.getFullName());
+                            // GitHub redirects renamed repositories. Nothing exists under the requested name anymore, but the repository is alive
+                            // (and maybe not even archived), so it must not be reported as gone. The projects follow it, see the rename action.
+                            Log.infof("Repository %s/%s got renamed to %s", login, target.name(), repository.getFullName());
+                            builder.addMovedRepository(host, login, target.name(), GitHubRepo.of(host, login, repository, client));
                         }
                     } catch (GHFileNotFoundException e) {
                         if (all) {

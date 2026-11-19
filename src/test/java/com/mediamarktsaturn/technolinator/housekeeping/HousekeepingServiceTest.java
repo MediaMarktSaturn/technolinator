@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -82,7 +83,7 @@ class HousekeepingServiceTest {
     private void given(GitHubRepositoryIndex index, List<DependencyTrackProject> projects) {
         when(indexer.build(any())).thenReturn(Uni.createFrom().item(index));
         // by default, GitHub doesn't know any of the repositories missing in the listings
-        when(indexer.confirmGone(any(), any())).thenAnswer(invocation -> Uni.createFrom().item(Set.copyOf(invocation.<Collection<RepositoryReference>>getArgument(1))));
+        when(indexer.confirmGone(any(), any())).thenAnswer(invocation -> Uni.createFrom().item(new GitHubRepositoryIndexer.Confirmation(Set.copyOf(invocation.<Collection<RepositoryReference>>getArgument(1)), Map.of())));
         when(dtrack.listProjects(false)).thenReturn(Uni.createFrom().item(projects));
     }
 
@@ -346,7 +347,7 @@ class HousekeepingServiceTest {
                 project("p3", "deleted", "org", "deleted")
             )
         );
-        doReturn(Uni.createFrom().item(Set.of(new RepositoryReference("github.com", "org", "deleted")))).when(indexer).confirmGone(any(), any());
+        doReturn(Uni.createFrom().item(new GitHubRepositoryIndexer.Confirmation(Set.of(new RepositoryReference("github.com", "org", "deleted")), Map.of()))).when(indexer).confirmGone(any(), any());
 
         // When
         run(service());
@@ -358,6 +359,27 @@ class HousekeepingServiceTest {
             .containsExactlyInAnyOrder(
                 tuple("p2", GitHubRepositoryIndex.State.UNKNOWN),
                 tuple("p3", GitHubRepositoryIndex.State.GONE));
+    }
+
+    @Test
+    void handsRenamedRepositoriesToTheirProjects() {
+        // Given
+        given(
+            index(repo("org", "app", false)),
+            List.of(project("p1", "app", "org", "app"), project("p2", "renamed", "org", "renamed"))
+        );
+        var renamedTo = repo("org", "new-name", false);
+        var oldReference = new RepositoryReference("github.com", "org", "renamed");
+        doReturn(Uni.createFrom().item(new GitHubRepositoryIndexer.Confirmation(Set.of(), Map.of(oldReference, renamedTo)))).when(indexer).confirmGone(any(), any());
+
+        // When
+        run(service());
+
+        // Then
+        var unit = processed.stream().filter(candidate -> candidate.repository().isEmpty()).findFirst().orElseThrow();
+        assertThat(unit.repositoryState()).isEqualTo(GitHubRepositoryIndex.State.MOVED);
+        assertThat(unit.projects()).extracting(DependencyTrackProject::uuid).containsExactly("p2");
+        assertThat(unit.moved()).get().isEqualTo(new HousekeepingUnit.Move(oldReference, renamedTo));
     }
 
     @Test

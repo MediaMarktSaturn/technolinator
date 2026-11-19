@@ -884,6 +884,71 @@ class DependencyTrackClientTest {
     }
 
     @Test
+    void testRenameProjectOfRepository() {
+        // Given
+        var oldVcs = "git://github.com/heubeck/single-old.git";
+        var oldWebsite = "https://github.com/heubeck/single-old";
+        var newVcs = "git://github.com/heubeck/single-new.git";
+        var newWebsite = "https://github.com/heubeck/single-new";
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-uuid-ok"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("{}"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-uuid-taken"))
+                .willReturn(aResponse().withStatus(409).withBody("conflict"))
+        );
+        wiremock.register(
+            patch(urlEqualTo("/api/v1/project/single-uuid-broken"))
+                .willReturn(aResponse().withStatus(500).withBody("boom"))
+        );
+        var references = List.of(
+            new DependencyTrackProject.Reference("vcs", oldVcs),
+            new DependencyTrackProject.Reference("website", oldWebsite),
+            new DependencyTrackProject.Reference("documentation", "https://docs.example.com", "the docs")
+        );
+
+        // When
+        var renamed = await(cut.renameProjectOfRepository(
+            dtrackProject("single-uuid-ok", "Single-Old-module", references), "single-old", "single-new", oldVcs, oldWebsite, newVcs, newWebsite));
+        var taken = await(cut.renameProjectOfRepository(
+            dtrackProject("single-uuid-taken", "single-old", references), "single-old", "single-new", oldVcs, oldWebsite, newVcs, newWebsite));
+        var broken = await(cut.renameProjectOfRepository(
+            dtrackProject("single-uuid-broken", "single-old", references), "single-old", "single-new", oldVcs, oldWebsite, newVcs, newWebsite));
+        // neither named nor referencing the old repository
+        var unrelated = await(cut.renameProjectOfRepository(
+            dtrackProject("single-uuid-unrelated", "service", List.of(new DependencyTrackProject.Reference("documentation", "https://docs.example.com"))),
+            "single-old", "single-new", oldVcs, oldWebsite, newVcs, newWebsite));
+        // not named like the repository, but referencing it
+        var referencing = await(cut.renameProjectOfRepository(
+            dtrackProject("single-uuid-ok", "service", references), "single-old", "single-new", oldVcs, oldWebsite, newVcs, newWebsite));
+
+        // Then
+        assertThat(renamed).isEqualTo(DependencyTrackClient.RenameStatus.RENAMED);
+        assertThat(taken).isEqualTo(DependencyTrackClient.RenameStatus.CONFLICT);
+        assertThat(broken).isEqualTo(DependencyTrackClient.RenameStatus.FAILED);
+        assertThat(unrelated).isEqualTo(DependencyTrackClient.RenameStatus.UNCHANGED);
+        assertThat(referencing).isEqualTo(DependencyTrackClient.RenameStatus.RENAMED);
+        wiremock.verifyThat(0, patchRequestedFor(urlEqualTo("/api/v1/project/single-uuid-unrelated")));
+
+        var bodies = wiremock.find(patchRequestedFor(urlEqualTo("/api/v1/project/single-uuid-ok"))).stream()
+            .map(request -> new JsonObject(request.getBodyAsString())).toList();
+        assertThat(bodies).hasSize(2);
+        assertThat(bodies).extracting(body -> body.getString("name")).containsExactlyInAnyOrder("single-new-module", "service");
+        // the name is renamed ignoring the case, anything but the references to the repository is kept
+        var serviceBody = bodies.stream().filter(body -> body.getString("name").equals("service")).findFirst().orElseThrow();
+        assertThat(serviceBody.getJsonArray("externalReferences")).isEqualTo(JsonArray.of(
+            JsonObject.of("type", "vcs", "url", newVcs),
+            JsonObject.of("type", "website", "url", newWebsite),
+            JsonObject.of("type", "documentation", "url", "https://docs.example.com", "comment", "the docs")
+        ));
+    }
+
+    private static DependencyTrackProject dtrackProject(String uuid, String name, List<DependencyTrackProject.Reference> references) {
+        return new DependencyTrackProject(uuid, name, "main", true, Optional.empty(), List.of(), Optional.empty(), references, List.of());
+    }
+
+    @Test
     void testRenameProjectsOfRepositoryWithoutMatches() {
         // Given
         var oldName = "nomatch-old";

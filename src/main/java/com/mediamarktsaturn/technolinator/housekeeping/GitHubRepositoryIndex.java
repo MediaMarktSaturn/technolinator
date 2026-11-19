@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -23,10 +24,11 @@ import java.util.Set;
  * <p>
  * Not being listed doesn't mean not existing, though: GitHub redirects renamed and transferred repositories, so a repository might just be
  * known under another name or account. Whoever acts on {@link State#GONE} should confirm it by looking the repository up on its own, and
- * {@link #withUnconfirmedGone} turns the ones that couldn't be confirmed into {@link State#UNKNOWN}.
+ * {@link #withUnconfirmedGone} turns the ones that couldn't be confirmed into {@link State#UNKNOWN}. Repositories found to be renamed within
+ * their account by that are {@link State#MOVED}, see {@link #withMoved}. Transfers to another account count as gone.
  * <p>
  * Instead of being built from complete listings, an index might consist of single repositories looked at on their own (see
- * {@link Builder#addRepository} and {@link Builder#addGoneRepository}), which only tell about themselves.
+ * {@link Builder#addRepository}, {@link Builder#addGoneRepository} and {@link Builder#addMovedRepository}), which only tell about themselves.
  */
 public final class GitHubRepositoryIndex {
 
@@ -44,6 +46,11 @@ public final class GitHubRepositoryIndex {
          */
         GONE,
         /**
+         * The repository doesn't exist under this name anymore, but was renamed within its account. {@link #movedTo} tells the new one.
+         * Transfers to another account aren't covered, they count as {@link #GONE}.
+         */
+        MOVED,
+        /**
          * Nothing can be said about the repository
          */
         UNKNOWN
@@ -53,15 +60,21 @@ public final class GitHubRepositoryIndex {
     private final List<GitHubRepo> repositories;
     private final int failedInstallations;
     private final Set<RepositoryReference> unconfirmedGone;
+    private final Map<RepositoryReference, GitHubRepo> moved;
 
-    private GitHubRepositoryIndex(Map<String, Owner> owners, List<GitHubRepo> repositories, int failedInstallations, Set<RepositoryReference> unconfirmedGone) {
+    private GitHubRepositoryIndex(Map<String, Owner> owners, List<GitHubRepo> repositories, int failedInstallations,
+                                  Set<RepositoryReference> unconfirmedGone, Map<RepositoryReference, GitHubRepo> moved) {
         this.owners = owners;
         this.repositories = repositories;
         this.failedInstallations = failedInstallations;
         this.unconfirmedGone = unconfirmedGone;
+        this.moved = moved;
     }
 
     public State lookup(RepositoryReference repository) {
+        if (moved.containsKey(repository)) {
+            return State.MOVED;
+        }
         var owner = owners.get(repository.ownerKey());
         if (owner == null) {
             return State.UNKNOWN;
@@ -81,7 +94,24 @@ public final class GitHubRepositoryIndex {
     public GitHubRepositoryIndex withUnconfirmedGone(Collection<RepositoryReference> repositories) {
         var all = new HashSet<>(unconfirmedGone);
         all.addAll(repositories);
-        return new GitHubRepositoryIndex(owners, this.repositories, failedInstallations, Set.copyOf(all));
+        return new GitHubRepositoryIndex(owners, this.repositories, failedInstallations, Set.copyOf(all), moved);
+    }
+
+    /**
+     * @return a copy of this index reporting the given repositories as {@link State#MOVED}, for the ones that were found to be renamed
+     * by looking them up on their own
+     */
+    public GitHubRepositoryIndex withMoved(Map<RepositoryReference, GitHubRepo> renamed) {
+        var all = new HashMap<>(moved);
+        all.putAll(renamed);
+        return new GitHubRepositoryIndex(owners, repositories, failedInstallations, unconfirmedGone, Map.copyOf(all));
+    }
+
+    /**
+     * @return the repository the given one was renamed to, if its state is {@link State#MOVED}
+     */
+    public Optional<GitHubRepo> movedTo(RepositoryReference repository) {
+        return Optional.ofNullable(moved.get(repository));
     }
 
     /**
@@ -114,6 +144,7 @@ public final class GitHubRepositoryIndex {
 
     public static final class Builder {
         private final Map<String, Owner> owners = new HashMap<>();
+        private final Map<RepositoryReference, GitHubRepo> moved = new HashMap<>();
         private int failedInstallations;
 
         private Builder() {
@@ -163,6 +194,15 @@ public final class GitHubRepositoryIndex {
             return this;
         }
 
+        /**
+         * Registers a repository that was looked at on its own and found to be renamed within its account: its old name isn't known by GitHub
+         * anymore, but redirects to the repository given. It's neither gone nor does it exist under the old name.
+         */
+        public synchronized Builder addMovedRepository(String host, String owner, String oldName, GitHubRepo renamedTo) {
+            moved.put(new RepositoryReference(host.toLowerCase(Locale.ROOT), owner.toLowerCase(Locale.ROOT), oldName.toLowerCase(Locale.ROOT)), renamedTo);
+            return this;
+        }
+
         private static String ownerKey(String host, String owner) {
             return new RepositoryReference(host.toLowerCase(Locale.ROOT), owner.toLowerCase(Locale.ROOT), "").ownerKey();
         }
@@ -179,7 +219,7 @@ public final class GitHubRepositoryIndex {
             var all = new ArrayList<GitHubRepo>();
             owners.values().forEach(owner -> all.addAll(owner.repositories().values()));
             all.sort(Comparator.comparing(GitHubRepo::fullName));
-            return new GitHubRepositoryIndex(Map.copyOf(owners), List.copyOf(all), failedInstallations, Set.of());
+            return new GitHubRepositoryIndex(Map.copyOf(owners), List.copyOf(all), failedInstallations, Set.of(), Map.copyOf(moved));
         }
     }
 }

@@ -30,6 +30,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.ACTIVE;
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.ARCHIVED;
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.GONE;
+import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.MOVED;
 import static com.mediamarktsaturn.technolinator.housekeeping.GitHubRepositoryIndex.State.UNKNOWN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -161,7 +162,7 @@ class GitHubRepositoryIndexerTest {
     }
 
     @Test
-    void treatsRenamedRepositoriesAsUnknown() throws Exception {
+    void treatsRenamedRepositoriesAsMoved() throws Exception {
         // Given
         installation(1, "org-a", GHRepositorySelection.ALL, false, repository("new-name", false));
         Mockito.doReturn(repository("new-name", false)).when(clients.get(1L)).getRepository("org-a/old-name");
@@ -171,7 +172,28 @@ class GitHubRepositoryIndexerTest {
 
         // Then
         assertThat(index.repositories()).isEmpty();
-        assertThat(index.lookup(ref("org-a", "old-name"))).isEqualTo(UNKNOWN);
+        assertThat(index.lookup(ref("org-a", "old-name"))).isEqualTo(MOVED);
+        assertThat(index.movedTo(ref("org-a", "old-name"))).get().satisfies(target -> {
+            assertThat(target.name()).isEqualTo("new-name");
+            assertThat(target.fullName()).isEqualTo("org-a/new-name");
+        });
+    }
+
+    @Test
+    void treatsTransferredRepositoriesAsGone() throws Exception {
+        // Given
+        installation(1, "org-a", GHRepositorySelection.SELECTED, false);
+        var transferred = repository("old-name", false);
+        Mockito.when(transferred.getFullName()).thenReturn("org-b/old-name");
+        Mockito.doReturn(transferred).when(clients.get(1L)).getRepository("org-a/old-name");
+
+        // When
+        var index = indexer().build(RUN, List.of(new GitHubRepositoryIndexer.Target("org-a", "old-name"))).await().atMost(AWAIT);
+
+        // Then
+        assertThat(index.repositories()).isEmpty();
+        // gone, although the installation is restricted to selected repositories: GitHub knows where it went
+        assertThat(index.lookup(ref("org-a", "old-name"))).isEqualTo(GONE);
     }
 
     @Test
@@ -179,16 +201,22 @@ class GitHubRepositoryIndexerTest {
         // Given
         installation(1, "org-a", GHRepositorySelection.ALL, false, repository("new-name", false), repository("fine", false));
         Mockito.doReturn(repository("new-name", false)).when(clients.get(1L)).getRepository("org-a/old-name");
+        var transferred = repository("transferred", false);
+        Mockito.when(transferred.getFullName()).thenReturn("org-b/transferred");
+        Mockito.doReturn(transferred).when(clients.get(1L)).getRepository("org-a/transferred");
         Mockito.doThrow(new IOException("timeout")).when(clients.get(1L)).getRepository("org-a/broken");
         installation(2, "org-b", GHRepositorySelection.SELECTED, false);
 
         // When
         var confirmed = indexer().confirmGone(RUN, List.of(
-            ref("org-a", "deleted"), ref("org-a", "old-name"), ref("org-a", "fine"), ref("org-a", "broken"), ref("org-b", "deleted"), ref("org-c", "deleted")
+            ref("org-a", "deleted"), ref("org-a", "old-name"), ref("org-a", "transferred"), ref("org-a", "fine"), ref("org-a", "broken"),
+            ref("org-b", "deleted"), ref("org-c", "deleted")
         )).await().atMost(AWAIT);
 
         // Then
-        assertThat(confirmed).containsExactly(ref("org-a", "deleted"));
+        assertThat(confirmed.gone()).containsExactlyInAnyOrder(ref("org-a", "deleted"), ref("org-a", "transferred"));
+        assertThat(confirmed.moved()).containsOnlyKeys(ref("org-a", "old-name"));
+        assertThat(confirmed.moved().get(ref("org-a", "old-name")).fullName()).isEqualTo("org-a/new-name");
     }
 
     @Test

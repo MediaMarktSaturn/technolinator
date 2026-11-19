@@ -14,6 +14,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -39,6 +40,8 @@ import java.util.function.Predicate;
  * <p>
  * Actions:
  * <ul>
+ *     <li>{@value #FOLLOW_RENAMED_REPOSITORIES}: renames the Dependency-Track projects of a repository that got renamed (and updates their references),
+ *     for the cases where the rename event wasn't handled</li>
  *     <li>{@value #ARCHIVE_ORPHANED_PROJECTS}: archives the Dependency-Track projects, whose GitHub repository is archived or doesn't exist anymore</li>
  *     <li>{@value #REACTIVATE_PROJECTS}: reactivates archived Dependency-Track projects, that definitely belong to an active GitHub repository and aren't
  *     superseded by an active version, which repairs projects archived by mistake</li>
@@ -52,6 +55,7 @@ public class HousekeepingWorker {
     public static final String ARCHIVE_ORPHANED_PROJECTS = "archive-orphaned-projects";
     public static final String UPDATE_PROJECT_METADATA = "update-project-metadata";
     public static final String REACTIVATE_PROJECTS = "reactivate-projects";
+    public static final String FOLLOW_RENAMED_REPOSITORIES = "follow-renamed-repositories";
 
     private final DependencyTrackClient dtrackClient;
     private final GitHubRepositoryTopics repositoryTopics;
@@ -62,6 +66,8 @@ public class HousekeepingWorker {
     private final int maxMetadataUpdatesPerRun;
     private final boolean reactivateProjects;
     private final int maxReactivatedPerRun;
+    private final boolean followRenamedRepositories;
+    private final int maxRenamedPerRun;
     private final List<Action> actions;
 
     private final Map<String, RunState> runs = new ConcurrentHashMap<>();
@@ -77,7 +83,9 @@ public class HousekeepingWorker {
         @ConfigProperty(name = "app.housekeeping.update-project-metadata.enabled") boolean updateProjectMetadata,
         @ConfigProperty(name = "app.housekeeping.update-project-metadata.max-per-run") int maxMetadataUpdatesPerRun,
         @ConfigProperty(name = "app.housekeeping.reactivate-projects.enabled") boolean reactivateProjects,
-        @ConfigProperty(name = "app.housekeeping.reactivate-projects.max-per-run") int maxReactivatedPerRun
+        @ConfigProperty(name = "app.housekeeping.reactivate-projects.max-per-run") int maxReactivatedPerRun,
+        @ConfigProperty(name = "app.housekeeping.follow-renamed-repositories.enabled") boolean followRenamedRepositories,
+        @ConfigProperty(name = "app.housekeeping.follow-renamed-repositories.max-per-run") int maxRenamedPerRun
     ) {
         this.dtrackClient = dtrackClient;
         this.repositoryTopics = repositoryTopics;
@@ -88,7 +96,10 @@ public class HousekeepingWorker {
         this.maxMetadataUpdatesPerRun = maxMetadataUpdatesPerRun;
         this.reactivateProjects = reactivateProjects;
         this.maxReactivatedPerRun = maxReactivatedPerRun;
+        this.followRenamedRepositories = followRenamedRepositories;
+        this.maxRenamedPerRun = maxRenamedPerRun;
         this.actions = List.of(
+            new Action(FOLLOW_RENAMED_REPOSITORIES, () -> followRenamedRepositories, this::isRenamedRepositoryUnit, this::followRenamedRepository),
             new Action(ARCHIVE_ORPHANED_PROJECTS, () -> archiveOrphanedProjects, this::isOrphanedProjectsUnit, this::archiveOrphanedProjects),
             new Action(REACTIVATE_PROJECTS, () -> reactivateProjects, this::hasInactiveProjectsOfActiveRepository, this::reactivateProjects),
             new Action(UPDATE_PROJECT_METADATA, () -> updateProjectMetadata, this::isActiveRepositoryUnit, this::updateProjectMetadata)
@@ -122,6 +133,10 @@ public class HousekeepingWorker {
             return;
         }
         run.writeToMDC();
+        if (followRenamedRepositories) {
+            Log.infof("%s %d of %d projects of renamed repositories (%d of them archived instead, as the new name is taken already)",
+                run.dryRun() ? "Would have renamed" : "Renamed", state.renamed.get(), state.renameCandidates.get(), state.renameArchived.get());
+        }
         Log.infof("%s %d of %d projects, whose repository is archived or doesn't exist anymore",
             run.dryRun() ? "Would have archived" : "Archived", state.archived.get(), state.archiveCandidates.get());
         if (reactivateProjects) {
@@ -186,6 +201,149 @@ public class HousekeepingWorker {
             throw new IllegalStateException("Housekeeping run %s is not in progress".formatted(run.id()));
         }
         return state;
+    }
+
+    private boolean isRenamedRepositoryUnit(HousekeepingUnit unit) {
+        return unit.moved().isPresent();
+    }
+
+    /**
+     * Lets the projects of a repository follow it, if it was renamed: renames them (the projects named like the repository, or starting with its
+     * name followed by a dash, which are the modules) and updates their references to the repository, the way the handling of the rename event does.
+     * This covers renames Technolinator didn't get to know (missed events, or event handling being disabled).
+     * Otherwise, the old projects would stay active forever, and the next analysis would create new ones next to them, so every run would have to
+     * look up the old repository again. After this, the projects reference the repository by its new name.
+     * <p>
+     * Only the projects referencing the old repository are looked at, see {@link UnitMatcher}. Transfers to another account aren't followed,
+     * for GitHub they're gone, see {@link GitHubRepositoryIndex}.
+     * Projects that can't be renamed because the name is taken in the same version already (the repository was analyzed under its new name since)
+     * are superseded and get archived instead, children first. Anything else failing is left for the next run.
+     * <p>
+     * No more than {@code max-per-run} projects are looked at per run, checked per unit, so the last repository's projects might exceed it.
+     */
+    private Uni<Void> followRenamedRepository(HousekeepingUnit unit) {
+        var state = state(unit.run());
+        var move = unit.moved().orElseThrow();
+        var target = move.to();
+        var oldName = move.from().name();
+        var projects = unit.projects();
+
+        var candidatesBefore = state.renameCandidates.getAndAdd(projects.size());
+        if (candidatesBefore >= maxRenamedPerRun) {
+            if (!state.renameLimitReported.getAndSet(true)) {
+                Log.warnf("Limit of %d renamed projects per run reached, leaving the remaining ones for the next run", maxRenamedPerRun);
+            }
+            return Uni.createFrom().voidItem();
+        }
+
+        if (unit.dryRun()) {
+            var changing = projects.stream()
+                .filter(project -> startsWithName(project.name(), oldName) || UnitMatcher.referencesOf(project).contains(move.from()))
+                .toList();
+            state.renamed.addAndGet(changing.size());
+            if (!changing.isEmpty()) {
+                Log.infof("Would rename %d project(s) of repository %s, which was renamed to %s: %s", changing.size(), move.from(), target.fullName(),
+                    changing.stream().map(DependencyTrackProject::displayName).toList());
+                changing.forEach(project -> HousekeepingActionLog.project(FOLLOW_RENAMED_REPOSITORIES, true, unit, project,
+                    "change", "rename", "new_name", renamed(project.name(), oldName, target.name())));
+            }
+            return Uni.createFrom().voidItem();
+        }
+
+        Log.infof("Renaming %d project(s) of repository %s, which was renamed to %s", projects.size(), move.from(), target.fullName());
+        var oldVcsUrl = replaceLastSegment(target.gitUrl(), target.name(), oldName);
+        var oldWebsiteUrl = replaceLastSegment(target.htmlUrl(), target.name(), oldName);
+        return Uni.combine().all().unis(
+                projects.stream().map(project -> rename(unit, project, oldName, target, oldVcsUrl, oldWebsiteUrl)).toList()
+            ).with(DependencyTrackClient.RenameStatus.class, statuses -> statuses)
+            .chain(statuses -> {
+                var superseded = new ArrayList<DependencyTrackProject>();
+                var failed = 0;
+                for (int i = 0; i < statuses.size(); i++) {
+                    switch (statuses.get(i)) {
+                        case RENAMED -> state.renamed.incrementAndGet();
+                        // archived projects don't need to be superseded
+                        case CONFLICT -> {
+                            if (projects.get(i).active()) {
+                                superseded.add(projects.get(i));
+                            }
+                        }
+                        case FAILED -> failed++;
+                        case UNCHANGED -> {
+                        }
+                    }
+                }
+                var renameFailures = failed;
+                return archiveSuperseded(unit, superseded, target, state).map(archiveFailures -> renameFailures + archiveFailures);
+            })
+            .chain(failed -> failed == 0
+                ? Uni.createFrom().voidItem()
+                : Uni.createFrom().failure(new ProjectsFailedException("Could not rename %d of %d projects".formatted(failed, projects.size()))));
+    }
+
+    private Uni<DependencyTrackClient.RenameStatus> rename(HousekeepingUnit unit, DependencyTrackProject project, String oldName, GitHubRepo target,
+                                                           String oldVcsUrl, String oldWebsiteUrl) {
+        var newName = renamed(project.name(), oldName, target.name());
+        return dtrackClient.renameProjectOfRepository(project, oldName, target.name(), oldVcsUrl, oldWebsiteUrl, target.gitUrl(), target.htmlUrl())
+            .onFailure().recoverWithItem(failure -> {
+                unit.writeToMDC();
+                Log.warnf(failure, "Housekeeping action %s failed for project %s", FOLLOW_RENAMED_REPOSITORIES, project.displayName());
+                return DependencyTrackClient.RenameStatus.FAILED;
+            })
+            .invoke(status -> {
+                unit.writeToMDC();
+                switch (status) {
+                    case RENAMED -> HousekeepingActionLog.project(FOLLOW_RENAMED_REPOSITORIES, HousekeepingActionLog.Status.DONE, unit, project,
+                        "change", "rename", "new_name", newName);
+                    case FAILED -> HousekeepingActionLog.project(FOLLOW_RENAMED_REPOSITORIES, HousekeepingActionLog.Status.FAILED, unit, project,
+                        "change", "rename", "new_name", newName);
+                    // nothing was done, a conflict is dealt with afterwards
+                    case UNCHANGED, CONFLICT -> {
+                    }
+                }
+            });
+    }
+
+    /**
+     * Archives the projects that can't be renamed, as the name is taken in their version already.
+     * Children go first, as parents can't be archived with active children. Stops at the first wave having failures.
+     *
+     * @return the number of projects that couldn't be archived
+     */
+    private Uni<Integer> archiveSuperseded(HousekeepingUnit unit, List<DependencyTrackProject> superseded, GitHubRepo target, RunState state) {
+        if (superseded.isEmpty()) {
+            return Uni.createFrom().item(0);
+        }
+        Log.warnf("%d project(s) of a repository renamed to %s can't be renamed, as the new name is taken already, archiving them instead", superseded.size(), target.fullName());
+        var waves = new ArrayList<>(unit.groupParentsFirst(superseded));
+        Collections.reverse(waves);
+        Uni<Integer> chain = Uni.createFrom().item(0);
+        for (var wave : waves) {
+            chain = chain.chain(failedBefore -> failedBefore > 0
+                ? Uni.createFrom().item(failedBefore)
+                : Uni.combine().all().unis(
+                        wave.stream().map(project -> logged(FOLLOW_RENAMED_REPOSITORIES, unit, project, dtrackClient.archiveProject(project.uuid()), "change", "archive")).toList()
+                    ).with(Boolean.class, results -> (int) results.stream().filter(archived -> !archived).count())
+                    .invoke(failed -> state.renameArchived.addAndGet(wave.size() - failed)));
+        }
+        return chain;
+    }
+
+    private static boolean startsWithName(String projectName, String repositoryName) {
+        return projectName != null && projectName.regionMatches(true, 0, repositoryName, 0, repositoryName.length());
+    }
+
+    private static String renamed(String projectName, String oldName, String newName) {
+        return startsWithName(projectName, oldName) ? newName + projectName.substring(oldName.length()) : projectName;
+    }
+
+    private static String replaceLastSegment(String url, String newName, String oldName) {
+        var needle = "/" + newName;
+        var index = url.lastIndexOf(needle);
+        if (index < 0) {
+            return url;
+        }
+        return url.substring(0, index) + "/" + oldName + url.substring(index + needle.length());
     }
 
     private boolean isOrphanedProjectsUnit(HousekeepingUnit unit) {
@@ -260,7 +418,7 @@ public class HousekeepingWorker {
     /**
      * Writes the structured log record for the outcome of the change of the project, a failure counting as unsuccessful.
      */
-    private static Uni<Boolean> logged(String action, HousekeepingUnit unit, DependencyTrackProject project, Uni<Boolean> change) {
+    private static Uni<Boolean> logged(String action, HousekeepingUnit unit, DependencyTrackProject project, Uni<Boolean> change, String... details) {
         return change
             .onFailure().recoverWithItem(failure -> {
                 unit.writeToMDC();
@@ -269,7 +427,7 @@ public class HousekeepingWorker {
             })
             .invoke(success -> {
                 unit.writeToMDC();
-                HousekeepingActionLog.project(action, success ? HousekeepingActionLog.Status.DONE : HousekeepingActionLog.Status.FAILED, unit, project);
+                HousekeepingActionLog.project(action, success ? HousekeepingActionLog.Status.DONE : HousekeepingActionLog.Status.FAILED, unit, project, details);
             });
     }
 
@@ -496,5 +654,10 @@ public class HousekeepingWorker {
         // in dry-run mode: would have been reactivated
         final AtomicInteger reactivated = new AtomicInteger();
         final AtomicBoolean reactivationLimitReported = new AtomicBoolean();
+        final AtomicInteger renameCandidates = new AtomicInteger();
+        // in dry-run mode: would have been renamed
+        final AtomicInteger renamed = new AtomicInteger();
+        final AtomicInteger renameArchived = new AtomicInteger();
+        final AtomicBoolean renameLimitReported = new AtomicBoolean();
     }
 }

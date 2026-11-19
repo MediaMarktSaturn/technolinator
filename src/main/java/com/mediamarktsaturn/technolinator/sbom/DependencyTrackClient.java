@@ -447,14 +447,63 @@ public class DependencyTrackClient {
      */
     Uni<Boolean> renameProject(JsonObject project, String oldName, String newName,
                                String oldVcsUrl, String oldWebsiteUrl, String newVcsUrl, String newWebsiteUrl) {
+        return renameProjectWithStatus(project, oldName, newName, oldVcsUrl, oldWebsiteUrl, newVcsUrl, newWebsiteUrl)
+            .map(status -> status == RenameStatus.RENAMED || status == RenameStatus.UNCHANGED);
+    }
+
+    /**
+     * Outcome of renaming a single project
+     */
+    public enum RenameStatus {
+        /**
+         * The project was renamed and/or its repository references were updated
+         */
+        RENAMED,
+        /**
+         * The project neither has a name starting with the old repository name nor references to the old repository, so nothing was changed
+         */
+        UNCHANGED,
+        /**
+         * The new name is taken already in the version of the project
+         */
+        CONFLICT,
+        /**
+         * The project couldn't be changed for another reason
+         */
+        FAILED
+    }
+
+    /**
+     * Renames a single project of a repository that was renamed, the way {@link #renameProjectsOfRepository} does: its name, if it
+     * starts with the old name of the repository, and the references to the old repository.
+     * Doesn't archive the project if that isn't possible, which is up to the caller.
+     */
+    public Uni<RenameStatus> renameProjectOfRepository(DependencyTrackProject project, String oldName, String newName,
+                                                       String oldVcsUrl, String oldWebsiteUrl, String newVcsUrl, String newWebsiteUrl) {
+        var json = JsonObject.of(
+            "uuid", project.uuid(),
+            "name", project.name(),
+            "externalReferences", new JsonArray(project.externalReferences().stream().map(DependencyTrackProject.Reference::toJson).toList())
+        );
+        return renameProjectWithStatus(json, oldName, newName, oldVcsUrl, oldWebsiteUrl, newVcsUrl, newWebsiteUrl);
+    }
+
+    private Uni<RenameStatus> renameProjectWithStatus(JsonObject project, String oldName, String newName,
+                                                      String oldVcsUrl, String oldWebsiteUrl, String newVcsUrl, String newWebsiteUrl) {
         var projectUUID = project.getString("uuid");
         var currentName = project.getString("name");
-        var targetName = newName + currentName.substring(oldName.length());
+        var targetName = currentName.regionMatches(true, 0, oldName, 0, oldName.length())
+            ? newName + currentName.substring(oldName.length())
+            : currentName;
 
         var update = JsonObject.of("name", targetName);
-        var externalReferences = renameExternalReferences(project.getJsonArray("externalReferences"), oldVcsUrl, oldWebsiteUrl, newVcsUrl, newWebsiteUrl);
+        var currentReferences = project.getJsonArray("externalReferences");
+        var externalReferences = renameExternalReferences(currentReferences, oldVcsUrl, oldWebsiteUrl, newVcsUrl, newWebsiteUrl);
         if (externalReferences != null) {
             update.put("externalReferences", externalReferences);
+        }
+        if (targetName.equals(currentName) && (externalReferences == null || externalReferences.equals(currentReferences))) {
+            return Uni.createFrom().item(RenameStatus.UNCHANGED);
         }
 
         return client.patchAbs(dtrackApiUrl + "/project/" + projectUUID)
@@ -465,17 +514,17 @@ public class DependencyTrackClient {
             .map(response -> {
                 if (response.statusCode() == 200) {
                     Log.infof("Renamed project %s from %s to %s", projectUUID, currentName, targetName);
-                    return true;
+                    return RenameStatus.RENAMED;
                 }
                 if (response.statusCode() == 409) {
                     Log.warnf("Cannot rename project %s from %s to %s, name and version are already taken", projectUUID, currentName, targetName);
-                } else {
-                    Log.warnf("Failed to rename project %s from %s to %s with %s: %s", projectUUID, currentName, targetName, response.statusCode(), response.bodyAsString());
+                    return RenameStatus.CONFLICT;
                 }
-                return false;
+                Log.warnf("Failed to rename project %s from %s to %s with %s: %s", projectUUID, currentName, targetName, response.statusCode(), response.bodyAsString());
+                return RenameStatus.FAILED;
             })
             .onFailure().invoke(e -> Log.warnf(e, "Failed to rename project %s from %s to %s", projectUUID, currentName, targetName))
-            .onFailure().recoverWithItem(false);
+            .onFailure().recoverWithItem(RenameStatus.FAILED);
     }
 
     /**

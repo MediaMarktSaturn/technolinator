@@ -30,17 +30,18 @@ flowchart TD
 |----------------------------|------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | repository and projects    | `ACTIVE` / `ARCHIVED`  | The regular case                                                                                                                |
 | repository only            | `ACTIVE` / `ARCHIVED`  | The repository wasn't analyzed (yet), or its projects couldn't be matched                                                       |
-| projects only              | `GONE`                 | The projects (or their nearest ancestor with a reference) reference exactly one repository, that certainly doesn't exist anymore |
+| projects only              | `GONE`                 | The projects (or their nearest ancestor with a reference) reference exactly one repository, that certainly doesn't exist anymore (or was transferred to another account, which counts as the same) |
+| projects only              | `MOVED`                | Like `GONE`, but the repository was renamed within its account. The unit knows the repository by its new name                  |
 | projects only              | `UNKNOWN`              | No repository could be matched and nothing can be said: no or several references, accounts without installation of the app, a repository existing but named differently, or projects claimed by more than one repository ("contested", including their descendants) |
 
 A repository is considered `GONE` only if all of the following holds:
 
 * its owner has an installation with access to *all repositories*, the repository list was non-empty and doesn't contain it
-* GitHub doesn't know it when looked up on its own with that installation. GitHub keeps renamed and transferred repositories alive and redirects to them, so a repository missing in the list may well exist (and not be archived) under another name or owner. Only a plain "not found" counts, a redirect or a failing lookup makes it `UNKNOWN`
-* no repository of the same name exists under another owner of the listings, which might be the transferred one
+* GitHub doesn't know it when looked up on its own with that installation, or redirects to a repository of another owner, which is a transfer. A repository renamed within its account is redirected to its new name: it's alive (and not necessarily archived), so it's `MOVED` instead, see [`follow-renamed-repositories`](#action-follow-renamed-repositories). A failing lookup makes it `UNKNOWN`
+* no repository of the same name exists under another owner of the listings, which might be the transferred one. This makes a transfer to an account Technolinator is installed for `UNKNOWN` (and spares the projects, as the new owner's repository takes them over with its next analysis)
 
-Repositories of installations restricted to *selected repositories* are never `GONE`: a deleted repository can't be told apart from a deselected one.
-The lookup is only done for repositories referenced by active projects (or their ancestors), as only those can get projects archived. Repositories having archived projects only aren't looked up, which saves GitHub requests for long-gone repositories in every run, and are `UNKNOWN` therefore.
+Repositories of installations restricted to *selected repositories* are never `GONE` if they're simply missing: a deleted repository can't be told apart from a deselected one. Only a redirect to another owner is certain.
+The lookup is only done for repositories referenced by active projects (or their ancestors), as only those can get projects archived or renamed. Repositories having archived projects only aren't looked up, which saves GitHub requests for long-gone repositories in every run, and are `UNKNOWN` therefore.
 
 ### Reliability of the listings
 
@@ -93,7 +94,7 @@ Selected names that don't match anything are logged as a warning. `APP_ENABLED_R
 
 A run with a selection is **targeted**: it neither lists all repositories of all installations nor all Dependency-Track projects. Instead
 
-* the installations are listed (cheap), but only the named repositories are fetched, each one from the installation of its owner. A repository that's not found there counts as gone, a renamed/transferred one, an owner without an active installation or a failing lookup as unknown, so nothing is archived on that basis.
+* the installations are listed (cheap), but only the named repositories are fetched, each one from the installation of its owner. A repository that's not found there counts as gone, a transferred one as well, a renamed one as moved, an owner without an active installation or a failing lookup as unknown, so nothing is archived on that basis.
 * selected projects are fetched by UUID or searched by name, together with their parents and children.
 * the projects of a repository are searched by the repository's name, and matched like in the full run, including the ones referencing the repository under another name.
 
@@ -133,13 +134,14 @@ HOUSEKEEPING_ACTION action=archive_orphaned_projects status=done repository=my-o
 
 | Key                | Values                                                                                                          |
 |--------------------|-----------------------------------------------------------------------------------------------------------------|
-| `action`           | `archive_orphaned_projects`, `reactivate_projects`, `update_project_metadata` (the action name with underscores) |
+| `action`           | `follow_renamed_repositories`, `archive_orphaned_projects`, `reactivate_projects`, `update_project_metadata` (the action name with underscores) |
 | `status`           | `done`, `dry_run` (would have been done), `failed`                                                              |
-| `repository`       | `owner/repo`, `-` for units without a repository (gone or unknown)                                              |
-| `repository_state` | `active`, `archived`, `gone`, `unknown`                                                                         |
+| `repository`       | `owner/repo`; for projects of a renamed repository the new one; `-` for units without a repository (gone or unknown) |
+| `repository_state` | `active`, `archived`, `gone`, `moved`, `unknown`                                                                |
 | `project`, `name`, `version` | the Dependency-Track project acted on, `-` if the failure isn't related to a single project            |
+| `change`, `new_name` | only for `follow_renamed_repositories`: `rename` or `archive` (a project that can't be renamed because the new name is taken), and the name the project is renamed to |
 
-One line is written per project archived, reactivated or updated, or whose change failed. A failure that isn't related to a single project (e.g. the action timeout, or GitHub failing to deliver the topics) is written once per unit and action with `project=-`.
+One line is written per project archived, reactivated, renamed or updated, or whose change failed. A failure that isn't related to a single project (e.g. the action timeout, or GitHub failing to deliver the topics) is written once per unit and action with `project=-`.
 Nothing is written for what was not acted on: units the action doesn't apply to, projects already up to date, or skipped by a limit or safeguard.
 Values containing whitespace, quotes or `=` are quoted. The lines carry the `traceId` of the run (and the `repository` where known) in the log context, so they can be tied to the run and its summary. `failed` lines are logged as warnings, the others as info.
 
@@ -160,6 +162,33 @@ Actions only get to see one unit at a time, but may keep per-run state keyed by 
 `GitHubRepo#github()` returns a GitHub client authenticated as the installation of the repository. The `GHRepository` held in `GitHubRepo#listed` is bound to a token that may expire during a long run, so use `github()` for later writes.
 Actions writing to GitHub may require additional permissions for the GitHub app, see [Adoption](Adoption.md#github-app-requirements).
 
+## Action `follow-renamed-repositories`
+
+Lets the Dependency-Track projects follow a GitHub repository that got renamed: renames them and updates their repository references, the way the handling of the `repository.renamed` event does (`APP_RENAME_PROJECTS_ENABLED`).
+It catches the renames the event handling didn't see (missed event, Technolinator not running or installed back then, event handling disabled).
+Without it, the projects keep the old name and references: they stay active forever, the next analysis creates new projects next to them, and every run has to look up the old repository on GitHub again.
+It applies to units with state `MOVED`, i.e. projects referencing a repository, that GitHub redirects to a repository of the same account under another name.
+
+| Environment variable                                       | Default | Description                                                                                    |
+|------------------------------------------------------------|---------|------------------------------------------------------------------------------------------------|
+| `APP_HOUSEKEEPING_FOLLOW_RENAMED_REPOSITORIES_ENABLED`     | `true`  | Action switch. Runs only happen if triggered manually or `APP_HOUSEKEEPING_ENABLED` schedules them |
+| `APP_HOUSEKEEPING_FOLLOW_RENAMED_REPOSITORIES_MAX_PER_RUN` | `500`   | Upper limit of projects looked at per run. Checked per unit, so the last repository's projects might exceed it |
+
+What is changed, per project (all versions, active or archived) referencing the old repository:
+
+* **Name:** if it is the old repository name or starts with `<old name>-` (the modules), that part is replaced by the new name, ignoring the case. Other names (e.g. children of a different name following their parent) are kept.
+* **References:** the VCS and website references (including the derived release-notes one) pointing to the old repository get the new URLs. Everything else is kept, as is the project's state.
+
+Safeguards:
+
+* Only projects referencing the old repository are touched (units are built on the references, see `UnitMatcher`), so projects of a same-named repository elsewhere aren't.
+* A project whose new name is taken in the same version (the repository got analyzed under its new name since) is superseded and **archived** instead, children before parents. The next analysis keeps updating the project with the new name. Archived projects hitting a conflict stay as they are.
+* Any other failure leaves the project for the next run, and the unit counts as failed.
+* A repository transferred to **another account** isn't followed, but counts as deleted (`GONE`), so its projects get archived by [`archive-orphaned-projects`](#action-archive-orphaned-projects), unless a repository of the same name exists in an account Technolinator is installed for. The next analysis in the new place creates new projects or reactivates archived ones.
+* After renaming, the projects reference the new repository, so later runs find them in the listing like any other, without further lookups.
+
+The action honors dry-run mode, which only logs the projects that would be renamed.
+
 ## Action `archive-orphaned-projects`
 
 Archives (deactivates) Dependency-Track projects, whose GitHub repository doesn't exist anymore or got archived.
@@ -179,7 +208,7 @@ Safeguards:
 * Already archived projects are left alone.
 
 Archiving is reversible: the next BOM upload for the project reactivates it, e.g. when the repository was only temporarily unavailable or got renamed back.
-A repository renamed without Technolinator having seen the event keeps its old projects: they're `UNKNOWN`, as the repository isn't gone, and the next analysis creates or reactivates the projects under the new name.
+A repository renamed without Technolinator having seen the event isn't gone, so its projects aren't archived: they're renamed by [`follow-renamed-repositories`](#action-follow-renamed-repositories). A repository transferred to another account counts as gone, unless a repository of the same name exists in an account Technolinator is installed for.
 The action honors dry-run mode, which only logs the projects that would be archived.
 
 ## Action `update-project-metadata`
@@ -228,7 +257,7 @@ Which projects: only the ones *definitely* belonging to the repository, same rul
 
 Limitations:
 
-* Projects of *renamed* repositories keep their old name and old references, so they don't match the repository anymore. They're `UNKNOWN` and not reactivated, but the next BOM upload under the new name creates or reactivates the projects.
+* Projects of *renamed* repositories keep their old name and old references until `follow-renamed-repositories` renamed them (or the next BOM upload under the new name created new ones), so they don't match the repository meanwhile and aren't reactivated.
 * The action can't tell archiving by mistake from archiving on purpose: projects archived manually while their repository is active are reactivated, too. Once the repair is done, consider switching the action off.
 * The project listing is taken at the start of the run, so a concurrent BOM upload might race with it. Both leave the project active.
 

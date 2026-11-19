@@ -28,14 +28,25 @@ import java.util.TreeMap;
  * @param run             The housekeeping run this unit belongs to
  * @param repository      The GitHub repository, if one was matched
  * @param projects        The Dependency-Track projects in any version and state (active or archived), including parents and children, if any were matched
- * @param repositoryState {@code ACTIVE} or {@code ARCHIVED} if there is a [repository], {@code GONE} or {@code UNKNOWN} otherwise
+ * @param repositoryState {@code ACTIVE} or {@code ARCHIVED} if there is a [repository], {@code GONE}, {@code MOVED} or {@code UNKNOWN} otherwise
+ * @param moved           The rename of the repository the [projects] reference, if the [repositoryState] is {@code MOVED}
  */
 public record HousekeepingUnit(
     HousekeepingRun run,
     Optional<GitHubRepo> repository,
     List<DependencyTrackProject> projects,
-    GitHubRepositoryIndex.State repositoryState
+    GitHubRepositoryIndex.State repositoryState,
+    Optional<Move> moved
 ) {
+
+    /**
+     * A repository that doesn't exist under its old name anymore, as it was renamed
+     *
+     * @param from The old name of the repository, as the projects reference it
+     * @param to   The repository, which is named differently now
+     */
+    public record Move(RepositoryReference from, GitHubRepo to) {
+    }
 
     /**
      * Guards against cyclic hierarchies, which Dependency-Track shouldn't allow, though
@@ -48,9 +59,16 @@ public record HousekeepingUnit(
         if (repository.isPresent() != repositoryStateWithRepository) {
             throw new IllegalArgumentException("State %s doesn't fit to a unit %s a repository".formatted(repositoryState, repository.isPresent() ? "with" : "without"));
         }
+        if (moved.isPresent() != (repositoryState == GitHubRepositoryIndex.State.MOVED)) {
+            throw new IllegalArgumentException("State %s doesn't fit to a unit %s a renamed repository".formatted(repositoryState, moved.isPresent() ? "with" : "without"));
+        }
         if (repository.isEmpty() && projects.isEmpty()) {
             throw new IllegalArgumentException("A unit needs a repository or projects");
         }
+    }
+
+    public HousekeepingUnit(HousekeepingRun run, Optional<GitHubRepo> repository, List<DependencyTrackProject> projects, GitHubRepositoryIndex.State repositoryState) {
+        this(run, repository, projects, repositoryState, Optional.empty());
     }
 
     public static HousekeepingUnit of(HousekeepingRun run, GitHubRepo repository, List<DependencyTrackProject> projects) {
@@ -60,6 +78,20 @@ public record HousekeepingUnit(
 
     public static HousekeepingUnit withoutRepository(HousekeepingRun run, List<DependencyTrackProject> projects, GitHubRepositoryIndex.State state) {
         return new HousekeepingUnit(run, Optional.empty(), projects, state);
+    }
+
+    /**
+     * A unit of projects referencing the repository [from], which was renamed to [to]
+     */
+    public static HousekeepingUnit ofRenamedRepository(HousekeepingRun run, List<DependencyTrackProject> projects, RepositoryReference from, GitHubRepo to) {
+        return new HousekeepingUnit(run, Optional.empty(), projects, GitHubRepositoryIndex.State.MOVED, Optional.of(new Move(from, to)));
+    }
+
+    /**
+     * @return the repository of the unit, or the one it was renamed to
+     */
+    public Optional<GitHubRepo> repositoryOrRenamed() {
+        return repository.or(() -> moved.map(Move::to));
     }
 
     public boolean dryRun() {
@@ -123,7 +155,7 @@ public record HousekeepingUnit(
         return repository
             .map(repo -> "repository " + repo.fullName())
             .orElseGet(() -> "project " + projects.getFirst().displayName() + (projects.size() > 1 ? " and %d more".formatted(projects.size() - 1) : "")
-                + " without repository");
+                + moved.map(move -> " of a repository renamed to " + move.to().fullName()).orElse(" without repository"));
     }
 
     /**
@@ -132,6 +164,6 @@ public record HousekeepingUnit(
      */
     public void writeToMDC() {
         run.writeToMDC();
-        repository.ifPresent(repo -> MDC.put("repository", repo.fullName()));
+        repositoryOrRenamed().ifPresent(repo -> MDC.put("repository", repo.fullName()));
     }
 }

@@ -76,7 +76,7 @@ class HousekeepingWorkerTest {
     private HousekeepingWorker worker(boolean archive, int maxPerRun, Duration timeout, boolean updateMetadata, int maxMetadataPerRun,
                                       boolean reactivate, int maxReactivatedPerRun) {
         var worker = new HousekeepingWorker(dtrack, topics, meters, timeout, archive, maxPerRun, updateMetadata, maxMetadataPerRun,
-            reactivate, maxReactivatedPerRun);
+            reactivate, maxReactivatedPerRun, false, 10);
         worker.begin(RUN);
         worker.begin(DRY_RUN);
         return worker;
@@ -346,7 +346,7 @@ class HousekeepingWorkerTest {
 
     @Test
     void endWithoutBeginIsHarmless() {
-        new HousekeepingWorker(dtrack, topics, meters, Duration.ofSeconds(1), true, 10, true, 10, true, 10).end(RUN);
+        new HousekeepingWorker(dtrack, topics, meters, Duration.ofSeconds(1), true, 10, true, 10, true, 10, true, 10).end(RUN);
     }
 
     @Test
@@ -860,6 +860,153 @@ class HousekeepingWorkerTest {
         // Then
         verify(dtrack).reactivateProject("p1");
         verify(dtrack, never()).reactivateProject("p2");
+    }
+
+    private HousekeepingWorker followWorker(int maxPerRun) {
+        var worker = new HousekeepingWorker(dtrack, topics, meters, Duration.ofSeconds(10), false, 10, false, 10, false, 10, true, maxPerRun);
+        worker.begin(RUN);
+        worker.begin(DRY_RUN);
+        return worker;
+    }
+
+    private double renameActions(String status) {
+        return meters.counter("housekeeping_action", "action", HousekeepingWorker.FOLLOW_RENAMED_REPOSITORIES, "status", status).count();
+    }
+
+    private static HousekeepingUnit renamedUnit(HousekeepingRun run, DependencyTrackProject... projects) {
+        return HousekeepingUnit.ofRenamedRepository(run, List.of(projects), new RepositoryReference("github.com", "org", "old"), repo("org", "new", false));
+    }
+
+    private void stubRename(DependencyTrackProject project, DependencyTrackClient.RenameStatus status) {
+        when(dtrack.renameProjectOfRepository(eq(project), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(Uni.createFrom().item(status));
+    }
+
+    @Test
+    void reportsFollowActionAsEnabled() {
+        assertThat(followWorker(10).enabledActions()).containsExactly(HousekeepingWorker.FOLLOW_RENAMED_REPOSITORIES);
+    }
+
+    @Test
+    void renamesProjectsOfRenamedRepository() {
+        // Given
+        var worker = followWorker(10);
+        var parent = project("parent", "old", "org", "old");
+        var module = child("module", "old-api", "parent", "org", "old");
+        stubRename(parent, DependencyTrackClient.RenameStatus.RENAMED);
+        stubRename(module, DependencyTrackClient.RenameStatus.RENAMED);
+
+        // When
+        var success = process(worker, renamedUnit(RUN, parent, module));
+
+        // Then
+        assertThat(success).isTrue();
+        verify(dtrack).renameProjectOfRepository(parent, "old", "new", "git://github.com/org/old.git", "https://github.com/org/old",
+            "git://github.com/org/new.git", "https://github.com/org/new");
+        verify(dtrack).renameProjectOfRepository(eq(module), eq("old"), eq("new"), anyString(), anyString(), anyString(), anyString());
+        verify(dtrack, never()).archiveProject(anyString());
+        assertThat(renameActions("OK")).isEqualTo(1);
+    }
+
+    @Test
+    void doesNotApplyToOtherUnits() {
+        // Given
+        var worker = followWorker(10);
+        var unit = HousekeepingUnit.of(RUN, repo("org", "app", false), List.of(project("p", "app", "org", "app")));
+
+        // When
+        var success = process(worker, unit);
+
+        // Then
+        assertThat(success).isTrue();
+        verifyNoInteractions(dtrack);
+    }
+
+    @Test
+    void archivesProjectsThatCanNotBeRenamedBecauseTheNameIsTaken() {
+        // Given
+        var worker = followWorker(10);
+        var parent = project("parent", "old", "org", "old");
+        var module = child("module", "old-api", "parent", "org", "old");
+        var oldVersion = inactive(withVersion(project("archived", "old", "org", "old"), "v0"));
+        stubRename(parent, DependencyTrackClient.RenameStatus.CONFLICT);
+        stubRename(module, DependencyTrackClient.RenameStatus.CONFLICT);
+        stubRename(oldVersion, DependencyTrackClient.RenameStatus.CONFLICT);
+        when(dtrack.archiveProject(anyString())).thenReturn(Uni.createFrom().item(true));
+
+        // When
+        var success = process(worker, renamedUnit(RUN, parent, module, oldVersion));
+
+        // Then
+        assertThat(success).isTrue();
+        InOrder order = Mockito.inOrder(dtrack);
+        order.verify(dtrack).archiveProject("module");
+        order.verify(dtrack).archiveProject("parent");
+        verify(dtrack, never()).archiveProject("archived");
+    }
+
+    @Test
+    void doesNotArchiveIfRenamingFailsForOtherReasons() {
+        // Given
+        var worker = followWorker(10);
+        var failing = project("p", "old", "org", "old");
+        stubRename(failing, DependencyTrackClient.RenameStatus.FAILED);
+
+        // When
+        var success = process(worker, renamedUnit(RUN, failing));
+
+        // Then
+        assertThat(success).isFalse();
+        verify(dtrack, never()).archiveProject(anyString());
+        assertThat(renameActions("ERROR")).isEqualTo(1);
+    }
+
+    @Test
+    void reportsFailureOfClientWhenRenaming() {
+        // Given
+        var worker = followWorker(10);
+        var failing = project("p", "old", "org", "old");
+        when(dtrack.renameProjectOfRepository(eq(failing), anyString(), anyString(), anyString(), anyString(), anyString(), anyString()))
+            .thenReturn(Uni.createFrom().failure(new IllegalStateException("boom")));
+
+        // When
+        var success = process(worker, renamedUnit(RUN, failing));
+
+        // Then
+        assertThat(success).isFalse();
+        verify(dtrack, never()).archiveProject(anyString());
+    }
+
+    @Test
+    void doesNotRenameAnythingInDryRun() {
+        // Given
+        var worker = followWorker(10);
+
+        // When
+        var success = process(worker, renamedUnit(DRY_RUN, project("p", "old", "org", "old")));
+
+        // Then
+        assertThat(success).isTrue();
+        verifyNoInteractions(dtrack);
+        assertThat(renameActions("OK")).isEqualTo(1);
+    }
+
+    @Test
+    void limitsRenamedProjectsPerRun() {
+        // Given
+        var worker = followWorker(1);
+        var first = project("p1", "old", "org", "old");
+        var second = project("p2", "old", "org", "old");
+        stubRename(first, DependencyTrackClient.RenameStatus.RENAMED);
+        stubRename(second, DependencyTrackClient.RenameStatus.RENAMED);
+
+        // When
+        process(worker, renamedUnit(RUN, first));
+        process(worker, renamedUnit(RUN, second));
+
+        // Then
+        verify(dtrack).renameProjectOfRepository(eq(first), anyString(), anyString(), anyString(), anyString(), anyString(), anyString());
+        verify(dtrack, never()).renameProjectOfRepository(eq(second), anyString(), anyString(), anyString(), anyString(), anyString(), anyString());
     }
 
     private static DependencyTrackProject withParent(DependencyTrackProject project, String parentUuid) {
