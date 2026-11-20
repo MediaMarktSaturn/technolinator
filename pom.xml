@@ -20,7 +20,7 @@
 
         <cyclonedx-core-java.version>13.5.0</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.67</jruby.jcodings.version>
-        <jruby.joni.version>2.2.10</jruby.joni.version>
+        <jruby.joni.version>2.2.12</jruby.joni.version>
 
         <!-- test -->
         <assertj.version>3.27.7</assertj.version>
