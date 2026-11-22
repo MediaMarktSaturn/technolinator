@@ -417,9 +417,13 @@ public class AnalysisProcessHandler {
 
     @SuppressWarnings("unchecked")
     public static Uni<List<Result<CdxgenClient.SBOMGenerationResult>>> executeCommands(List<CdxgenClient.SbomCreationCommand> commands, Command.Metadata metadata) {
-        return Uni.combine().all().unis(
+        var combined = Uni.combine().all().unis(
             commands.stream().map(cmd -> cmd.execute(metadata)).toList()
-        ).with(results -> {
+        );
+        if (commands.stream().anyMatch(cmd -> cmd.flutter() != null)) {
+            combined = combined.usingConcurrencyOf(1);
+        }
+        return combined.with(results -> {
             metadata.writeToMDC();
             Log.infof("Analysis of repo %s, branch %s for %s projects resulted in %s with SBOMs %s",
                 metadata.repoFullName(), metadata.gitRef(), commands.size(),

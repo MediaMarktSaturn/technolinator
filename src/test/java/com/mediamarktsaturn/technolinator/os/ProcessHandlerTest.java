@@ -111,6 +111,14 @@ class ProcessHandlerTest {
     }
 
     @Test
+    void testIsolatedArgumentListPreservesSpaces() {
+        var result = await(ProcessHandler.runIsolated(List.of("/bin/echo", "two words"),
+            ProcessHandler.CURRENT_DIR, Map.of()));
+        assertThat(result).isInstanceOfSatisfying(ProcessHandler.ProcessResult.Success.class,
+            success -> assertThat(success.outputLines()).containsExactly("two words"));
+    }
+
+    @Test
     void testFailedProcessOutputIsReportedCompletely() {
         // Given
         var recorder = new RecordingCallback();

@@ -47,6 +47,22 @@ class CdxgenClientCommandCreationTest {
     }
 
     @Test
+    void testFlutterConfigurationInheritanceAndOverride() {
+        var inherited = new TechnolinatorConfig.FlutterConfig("3.44.1", List.of("."));
+        var overridden = new TechnolinatorConfig.FlutterConfig("3.50.1", List.of("app"));
+        var config = ConfigBuilder.create().flutter(inherited)
+            .addSubProject(ConfigBuilder.create("one").build())
+            .addSubProject(ConfigBuilder.create("two").flutter(overridden).build())
+            .build();
+
+        var commands = cut.createCommands(Path.of("repo"), "repo", false, Optional.of(config));
+
+        assertThat(commands).hasSize(2);
+        assertThat(commands.get(0).flutter()).isEqualTo(inherited);
+        assertThat(commands.get(1).flutter()).isEqualTo(overridden);
+    }
+
+    @Test
     void testRequiredScopeOnlyFlag() {
         // Given
         var config = ConfigBuilder.create()

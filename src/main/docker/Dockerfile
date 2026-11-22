@@ -18,6 +18,10 @@ ARG GRADLE_VERSION='9.9.1'
 ARG NODE_VERSION='24'
 ARG GO_VERSION='1.27.4'
 ARG MAVEN_VERSION='3.10.1'
+ARG FLUTTER_VERSION='3.44.1'
+ARG FLUTTER_SHA256='287937458126a53284ed112c8c7dbc647bea2d09ab65d46e2d5cf94e901aac69'
+ARG ANDROID_TOOLS_VERSION='13114758'
+ARG ANDROID_TOOLS_SHA1='5fdcc763663eefb86a5b8879697aa6088b041e70'
 
 # location of application binaries and configuration
 ENV APP_DIR='/app'
@@ -50,7 +54,7 @@ RUN \
     microdnf update --nodocs -y && \
     microdnf install --nodocs -y tzdata && \
     ln -fs /usr/share/zoneinfo/UTC /etc/localtime && \
-    microdnf install --nodocs -y which tar openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git python3 pip php php-cli php-zip php-json && \
+    microdnf install --nodocs -y which tar xz openssl ca-certificates zip unzip findutils fontconfig glibc-langpack-en git python3 pip php php-cli php-zip php-json && \
     microdnf install --nodocs -y ruby ruby-devel rubygem-bundler gcc gcc-c++ make redhat-rpm-config && \
     curl -s https://raw.githubusercontent.com/composer/getcomposer.org/main/web/installer | php -- --filename=composer --install-dir=/usr/bin --quiet && \
     microdnf clean all -y
@@ -133,6 +137,32 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     chown root:root -R $SDK_DIR && \
     chmod a-w -R $SDK_DIR && \
     rm -rf /root/.sdkman
+
+# Flutter updates its own cache even for `pub get`. This is a read-only template;
+# each analysis copies it to an isolated writable directory before running it.
+RUN mkdir -p "$SDK_DIR/flutter" && \
+    curl -fL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz && \
+    echo "$FLUTTER_SHA256  /tmp/flutter.tar.xz" | sha256sum -c - && \
+    tar -xf /tmp/flutter.tar.xz -C "$SDK_DIR/flutter" && \
+    mv "$SDK_DIR/flutter/flutter" "$SDK_DIR/flutter/$FLUTTER_VERSION" && \
+    rm /tmp/flutter.tar.xz && \
+    chown -R root:root "$SDK_DIR/flutter" && \
+    CI=true "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/flutter" --suppress-analytics precache --android && \
+    chmod -R a-w "$SDK_DIR/flutter"
+
+ENV ANDROID_HOME="$SDK_DIR/android" \
+    ANDROID_SDK_ROOT="$SDK_DIR/android"
+
+RUN mkdir -p "$ANDROID_HOME/cmdline-tools" && \
+    curl -fL "https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_TOOLS_VERSION}_latest.zip" -o /tmp/android-tools.zip && \
+    echo "$ANDROID_TOOLS_SHA1  /tmp/android-tools.zip" | sha1sum -c - && \
+    unzip -q /tmp/android-tools.zip -d "$ANDROID_HOME/cmdline-tools" && \
+    mv "$ANDROID_HOME/cmdline-tools/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest" && \
+    rm /tmp/android-tools.zip && \
+    export JAVA_HOME="$SDK_DIR/java/$JAVA_21_VERSION" && \
+    yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null && \
+    "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" && \
+    chmod -R a-w "$ANDROID_HOME"
 
 # app & tools env
 ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \

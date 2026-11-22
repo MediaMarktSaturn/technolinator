@@ -1,17 +1,39 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
 import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
+import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class CdxgenClientParsingTest {
+
+    @Test
+    void flutterAnalysisDoesNotAcceptPartialSbomAfterFailure(@TempDir Path temp) throws Exception {
+        Files.copy(Path.of("src/test/resources/sbom/noop.json"), temp.resolve("sbom.json"));
+        var cmd = new CdxgenClient.SbomCreationCommand(temp, "example", "cdxgen", Map.of(), List.of(), "",
+            new TechnolinatorConfig.FlutterConfig("3.44.1", null));
+        var cause = new ProcessFailedException("cdxgen", 1, List.of("build failed"));
+        var failure = new ProcessHandler.ProcessResult.Failure(List.of("build failed"), 1, cause);
+        var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
+
+        assertThat(CdxgenClient.parseSbom(cmd, failure, metadata)).isInstanceOf(Result.Failure.class);
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {

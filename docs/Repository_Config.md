@@ -50,6 +50,12 @@ env:
 jdk:
     # select JDK version used by cdxgen on JVM based projects (see below)
     version: 21
+flutter:
+    # Opt in to Flutter preparation and select an installed stable SDK version.
+    version: 3.44.1
+    # Paths to Flutter packages relative to analysis.location; defaults to ["."].
+    directories:
+        - .
 
 # to split up repositories in multiple dependency-track projects, you can recursively configure subprojects.
 # structure is the same like for the single-project config, each distinct project will result in one dependency-track project.
@@ -96,3 +102,15 @@ Please see the [adoption documentation](Adoption.md) for details.
 The JDK versions available for selection need to be provided and configured to the Technolinator runtime.
 Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 25 (default), JDK 21 and JDK 17 built in.
 Requesting a version that isn't available fails the analysis with an explanatory error instead of silently falling back.
+
+### Flutter projects
+
+Flutter preparation is opt-in. Set `flutter.version` to an installed SDK version and, for a monorepo, list each Flutter package directory under `flutter.directories`. These paths are relative to `analysis.location`; they must remain inside it and each must contain a `pubspec.yaml`. Use separate `projects` if different packages require different Flutter versions. A child project's `flutter` configuration replaces its parent's.
+
+Before cdxgen runs, Technolinator runs `flutter --suppress-analytics pub get` in each directory and configures `flutter.sdk` in its `android/local.properties` when an Android directory exists. Other existing properties are retained. The selected Flutter SDK is also available to Gradle via `FLUTTER_ROOT` and `FLUTTER_SDK`, and the Android SDK via `ANDROID_HOME` and `ANDROID_SDK_ROOT`. The checkout must be able to resolve all dependencies from the configured package repositories; a failed preparation or cdxgen command fails the analysis, even if a partial SBOM exists. Android modules and their dependencies are not excluded.
+
+`flutter pub get` can update `pubspec.lock` when the selected SDK is incompatible with locked versions. The SBOM then reflects the newly resolved dependencies, so use a compatible SDK and commit a compatible lockfile for reproducible results.
+
+When any configured project uses Flutter, analyses within the same checkout run sequentially to avoid conflicts over generated files. The original `android/local.properties`, if present, is restored after each analysis.
+
+The standard image provides Flutter 3.44.1 and Android SDK platform 36, build-tools 36.0.0, and NDK 28.2.13676358. Other Flutter versions or Android SDK packages must be provisioned by the operator; selecting an unavailable Flutter version fails rather than falling back. Select an appropriate `jdk.version` for the project's Android Gradle plugin. The Flutter SDK is copied to a temporary writable directory for each analysis, requiring several gigabytes of free temporary storage and additional startup time. See [Adoption](Adoption.md#flutter-and-android-sdks) for provisioning and isolation details.

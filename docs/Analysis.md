@@ -38,6 +38,8 @@ They get
 
 Builds needing further values should get them via the `env` of the repository config.
 
+For opted-in Flutter projects, the Flutter preparation command runs with the same isolated environment as cdxgen. See [Flutter projects](Repository_Config.md#flutter-projects) for SDK selection, generated metadata, and temporary storage requirements.
+
 ## Failure reporting
 
 If an analysis fails for a reason the repository owners can act on (e.g. a broken build the SBOM generator can't cope with, an unresolvable dependency, a repeated timeout), Technolinator tells them on GitHub:

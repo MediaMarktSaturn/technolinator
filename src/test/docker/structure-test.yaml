@@ -56,6 +56,18 @@ fileExistenceTests:
       uid: 0
       gid: 0
 
+    - name: 'Flutter SDK template exists'
+      path: /app/sdks/flutter/3.44.1/bin/flutter
+      shouldExist: true
+      uid: 0
+      gid: 0
+
+    - name: 'Android SDK platform exists'
+      path: /app/sdks/android/platforms/android-36/android.jar
+      shouldExist: true
+      uid: 0
+      gid: 0
+
 commandTests:
     - name: 'Timezone is UTC'
       command: 'date'
@@ -225,6 +237,10 @@ metadataTest:
           value: '/data'
         - key: APP_DIR
           value: '/app'
+        - key: ANDROID_HOME
+          value: '/app/sdks/android'
+        - key: ANDROID_SDK_ROOT
+          value: '/app/sdks/android'
         - key: GRYPE_TEMPLATE
           value: '/app/grype.tmpl'
         - key: DEPSCAN_TEMPLATE

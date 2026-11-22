@@ -175,24 +175,30 @@ public class CdxgenClient {
         String commandLine,
         Map<String, String> environment,
         List<String> excludeFiles,
-        String location
+        String location,
+        TechnolinatorConfig.FlutterConfig flutter
     ) implements Command<SBOMGenerationResult> {
 
         public SbomCreationCommand(Path repoDir, String projectName, String commandLine, Map<String, String> environment, List<String> excludeFiles) {
-            this(repoDir, projectName, commandLine, environment, excludeFiles, "");
+            this(repoDir, projectName, commandLine, environment, excludeFiles, "", null);
         }
 
         @Override
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
             metadata.writeToMDC();
-            return removeExcludedFiles(this)
-                .chain(() -> generateSbom(this, metadata))
-                .map(result -> parseSbom(this, result, metadata))
-                // a failing project must neither affect the others nor hide the checkout from the cleanup
-                .onFailure().recoverWithItem(failure -> {
-                    Log.errorf(failure, "Analysis of project '%s' failed unexpectedly", projectName);
-                    return Result.failure(failure);
-                });
+            return Uni.createFrom().deferred(() -> {
+                var scratch = new FlutterPreparation.Scratch();
+                return removeExcludedFiles(this)
+                    .chain(() -> FlutterPreparation.prepare(this, scratch))
+                    .chain(env -> generateSbom(this, metadata, env))
+                    .map(result -> parseSbom(this, result, metadata))
+                    .onTermination().invoke(scratch::close)
+                    // a failing project must neither affect the others nor hide the checkout from the cleanup
+                    .onFailure().recoverWithItem(failure -> {
+                        Log.errorf(failure, "Analysis of project '%s' failed unexpectedly", projectName);
+                        return Result.failure(failure);
+                    });
+            });
         }
     }
 
@@ -209,7 +215,8 @@ public class CdxgenClient {
                     buildCdxgenCommand(recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError, repoName),
                     buildEnv(List.of(), fetchLicenses),
                     buildExcludeList(List.of()),
-                    ""
+                    "",
+                    null
                 )
             );
         } else {
@@ -222,7 +229,8 @@ public class CdxgenClient {
                         buildCdxgenCommand(analyseRecursive(configPath), requiredScopeOnlyFlag(configPath), evidenceFlag(configPath), formulationFlag(configPath), failOnError, projectName),
                         buildEnv(configPath, fetchLicenses),
                         buildExcludeList(configPath),
-                        relativeLocation(repoDir, analysisFolder)
+                        relativeLocation(repoDir, analysisFolder),
+                        sliceConfig(configPath, TechnolinatorConfig::flutter).stream().reduce((a, b) -> b).orElse(null)
                     );
                 }
             ).toList();
@@ -257,13 +265,17 @@ public class CdxgenClient {
         return ConfiguredProjects.configPaths(root);
     }
 
-    static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
-        metadata.writeToMDC();
+    static Map<String, String> analysisEnvironment(SbomCreationCommand cmd) {
         var inheritedEnv = ConfigProvider.getConfig().getOptionalValue("app.analysis.cdxgen.inherited_env", String.class)
             .filter(str -> !str.isBlank())
             .map(str -> Arrays.stream(str.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList())
             .orElse(Collections.emptyList());
-        return ProcessHandler.runIsolated(cmd.commandLine, cmd.repoDir(), childEnvironment(System.getenv(), inheritedEnv, cmd.environment()));
+        return childEnvironment(System.getenv(), inheritedEnv, cmd.environment());
+    }
+
+    static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata, Map<String, String> env) {
+        metadata.writeToMDC();
+        return ProcessHandler.runIsolated(cmd.commandLine, cmd.repoDir(), env);
     }
 
     /**
@@ -282,7 +294,9 @@ public class CdxgenClient {
         return switch (generationResult) {
             case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile, cmd.projectName());
             case ProcessHandler.ProcessResult.Failure f -> {
-                if (Files.exists(sbomFile)) {
+                if (cmd.flutter() != null) {
+                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? pfe.withProject(cmd.projectName(), cmd.location()) : f.cause());
+                } else if (Files.exists(sbomFile)) {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
                     yield parseSbomFile(sbomFile, cmd.projectName());
                 } else {

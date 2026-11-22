@@ -28,6 +28,7 @@ public final class ChildEnvironment {
         "JAVA*_HOME", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS",
         "MAVEN_HOME", "MAVEN_OPTS", "MAVEN_ARGS", "MVN_CMD",
         "GRADLE_HOME", "GRADLE_CMD", "GRADLE_OPTS", "GRADLE_USER_HOME",
+        "ANDROID_HOME", "ANDROID_SDK_ROOT",
         "NODE_HOME", "NODE_EXTRA_CA_CERTS",
         "GO_HOME", "GOROOT", "GOPATH", "GOCACHE", "GOPROXY", "GOPRIVATE", "GONOSUMDB",
         // network

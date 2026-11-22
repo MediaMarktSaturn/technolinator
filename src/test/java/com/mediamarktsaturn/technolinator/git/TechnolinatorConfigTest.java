@@ -64,6 +64,11 @@ class TechnolinatorConfigTest {
                 yea: haa
             jdk:
                 version: 20
+            flutter:
+                version: 3.44.1
+                directories:
+                    - .
+                    - apps/mobile
             """;
         var config = configMapper.readValue(value, TechnolinatorConfig.class);
         assertThat(config).isNotNull().satisfies(c -> {
@@ -87,6 +92,8 @@ class TechnolinatorConfigTest {
             assertThat(c.jdk()).satisfies(j -> {
                 assertThat(j.version()).hasToString("20");
             });
+            assertThat(c.flutter().version()).isEqualTo("3.44.1");
+            assertThat(c.flutter().directories()).containsExactly(".", "apps/mobile");
         });
     }
 }

@@ -15,6 +15,7 @@ public class ConfigBuilder {
     private TechnolinatorConfig.MavenConfig maven;
     private Map<String, String> env;
     private TechnolinatorConfig.JdkConfig jdk;
+    private TechnolinatorConfig.FlutterConfig flutter;
 
     private List<TechnolinatorConfig> projects;
     private TechnolinatorConfig.ReportingConfig reporting;
@@ -42,7 +43,8 @@ public class ConfigBuilder {
             jdk,
             env,
             projects,
-            reporting
+            reporting,
+            flutter
         );
     }
 
@@ -86,6 +88,11 @@ public class ConfigBuilder {
         return this;
     }
 
+    public ConfigBuilder flutter(TechnolinatorConfig.FlutterConfig flutter) {
+        this.flutter = flutter;
+        return this;
+    }
+
     public ConfigBuilder reporting(TechnolinatorConfig.ReportingConfig reporting) {
         this.reporting = reporting;
         return this;
@@ -99,4 +106,3 @@ public class ConfigBuilder {
         return this;
     }
 }
-

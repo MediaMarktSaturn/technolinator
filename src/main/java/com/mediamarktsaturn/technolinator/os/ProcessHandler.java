@@ -53,13 +53,21 @@ public class ProcessHandler {
     }
 
     private static Uni<ProcessResult> start(String command, Path workingDir, Map<String, String> env, boolean isolated, ProcessCallback callback) {
+        return start(command, List.of(command.trim().split("\\s+")), workingDir, env, isolated, callback);
+    }
+
+    public static Uni<ProcessResult> runIsolated(List<String> command, Path workingDir, Map<String, String> env) {
+        return Uni.createFrom().deferred(() -> start(String.join(" ", command), command, workingDir, env, true,
+            new ProcessCallback.DefaultProcessCallback()));
+    }
+
+    private static Uni<ProcessResult> start(String command, List<String> commandParts, Path workingDir, Map<String, String> env, boolean isolated, ProcessCallback callback) {
         callback.log("Starting '%s' in %s".formatted(command, workingDir));
         var outputLines = new ArrayDeque<String>();
         var process = new AtomicReference<Process>();
         var cancelled = new AtomicBoolean();
         return Uni.createFrom().item(
                 Unchecked.supplier(() -> {
-                    var commandParts = command.trim().split("\\s+");
                     var processBuilder = new ProcessBuilder(commandParts)
                         .directory(workingDir.toFile())
                         .redirectErrorStream(true);

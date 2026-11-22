@@ -16,8 +16,15 @@ public record TechnolinatorConfig(
     JdkConfig jdk,
     Map<String, String> env,
     List<TechnolinatorConfig> projects,
-    ReportingConfig reporting
+    ReportingConfig reporting,
+    FlutterConfig flutter
 ) {
+
+    public TechnolinatorConfig(Boolean enable, Boolean enablePullRequestReport, ProjectConfig project,
+                               AnalysisConfig analysis, GradleConfig gradle, MavenConfig maven, JdkConfig jdk,
+                               Map<String, String> env, List<TechnolinatorConfig> projects, ReportingConfig reporting) {
+        this(enable, enablePullRequestReport, project, analysis, gradle, maven, jdk, env, projects, reporting, null);
+    }
 
     public record ProjectConfig(
         String name
@@ -58,6 +65,12 @@ public record TechnolinatorConfig(
 
     public record JdkConfig(
         String version
+    ) {
+    }
+
+    public record FlutterConfig(
+        String version,
+        List<String> directories
     ) {
     }
 }
