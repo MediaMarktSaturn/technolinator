@@ -16,7 +16,7 @@ env:
   DEPSCAN_VERSION: 'v6.3.2'
   NYDUS_VERSION: '2.4.6'
   java_version: '25'
-  node_version: '24'
+  node_version: '26'
   mvn_parameter: '-B -ntp'
   cdxgen_branch: ${{ github.event.inputs.cdxgen_branch }}
   cdxgen_repo: ${{ github.event.inputs.cdxgen_repo }}

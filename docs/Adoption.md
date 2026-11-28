@@ -29,7 +29,7 @@ Env vars of pattern `JAVA\d+_HOME` will be detected, and the `\d+` values can be
 
 ## Flutter and Android SDKs
 
-The base image includes Flutter 3.44.1 in `$SDK_DIR/flutter/3.44.1` and an Android SDK at `$ANDROID_HOME` (also `$ANDROID_SDK_ROOT`). The Android SDK includes platform 36, build-tools 36.0.0, and NDK 28.2.13676358. Repositories use them in their `prepare` script via the helper `technolinator-flutter`, which is on the `PATH` (`$APP_DIR/bin`); see [repository configuration](Repository_Config.md#flutter-projects).
+The base image includes Flutter 3.50.1 in `$SDK_DIR/flutter/3.50.1` and an Android SDK at `$ANDROID_HOME` (also `$ANDROID_SDK_ROOT`). The Android SDK includes platform 36, build-tools 36.0.0, and NDK 28.2.13676358. Repositories use them in their `prepare` script via the helper `technolinator-flutter`, which is on the `PATH` (`$APP_DIR/bin`); see [repository configuration](Repository_Config.md#flutter-projects).
 
 Operators can add other stable Flutter SDK versions as complete, pre-cached SDKs at `$SDK_DIR/flutter/<version>` in a derived image, and install Android SDK packages required by their projects. Templates must be owned by root and not writable by the application user, and the pub cache the Flutter tool was built with has to be readable and live inside of the SDK (see the `Dockerfile` for how that is checked): the tool refers to it by absolute paths and would try to rebuild itself, i.e. write to the SDK, if it couldn't read it.
 

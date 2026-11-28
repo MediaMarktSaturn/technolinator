@@ -53,7 +53,7 @@ jdk:
 prepare:
     # a bash script run in 'analysis.location' ahead of cdxgen, to prepare the repository for it (see below)
     script: |
-        technolinator-flutter 3.44.1 .
+        technolinator-flutter 3.50.1 .
 
 # to split up repositories in multiple dependency-track projects, you can recursively configure subprojects.
 # structure is the same like for the single-project config, each distinct project will result in one dependency-track project.
@@ -129,12 +129,12 @@ prepare:
 
 #### Flutter projects
 
-The image provides Flutter 3.44.1 and the Android SDK (platform 36, build-tools 36.0.0, NDK 28.2.13676358), and the helper `technolinator-flutter` to use them in a `prepare` script:
+The image provides Flutter 3.50.1 and the Android SDK (platform 36, build-tools 36.0.0, NDK 28.2.13676358), and the helper `technolinator-flutter` to use them in a `prepare` script:
 
 ```yaml
 prepare:
     script: |
-        technolinator-flutter 3.44.1 . packages/app
+        technolinator-flutter 3.50.1 . packages/app
 jdk:
     version: 17 # select the JDK the Android Gradle plugin of the project needs
 ```
@@ -143,12 +143,12 @@ jdk:
 The directories are relative to `analysis.location`, must stay inside of it, and each must contain a `pubspec.yaml`. Use separate `projects` if packages need different Flutter versions.
 Selecting a version that isn't installed fails the analysis rather than falling back.
 
-To run Flutter on your own, e.g. for code generation, use `eval "$(technolinator-flutter --setup 3.44.1)"`: `flutter` is on the `PATH` afterwards and works against the same setup:
+To run Flutter on your own, e.g. for code generation, use `eval "$(technolinator-flutter --setup 3.50.1)"`: `flutter` is on the `PATH` afterwards and works against the same setup:
 
 ```yaml
 prepare:
     script: |
-        eval "$(technolinator-flutter --setup 3.44.1)"
+        eval "$(technolinator-flutter --setup 3.50.1)"
         flutter pub get
         dart run build_runner build
 ```

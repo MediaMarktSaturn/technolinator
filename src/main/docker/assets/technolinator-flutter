@@ -9,7 +9,7 @@
 #
 #   technolinator-flutter --setup <version>
 #       Only sets up the version and hands the variables over to cdxgen. Prints `export` statements for the
-#       calling script, so that it can run Flutter on its own:  eval "$(technolinator-flutter --setup 3.44.1)"; flutter pub get
+#       calling script, so that it can run Flutter on its own:  eval "$(technolinator-flutter --setup 3.50.1)"; flutter pub get
 #
 # The installed Flutter SDKs are read-only and shared by all analyses, but Flutter wants to write into its SDK.
 # So each analysis gets an overlay in its scratch directory, which is made of symbolic links to the installed SDK,
@@ -89,7 +89,7 @@ LAUNCHER
 # Prepares the overlay of the version, sets $overlay
 setup() {
     local version=$1
-    [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "the version must be an installed stable version like 3.44.1, not '$version'"
+    [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "the version must be an installed stable version like 3.50.1, not '$version'"
     local src="$sdk_root/$version"
     [[ -x $src/bin/cache/dart-sdk/bin/dart ]] || die "Flutter $version is not installed, available are: $(installed_versions)"
 

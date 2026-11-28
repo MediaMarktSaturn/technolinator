@@ -57,7 +57,7 @@ fileExistenceTests:
       gid: 0
 
     - name: 'Flutter SDK template exists'
-      path: /app/sdks/flutter/3.44.1/bin/flutter
+      path: /app/sdks/flutter/3.50.1/bin/flutter
       shouldExist: true
       uid: 0
       gid: 0
@@ -138,11 +138,11 @@ commandTests:
           - '.*Missing values for configuration properties.*'
           -  '.*This configuration is required in prod mode.*'
 
-    - name: "Nodejs 24 available"
+    - name: "Nodejs 26 available"
       command: 'node'
       args: ["-v"]
       expectedOutput:
-          - 'v24.*'
+          - 'v26.*'
 
     - name: "NPM 11 available"
       command: 'npm'
@@ -194,9 +194,9 @@ commandTests:
 
     - name: "Flutter runs from an overlay of the read-only SDK"
       command: 'bash'
-      args: ['-c', 'export TECHNOLINATOR_SCRATCH=$(mktemp -d) && eval "$(technolinator-flutter --setup 3.44.1)" && flutter --version']
+      args: ['-c', 'export TECHNOLINATOR_SCRATCH=$(mktemp -d) && eval "$(technolinator-flutter --setup 3.50.1)" && flutter --version']
       expectedOutput:
-          - 'Flutter 3\.44\.1.*'
+          - 'Flutter 3\.50\.1.*'
 
     - name: "Running as non-root"
       command: 'whoami'
@@ -233,7 +233,7 @@ metadataTest:
         - key: JAVA17_HOME
           value: '/app/sdks/java/17.0.21.1+2-tem'
         - key: JAVA21_HOME
-          value: '/app/sdks/java/21.0.13.0+9-tem'
+          value: '/app/sdks/java/21.0.13.1+2-tem'
         - key: JAVA25_HOME
           value: '/app/sdks/java/25.0.5.1+2-tem'
         - key: MAVEN_HOME
@@ -241,7 +241,7 @@ metadataTest:
         - key: GRADLE_HOME
           value: '/app/sdks/gradle/current'
         - key: NODE_HOME
-          value: '/app/node24'
+          value: '/app/node26'
         - key: MVN_CMD
           value: 'mvn'
         - key: GRADLE_CMD
