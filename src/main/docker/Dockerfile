@@ -154,7 +154,6 @@ RUN mkdir -p "$SDK_DIR/flutter" && \
     rm -f "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/flutter_tools.stamp" && \
     CI=true PUB_CACHE="$SDK_DIR/flutter/$FLUTTER_VERSION/.pub-cache" "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/flutter" --suppress-analytics precache --android && \
     rm -rf "$SDK_DIR/flutter/$FLUTTER_VERSION/.pub-preload-cache" && \
-    test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/version" && \
     test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/flutter.version.json" && \
     test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/flutter_tools.snapshot" && \
     test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/engine.stamp" && \

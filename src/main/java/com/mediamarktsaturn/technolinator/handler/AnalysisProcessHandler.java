@@ -63,7 +63,7 @@ public class AnalysisProcessHandler {
     private final String dtrackUrl;
     private final boolean pushFetchLicenses, pullRequestFetchLicenses, pullRequestReportsEnabled;
     /**
-     * Whether the vulnerabilities of pull-requests are summed up, which is what their commit status tells about.
+     * Whether the vulnerabilities of pull-requests are summed up, which their commit status and review tell about.
      */
     private final boolean vulnerabilityCheckEnabled;
     private final Pattern backstageCatalogPattern;
@@ -91,6 +91,8 @@ public class AnalysisProcessHandler {
         String backstageAnnotationRegex,
         @ConfigProperty(name = "app.commit_status_write.enabled")
         boolean commitStatusWriteEnabled,
+        @ConfigProperty(name = "app.pull_requests.request_changes.enabled")
+        boolean requestChangesEnabled,
         @ConfigProperty(name = "app.commit_status.vulnerability_threshold")
         String vulnerabilityThreshold) {
         this.repoService = repoService;
@@ -105,7 +107,7 @@ public class AnalysisProcessHandler {
         this.dtrackUrl = dtrackUrl;
         this.pullRequestReportsEnabled = pullRequestReportsEnabled;
         this.backstageCatalogPattern = compileBackstageAnnotationPattern(backstageAnnotationRegex);
-        this.vulnerabilityCheckEnabled = commitStatusWriteEnabled
+        this.vulnerabilityCheckEnabled = (commitStatusWriteEnabled || requestChangesEnabled)
             && VulnerabilitySummary.Severity.parseThreshold(vulnerabilityThreshold).isPresent();
     }
 

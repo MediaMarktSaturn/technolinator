@@ -60,7 +60,17 @@ The head commit of a pull-request gets a status telling about the vulnerabilitie
 | `failure` | `Analysis failed, vulnerability status unknown`                                        | The SBOM creation or the vulnerability analysis failed                            |
 | `failure` | `Analysis timed out, vulnerability status unknown`                                     | The analysis took longer than `APP_ANALYSIS_TIMEOUT`                              |
 
-The threshold is set globally via `APP_COMMIT_STATUS_VULNERABILITY_THRESHOLD` (`app.commit_status.vulnerability_threshold`): `critical`, `high` (default), `medium` or `low` is the lowest severity making the status fail. With `none`, pull-requests don't get a commit status at all, and neither do they if pull-requests aren't analysed (`APP_PULL_REQUESTS_ENABLED`) or `APP_COMMIT_STATUS_WRITE_ENABLED` is off.
+The threshold is set globally via `APP_COMMIT_STATUS_VULNERABILITY_THRESHOLD` (`app.commit_status.vulnerability_threshold`): `critical`, `high` (default), `medium` or `low` is the lowest severity making the status fail. With `none`, pull-requests neither get a commit status nor a review requesting changes, and neither do they if pull-requests aren't analysed (`APP_PULL_REQUESTS_ENABLED`). `APP_COMMIT_STATUS_WRITE_ENABLED` switches off the commit status only.
+
+### Requesting changes
+
+If the analysis of a pull-request finds vulnerabilities at or above the same threshold, Technolinator reviews the pull-request with *Request changes*, stating the number of vulnerabilities per severity and pinned to the analysed commit. The commit status fails alongside, so a branch protection can require either of them.
+
+* The review is kept while the analysis states the same numbers, and replaced (the old one is dismissed) if they change.
+* Once the analysis doesn't find vulnerabilities at or above the threshold anymore, the review is dismissed, so it doesn't block the merge. If the vulnerabilities can't be determined (the analysis failed or timed out), an existing review stays as it is.
+* Only reviews written by the GitHub app, requesting changes and carrying Technolinator's marker are touched, and reviews of people never are.
+* It needs the permission *Pull requests: Read and write* of the GitHub app, which commenting needs, too. A review failing to be written is logged and doesn't affect the analysis.
+* It can be switched off with `APP_PULL_REQUESTS_REQUEST_CHANGES_ENABLED=false`.
 
 The vulnerabilities are those the analyzer of `APP_PULL_REQUESTS_ANALYZER` (`depscan` by default) publishes, so they are the ones shown in the pull-request comment; Dependency-Track may know more or other ones. They are counted per severity (critical, high, medium, low), findings without a severity (*unspecified*) never reach the threshold. For that, the report templates (`depscan.j2`, `grype.tmpl`) state the numbers in an invisible comment at the start of the report of each project, `<!-- technolinator-severities critical=1 high=2 medium=3 low=4 unspecified=5 -->`. **Custom templates need to do so as well**, otherwise the vulnerability status is *unknown* as soon as there are findings.
 

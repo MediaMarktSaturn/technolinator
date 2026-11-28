@@ -124,7 +124,7 @@ abstract class GitHubReportingTestSupport {
         failureReporter = new FailureReporter(new StatusIssueService(), new PrStatusCommentService(), new SecretRedactor(List.of(SECRET)),
             botIdentity, meters, mode, repos, logsOnForks, timeoutsBeforeReport, 1);
         handler = new AnalysisProcessHandler(repoService, cdxgen, dtrack, sbomqs, vulnerabilityReporting, failureReporter,
-            new ObjectMapper(), false, false, "https://dtrack.example.com", true, "", true, "high");
+            new ObjectMapper(), false, false, "https://dtrack.example.com", true, "", true, true, "high");
     }
 
     /**

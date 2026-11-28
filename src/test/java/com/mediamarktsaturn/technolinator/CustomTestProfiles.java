@@ -35,6 +35,16 @@ public class CustomTestProfiles {
         }
     }
 
+    public static class RequestChangesDisabled implements QuarkusTestProfile {
+        @Override
+        public Map<String, String> getConfigOverrides() {
+            return Map.of(
+                "app.commit_status.vulnerability_threshold", "high",
+                "app.pull_requests.request_changes.enabled", "false"
+            );
+        }
+    }
+
     public static class ArchiveProjectsDisabled implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {

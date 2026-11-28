@@ -4,6 +4,7 @@ import com.mediamarktsaturn.technolinator.CustomTestProfiles;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.handler.AnalysisOutcome;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
+import com.mediamarktsaturn.technolinator.report.PullRequestReviewer;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import com.mediamarktsaturn.technolinator.sbom.VulnerabilitySummary;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
@@ -38,6 +39,9 @@ class OnPullRequestDispatcherCommitStatusTest {
 
     @InjectMock
     AnalysisProcessHandler handler;
+
+    @InjectMock
+    PullRequestReviewer reviewer;
 
     @BeforeEach
     void setup() {
@@ -100,6 +104,45 @@ class OnPullRequestDispatcherCommitStatusTest {
 
         openPullRequestAnd(repository -> Mockito.verify(repository).createCommitStatus(eq(HEAD_SHA), eq(GHCommitState.FAILURE), any(),
             eq("Analysis failed, vulnerability status unknown"), eq(CONTEXT)));
+    }
+
+    @Test
+    void requestsChangesIfVulnerabilitiesReachTheThreshold() throws IOException {
+        var summary = new VulnerabilitySummary(0, 2, 3, 4, 0);
+        Mockito.when(handler.onPullRequest(any(), any()))
+            .thenReturn(Uni.createFrom().item(outcome(Optional.of(Result.success(summary)))));
+
+        openPullRequestAnd(repository -> Mockito.verify(reviewer).review(any(), eq(HEAD_SHA), eq(summary), eq(VulnerabilitySummary.Severity.HIGH)));
+    }
+
+    @Test
+    void asksTheReviewerToDismissIfVulnerabilitiesAreGone() throws IOException {
+        Mockito.when(handler.onPullRequest(any(), any()))
+            .thenReturn(Uni.createFrom().item(outcome(Optional.of(Result.success(VulnerabilitySummary.NONE)))));
+
+        openPullRequestAnd(repository -> Mockito.verify(reviewer).review(any(), eq(HEAD_SHA), eq(VulnerabilitySummary.NONE), eq(VulnerabilitySummary.Severity.HIGH)));
+    }
+
+    @Test
+    void doesNotReviewIfVulnerabilitiesAreUnknown() throws IOException {
+        Mockito.when(handler.onPullRequest(any(), any()))
+            .thenReturn(Uni.createFrom().item(outcome(Optional.of(Result.failure(new IllegalStateException("cdxgen failed"))))));
+
+        openPullRequestAnd(repository -> {
+            Mockito.verify(repository).createCommitStatus(eq(HEAD_SHA), eq(GHCommitState.FAILURE), any(), any(), eq(CONTEXT));
+            Mockito.verifyNoInteractions(reviewer);
+        });
+    }
+
+    @Test
+    void doesNotReviewIfVulnerabilitiesWereNotLookedAt() throws IOException {
+        Mockito.when(handler.onPullRequest(any(), any()))
+            .thenReturn(Uni.createFrom().item(outcome(Optional.empty())));
+
+        openPullRequestAnd(repository -> {
+            Mockito.verify(repository).createCommitStatus(eq(HEAD_SHA), eq(GHCommitState.PENDING), any(), any(), eq(CONTEXT));
+            Mockito.verifyNoInteractions(reviewer);
+        });
     }
 
     @Test
