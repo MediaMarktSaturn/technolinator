@@ -8,6 +8,7 @@ import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
 import com.mediamarktsaturn.technolinator.sbom.Project;
+import com.mediamarktsaturn.technolinator.status.CommitStatusMetricsUpdater;
 import io.quarkiverse.githubapp.testing.GitHubAppTest;
 import io.quarkiverse.githubapp.testing.GitHubAppTesting;
 import io.quarkus.test.InjectMock;
@@ -177,6 +178,64 @@ class OnPushDispatcherTest {
 
         assertThat(result.commitStatus()).isNull();
         assertThat(result.metricStatus()).isEqualTo(DispatcherBase.MetricStatusAnalysis.OK);
+    }
+
+    @Test
+    void testSuccessfulAnalysisTracksDependencyTrackMetrics() {
+        var tracking = trackingDispatcher(true);
+        var metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("sha-1"));
+
+        TestUtil.await(tracking.dispatcher().reportAnalysisResult(
+            Result.success(Project.available("http://dtrack/projects/1", "1", Optional.empty())), tracking.repository(), Optional.of("sha-1"), metadata));
+
+        Mockito.verify(tracking.updater()).track(new CommitStatusMetricsUpdater.Target("acme/shop", "sha-1", "http://dtrack/projects/1", "SBOM available"));
+    }
+
+    @Test
+    void testSeveralProjectsTrackDependencyTrackMetrics() {
+        var tracking = trackingDispatcher(true);
+        var metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("sha-1"));
+
+        TestUtil.await(tracking.dispatcher().reportAnalysisResult(
+            Result.success(Project.list("http://dtrack/projects?searchText=shop")), tracking.repository(), Optional.of("sha-1"), metadata));
+
+        Mockito.verify(tracking.updater()).track(new CommitStatusMetricsUpdater.Target("acme/shop", "sha-1", "http://dtrack/projects?searchText=shop", "SBOMs available"));
+    }
+
+    @Test
+    void testNoTrackingWithoutSbom() {
+        var tracking = trackingDispatcher(true);
+        var metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("sha-1"));
+
+        TestUtil.await(tracking.dispatcher().reportAnalysisResult(Result.success(Project.none()), tracking.repository(), Optional.of("sha-1"), metadata));
+        TestUtil.await(tracking.dispatcher().reportAnalysisResult(
+            new Result.Failure<>(new DependencyTrackClientHttpException(503, "down")), tracking.repository(), Optional.of("sha-1"), metadata));
+
+        Mockito.verifyNoInteractions(tracking.updater());
+    }
+
+    @Test
+    void testNoTrackingWithoutCommitStatusWrite() {
+        var tracking = trackingDispatcher(false);
+        var metadata = new Command.Metadata("git-ref-1", "repo-name-1", "trace-id-1", Optional.of("sha-1"));
+
+        TestUtil.await(tracking.dispatcher().reportAnalysisResult(
+            Result.success(Project.available("http://dtrack/projects/1", "1", Optional.empty())), tracking.repository(), Optional.of("sha-1"), metadata));
+
+        Mockito.verifyNoInteractions(tracking.updater());
+    }
+
+    private record Tracking(OnPushDispatcher dispatcher, CommitStatusMetricsUpdater updater, GHRepository repository) {
+    }
+
+    private static Tracking trackingDispatcher(boolean commitStatusWrite) {
+        var dispatcher = Mockito.spy(new OnPushDispatcher());
+        dispatcher.enabledCommitStatusWrite = commitStatusWrite;
+        dispatcher.metricsUpdater = Mockito.mock(CommitStatusMetricsUpdater.class);
+        Mockito.doReturn(Uni.createFrom().nullItem()).when(dispatcher).createGHCommitStatus(any(), any(), any(), any(), any(), any());
+        var repository = Mockito.mock(GHRepository.class);
+        Mockito.when(repository.getFullName()).thenReturn("acme/shop");
+        return new Tracking(dispatcher, dispatcher.metricsUpdater, repository);
     }
 
     static ArgumentMatcher<PushEvent> matches(String repoUrl, String pushRef, String defaultBranch, TechnolinatorConfig config) {

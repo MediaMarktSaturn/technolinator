@@ -53,13 +53,36 @@ public class ProcessHandler {
     }
 
     private static Uni<ProcessResult> start(String command, Path workingDir, Map<String, String> env, boolean isolated, ProcessCallback callback) {
+        return start(command, List.of(command.trim().split("\\s+")), workingDir, env, isolated, callback);
+    }
+
+    public static Uni<ProcessResult> runIsolated(List<String> command, Path workingDir, Map<String, String> env) {
+        return runIsolated(command, workingDir, env, () -> {
+        });
+    }
+
+    /**
+     * @param afterExit run as soon as the process exited, while its output might still be read (e.g. because processes it started in
+     *                  the background keep the output open); a chance to clean up such leftovers
+     */
+    public static Uni<ProcessResult> runIsolated(List<String> command, Path workingDir, Map<String, String> env, Runnable afterExit) {
+        return Uni.createFrom().deferred(() -> start(String.join(" ", command), command, workingDir, env, true,
+            new ProcessCallback.DefaultProcessCallback(), afterExit));
+    }
+
+    private static Uni<ProcessResult> start(String command, List<String> commandParts, Path workingDir, Map<String, String> env, boolean isolated, ProcessCallback callback) {
+        return start(command, commandParts, workingDir, env, isolated, callback, () -> {
+        });
+    }
+
+    private static Uni<ProcessResult> start(String command, List<String> commandParts, Path workingDir, Map<String, String> env, boolean isolated,
+                                            ProcessCallback callback, Runnable afterExit) {
         callback.log("Starting '%s' in %s".formatted(command, workingDir));
         var outputLines = new ArrayDeque<String>();
         var process = new AtomicReference<Process>();
         var cancelled = new AtomicBoolean();
         return Uni.createFrom().item(
                 Unchecked.supplier(() -> {
-                    var commandParts = command.trim().split("\\s+");
                     var processBuilder = new ProcessBuilder(commandParts)
                         .directory(workingDir.toFile())
                         .redirectErrorStream(true);
@@ -70,6 +93,7 @@ public class ProcessHandler {
 
                     var started = processBuilder.start();
                     process.set(started);
+                    started.onExit().thenRun(afterExit);
                     if (cancelled.get()) {
                         kill(started);
                     }

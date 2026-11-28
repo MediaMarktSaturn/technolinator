@@ -69,7 +69,7 @@ With a filter set, projects without a repository reference are left out.
 | `APP_HOUSEKEEPING_WORKER_CONCURRENCY`        | `4`           | Number of units processed in parallel                                                             |
 
 Every action additionally has its own switch `app.housekeeping.<action-name>.enabled` (for `sync-project-states` one per rule) and a [limit](#limits) per run; a run without any enabled action does nothing, not even listing.
-Actions are performed per unit in this order: [`follow-renamed-repositories`](#action-follow-renamed-repositories), [`sync-project-states`](#action-sync-project-states), [`update-project-metadata`](#action-update-project-metadata).
+Actions are performed per unit in this order: [`follow-renamed-repositories`](#action-follow-renamed-repositories), [`sync-project-states`](#action-sync-project-states), [`update-project-metadata`](#action-update-project-metadata), [`update-commit-status`](#action-update-commit-status).
 
 ## Manual trigger
 
@@ -135,7 +135,7 @@ HOUSEKEEPING_ACTION action=sync_project_states status=done repository=my-org/my-
 
 | Key                | Values                                                                                                          |
 |--------------------|-----------------------------------------------------------------------------------------------------------------|
-| `action`           | `follow_renamed_repositories`, `sync_project_states`, `update_project_metadata` (the action name with underscores) |
+| `action`           | `follow_renamed_repositories`, `sync_project_states`, `update_project_metadata`, `update_commit_status` (the action name with underscores) |
 | `status`           | `done`, `dry_run` (would have been done), `failed`                                                              |
 | `repository`       | `owner/repo`; for projects of a renamed repository the new one; `-` for units without a repository (gone or unknown) |
 | `repository_state` | `active`, `archived`, `gone`, `moved`, `unknown`                                                                |
@@ -298,3 +298,23 @@ Safeguards and costs:
 * Only projects lacking one of the references or the owner tag are looked at. GitHub is asked for the topics (2 requests per repository, with the installation's rate limit in mind) only if there's such a project, so a run after the backfill is for free. Topics changed on GitHub reach the projects with their next BOM upload.
 * Before updating, the project is fetched again, so tags changed meanwhile (e.g. by an upload during the run) aren't overwritten.
 * The action honors dry-run mode, which still reads the topics from GitHub, but only logs the projects that would be updated.
+
+## Action `update-commit-status`
+
+Adds the Dependency-Track **risk score** and the **number of vulnerabilities per severity** to the commit status of the head of the default branch, e.g. `SBOM available, risk score 42, vulnerabilities: 1 critical, 2 high, 3 medium, 4 low`.
+After an analysis of the default branch, Technolinator does so on its own, as soon as Dependency-Track has the metrics, see [Commit status](Analysis.md#default-branch). That doesn't survive a restart of Technolinator, and doesn't see metrics changing later on (e.g. vulnerabilities published afterwards), which is what this action is for.
+It applies to units with an `ACTIVE` repository and projects, and runs last.
+
+| Environment variable                                       | Default | Description                                                                                    |
+|------------------------------------------------------------|---------|------------------------------------------------------------------------------------------------|
+| `APP_HOUSEKEEPING_UPDATE_COMMIT_STATUS_ENABLED`            | `true`  | Action switch, which has no effect without `APP_COMMIT_STATUS_WRITE_ENABLED`. Runs only happen if triggered manually or `APP_HOUSEKEEPING_ENABLED` schedules them |
+| `APP_HOUSEKEEPING_UPDATE_COMMIT_STATUS_MAX_PER_RUN`        | `1000`  | Strict upper [limit](#limits) of commit statuses written per run                               |
+
+How it works, per repository:
+
+* The active projects belonging to the repository are chosen like for [`update-project-metadata`](#action-update-project-metadata), and their current metrics are fetched from Dependency-Track (summed up for repositories with several projects). They are only used if Dependency-Track calculated them after it processed the last BOM of every project, otherwise the unit is left alone.
+* The latest commit status of Technolinator (context *Supply Chain Security*) of the head commit of the default branch must be a `success` of an analysis, stating that its SBOM is available. This tells that Dependency-Track knows the head commit: a failed or running analysis, a commit without status (e.g. analysed while commit statuses were switched off) or a status of anything else is left alone, and so is a repository whose head wasn't analysed yet.
+* The status is written again with the metrics, with the same state and link, unless it states exactly these metrics already, so a run doesn't add statuses to commits unchanged since the last one.
+
+Costs three GitHub requests per repository whose projects have current metrics (default branch, its head, the statuses of the head), and one Dependency-Track request per project.
+The action honors dry-run mode, which only logs the statuses that would be written.

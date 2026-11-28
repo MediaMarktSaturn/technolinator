@@ -1,17 +1,60 @@
 package com.mediamarktsaturn.technolinator.sbom;
 
 import com.mediamarktsaturn.technolinator.Result;
+import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
+import com.mediamarktsaturn.technolinator.os.ProcessHandler;
 import io.quarkus.test.junit.QuarkusTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.io.TempDir;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @QuarkusTest
 class CdxgenClientParsingTest {
+
+    @Test
+    void analysisWithPrepareScriptDoesNotAcceptPartialSbomAfterFailure(@TempDir Path temp) throws Exception {
+        Files.copy(Path.of("src/test/resources/sbom/noop.json"), temp.resolve("sbom.json"));
+        var cmd = new CdxgenClient.SbomCreationCommand(temp, "example", "cdxgen", Map.of(), List.of(), "",
+            new TechnolinatorConfig.PrepareConfig("true"));
+        var cause = new ProcessFailedException("cdxgen", 1, List.of("build failed"));
+        var failure = new ProcessHandler.ProcessResult.Failure(List.of("build failed"), 1, cause);
+        var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
+
+        assertThat(CdxgenClient.parseSbom(cmd, failure, metadata)).isInstanceOf(Result.Failure.class);
+    }
+
+    @Test
+    void failureAfterSkippedPreparationSaysSo(@TempDir Path temp) {
+        var cmd = new CdxgenClient.SbomCreationCommand(temp, "example", "cdxgen", Map.of(), List.of(), "", null,
+            "the code of pull requests from forks isn't trusted to run scripts");
+        var cause = new ProcessFailedException("cdxgen", 1, List.of("build failed"));
+        var failure = new ProcessHandler.ProcessResult.Failure(List.of("build failed"), 1, cause);
+        var metadata = new Command.Metadata("local", "local/test", "", Optional.empty());
+
+        assertThat(CdxgenClient.parseSbom(cmd, failure, metadata)).isInstanceOfSatisfying(Result.Failure.class, result ->
+            assertThat(result.cause()).isInstanceOfSatisfying(ProcessFailedException.class, pfe ->
+                assertThat(pfe.notes()).singleElement().asString().contains("was not run").contains("forks")));
+    }
+
+    @Test
+    void symbolicLinkAsSbomIsRejected(@TempDir Path temp) throws Exception {
+        var target = Files.copy(Path.of("src/test/resources/sbom/noop.json"), temp.resolve("target.json"));
+        var link = Files.createSymbolicLink(temp.resolve("sbom.json"), target);
+
+        assertThat(CdxgenClient.parseSbomFile(link, "example")).isInstanceOf(Result.Failure.class);
+    }
 
     @ParameterizedTest
     @ValueSource(strings = {

@@ -61,6 +61,15 @@ public final class HousekeepingActionLog {
     }
 
     /**
+     * Records the outcome of an action for the repository of the unit, that is not related to a project
+     *
+     * @param details additional keys and values (alternating) to append, e.g. {@code "commit", "c0ffee"}
+     */
+    static void repository(String action, Status status, HousekeepingUnit unit, String... details) {
+        write(action, status, unit, Optional.empty(), details);
+    }
+
+    /**
      * Records the failure of an action, that can't be related to a single project of the unit
      */
     static void unitFailed(String action, HousekeepingUnit unit) {

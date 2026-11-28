@@ -40,7 +40,12 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class CdxgenClient {
 
-    private static final String SBOM_JSON = "sbom.json";
+    static final String SBOM_JSON = "sbom.json";
+
+    /**
+     * Name of the command a failed {@code prepare} script is reported as.
+     */
+    public static final String PREPARE_COMMAND = "prepare";
 
     /**
      * cdxgen option -r: Recurse mode suitable for mono-repos
@@ -106,6 +111,11 @@ public class CdxgenClient {
     final List<String> allowedEnvSubstitutions;
 
     /**
+     * Whether {@code prepare} scripts of repositories are run at all.
+     */
+    private final boolean prepareEnabled;
+
+    /**
      * Configurable, supported jdk versions.
      */
     private final Map<String, String> jdkHomes;
@@ -121,6 +131,7 @@ public class CdxgenClient {
         this.formulationDefault = config.getValue("cdxgen.formulation", Boolean.TYPE);
         this.failOnError = config.getValue("cdxgen.fail_on_error", Boolean.TYPE);
         this.cdxgenDebug = config.getValue("cdxgen.debug", Boolean.TYPE);
+        this.prepareEnabled = config.getValue("app.prepare.enabled", Boolean.TYPE);
 
         this.allowedEnvSubstitutions = config.getOptionalValue("app.allowed_env_substitutions", String.class)
             .filter(str -> !str.isBlank())
@@ -168,6 +179,8 @@ public class CdxgenClient {
 
     /**
      * @param location the analysed folder relative to the repository root, empty for the root itself
+     * @param prepare the script to run ahead of cdxgen, null if there is none to run
+     * @param preparationSkipped why a configured script is not run (disabled, untrusted code), null if it is not skipped
      */
     public record SbomCreationCommand(
         Path repoDir,
@@ -175,31 +188,56 @@ public class CdxgenClient {
         String commandLine,
         Map<String, String> environment,
         List<String> excludeFiles,
-        String location
+        String location,
+        TechnolinatorConfig.PrepareConfig prepare,
+        String preparationSkipped
     ) implements Command<SBOMGenerationResult> {
 
         public SbomCreationCommand(Path repoDir, String projectName, String commandLine, Map<String, String> environment, List<String> excludeFiles) {
-            this(repoDir, projectName, commandLine, environment, excludeFiles, "");
+            this(repoDir, projectName, commandLine, environment, excludeFiles, "", null, null);
+        }
+
+        public SbomCreationCommand(Path repoDir, String projectName, String commandLine, Map<String, String> environment, List<String> excludeFiles,
+                                   String location, TechnolinatorConfig.PrepareConfig prepare) {
+            this(repoDir, projectName, commandLine, environment, excludeFiles, location, prepare, null);
         }
 
         @Override
         public Uni<Result<SBOMGenerationResult>> execute(Metadata metadata) {
             metadata.writeToMDC();
-            return removeExcludedFiles(this)
-                .chain(() -> generateSbom(this, metadata))
-                .map(result -> parseSbom(this, result, metadata))
-                // a failing project must neither affect the others nor hide the checkout from the cleanup
-                .onFailure().recoverWithItem(failure -> {
-                    Log.errorf(failure, "Analysis of project '%s' failed unexpectedly", projectName);
-                    return Result.failure(failure);
-                });
+            return Uni.createFrom().deferred(() -> {
+                if (preparationSkipped != null) {
+                    Log.warnf("Skipping the prepare script of project '%s': %s", projectName, preparationSkipped);
+                }
+                var scratch = new Preparation.Scratch();
+                return removeExcludedFiles(this)
+                    .chain(() -> Preparation.prepare(this, scratch))
+                    .chain(env -> generateSbom(this, metadata, env))
+                    .map(result -> parseSbom(this, result, metadata))
+                    .onTermination().invoke(scratch::close)
+                    // a failing project must neither affect the others nor hide the checkout from the cleanup
+                    .onFailure().recoverWithItem(failure -> {
+                        Log.errorf(failure, "Analysis of project '%s' failed unexpectedly", projectName);
+                        return Result.failure(failure);
+                    });
+            });
         }
     }
 
     /**
      * Creates a list of commands with each one representing a separate module resulting in an own dependency-track project.
+     * The {@code prepare} scripts of the configuration are run.
      */
     public List<SbomCreationCommand> createCommands(Path repoDir, String repoName, boolean fetchLicenses, Optional<TechnolinatorConfig> config) {
+        return createCommands(repoDir, repoName, fetchLicenses, config, true);
+    }
+
+    /**
+     * Creates a list of commands with each one representing a separate module resulting in an own dependency-track project.
+     *
+     * @param trusted whether the code to analyse is trusted to run scripts, which is not the case for pull requests of forks
+     */
+    public List<SbomCreationCommand> createCommands(Path repoDir, String repoName, boolean fetchLicenses, Optional<TechnolinatorConfig> config, boolean trusted) {
         var configPaths = buildConfigPaths(config);
         if (configPaths.isEmpty()) {
             return List.of(
@@ -209,24 +247,42 @@ public class CdxgenClient {
                     buildCdxgenCommand(recursiveDefault, requiredScopeOnlyDefault, evidenceDefault, formulationDefault, failOnError, repoName),
                     buildEnv(List.of(), fetchLicenses),
                     buildExcludeList(List.of()),
-                    ""
+                    "",
+                    null,
+                    null
                 )
             );
         } else {
             return configPaths.stream().map(configPath -> {
                     var projectName = determineProjectName(repoName, configPath);
                     var analysisFolder = determineAnalysisFolder(repoDir, configPath);
+                    // the most specific one wins, a blank script disables an inherited one
+                    var prepare = sliceConfig(configPath, TechnolinatorConfig::prepare).stream().reduce((a, b) -> b)
+                        .filter(p -> p.script() != null && !p.script().isBlank());
+                    var skipped = prepare.isEmpty() ? null : preparationSkipReason(trusted);
                     return new SbomCreationCommand(
                         analysisFolder,
                         projectName,
                         buildCdxgenCommand(analyseRecursive(configPath), requiredScopeOnlyFlag(configPath), evidenceFlag(configPath), formulationFlag(configPath), failOnError, projectName),
                         buildEnv(configPath, fetchLicenses),
                         buildExcludeList(configPath),
-                        relativeLocation(repoDir, analysisFolder)
+                        relativeLocation(repoDir, analysisFolder),
+                        skipped == null ? prepare.orElse(null) : null,
+                        skipped
                     );
                 }
             ).toList();
         }
+    }
+
+    private String preparationSkipReason(boolean trusted) {
+        if (!prepareEnabled) {
+            return "running prepare scripts is disabled by the operator of this Technolinator instance";
+        }
+        if (!trusted) {
+            return "the code of pull requests from forks isn't trusted to run scripts";
+        }
+        return null;
     }
 
     private static String relativeLocation(Path repoDir, Path analysisFolder) {
@@ -257,13 +313,44 @@ public class CdxgenClient {
         return ConfiguredProjects.configPaths(root);
     }
 
-    static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata) {
-        metadata.writeToMDC();
-        var inheritedEnv = ConfigProvider.getConfig().getOptionalValue("app.analysis.cdxgen.inherited_env", String.class)
+    static Map<String, String> analysisEnvironment(SbomCreationCommand cmd) {
+        return childEnvironment(System.getenv(), inheritedEnvNames(), cmd.environment());
+    }
+
+    private static List<String> inheritedEnvNames() {
+        return ConfigProvider.getConfig().getOptionalValue("app.analysis.cdxgen.inherited_env", String.class)
             .filter(str -> !str.isBlank())
             .map(str -> Arrays.stream(str.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList())
             .orElse(Collections.emptyList());
-        return ProcessHandler.runIsolated(cmd.commandLine, cmd.repoDir(), childEnvironment(System.getenv(), inheritedEnv, cmd.environment()));
+    }
+
+    /**
+     * The environment of a {@code prepare} script: the one of cdxgen, but without what Technolinator itself got hold of.
+     */
+    static Map<String, String> preparationEnvironment(SbomCreationCommand cmd) {
+        var sensitive = Optional.ofNullable(System.getenv("SENSITIVE_ENV_VARS"))
+            .map(names -> Arrays.stream(names.split(",")).map(String::trim).filter(s -> !s.isEmpty()).toList())
+            .orElse(Collections.emptyList());
+        return preparationEnvironment(System.getenv(), inheritedEnvNames(), sensitive, cmd.environment());
+    }
+
+    /**
+     * Secrets are removed from what is inherited from Technolinator, and Technolinators own token is removed from the explicit variables.
+     * Everything else of the explicit variables is kept, as that is what the repository configured (e.g. credentials for its package repositories).
+     */
+    static Map<String, String> preparationEnvironment(Map<String, String> parentEnv, List<String> inherited, List<String> sensitiveNames, Map<String, String> explicit) {
+        var env = ChildEnvironment.withoutSecrets(ChildEnvironment.inherited(parentEnv, inherited), sensitiveNames);
+        explicit.forEach((name, value) -> {
+            if (!name.equals("GITHUB_TOKEN")) {
+                env.put(name, value);
+            }
+        });
+        return env;
+    }
+
+    static Uni<ProcessHandler.ProcessResult> generateSbom(SbomCreationCommand cmd, Command.Metadata metadata, Map<String, String> env) {
+        metadata.writeToMDC();
+        return ProcessHandler.runIsolated(cmd.commandLine, cmd.repoDir(), env);
     }
 
     /**
@@ -282,18 +369,29 @@ public class CdxgenClient {
         return switch (generationResult) {
             case ProcessHandler.ProcessResult.Success s -> parseSbomFile(sbomFile, cmd.projectName());
             case ProcessHandler.ProcessResult.Failure f -> {
-                if (Files.exists(sbomFile)) {
+                if (cmd.prepare() != null) {
+                    // a SBOM of a repository that wasn't prepared completely is of no use
+                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? pfe.withProject(cmd.projectName(), cmd.location()) : f.cause());
+                } else if (Files.exists(sbomFile)) {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s', but sbom file was yet created, trying to parse it", cmd.projectName());
                     yield parseSbomFile(sbomFile, cmd.projectName());
                 } else {
                     Log.warnf(f.cause(), "cdxgen failed for project '%s': %s", cmd.projectName(), cmd.commandLine);
-                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? pfe.withProject(cmd.projectName(), cmd.location()) : f.cause());
+                    yield Result.failure(f.cause() instanceof ProcessFailedException pfe ? withSkipNote(pfe.withProject(cmd.projectName(), cmd.location()), cmd) : f.cause());
                 }
             }
         };
     }
 
+    private static ProcessFailedException withSkipNote(ProcessFailedException failure, SbomCreationCommand cmd) {
+        return cmd.preparationSkipped() == null ? failure
+            : failure.withNote("The `prepare` script of this project was not run, because %s.".formatted(cmd.preparationSkipped()));
+    }
+
     static Result<SBOMGenerationResult> parseSbomFile(Path sbomFile, String projectName) {
+        if (Files.isSymbolicLink(sbomFile)) {
+            return Result.failure(new IllegalStateException("The SBOM file is a symbolic link: " + sbomFile.toAbsolutePath()));
+        }
         if (!Files.exists(sbomFile)) {
             return Result.success(SBOMGenerationResult.none());
         } else if (Files.isReadable(sbomFile)) {

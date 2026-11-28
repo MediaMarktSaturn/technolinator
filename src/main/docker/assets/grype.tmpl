@@ -1,4 +1,23 @@
 {{- if .Matches -}}
+{{- $critical := 0 -}}
+{{- $high := 0 -}}
+{{- $medium := 0 -}}
+{{- $low := 0 -}}
+{{- $unspecified := 0 -}}
+{{- range .Matches -}}
+{{- if eq .Vulnerability.Severity "Critical" -}}
+{{- $critical = add1 $critical -}}
+{{- else if eq .Vulnerability.Severity "High" -}}
+{{- $high = add1 $high -}}
+{{- else if eq .Vulnerability.Severity "Medium" -}}
+{{- $medium = add1 $medium -}}
+{{- else if eq .Vulnerability.Severity "Low" -}}
+{{- $low = add1 $low -}}
+{{- else -}}
+{{- $unspecified = add1 $unspecified -}}
+{{- end -}}
+{{- end -}}
+<!-- technolinator-severities critical={{ $critical }} high={{ $high }} medium={{ $medium }} low={{ $low }} unspecified={{ $unspecified }} -->
 ⚠ **Vulnerability Report**
 
 _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPENDENCY_TRACK_URL) for reliable results._

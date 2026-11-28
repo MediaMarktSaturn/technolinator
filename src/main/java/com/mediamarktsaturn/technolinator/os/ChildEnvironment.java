@@ -4,6 +4,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Decides which part of Technolinators own environment is handed down to the processes run on behalf of a repository,
@@ -28,6 +29,7 @@ public final class ChildEnvironment {
         "JAVA*_HOME", "JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS",
         "MAVEN_HOME", "MAVEN_OPTS", "MAVEN_ARGS", "MVN_CMD",
         "GRADLE_HOME", "GRADLE_CMD", "GRADLE_OPTS", "GRADLE_USER_HOME",
+        "ANDROID_HOME", "ANDROID_SDK_ROOT",
         "NODE_HOME", "NODE_EXTRA_CA_CERTS",
         "GO_HOME", "GOROOT", "GOPATH", "GOCACHE", "GOPROXY", "GOPRIVATE", "GONOSUMDB",
         // network
@@ -43,7 +45,32 @@ public final class ChildEnvironment {
      */
     static final List<String> NOT_INHERITED_BY_DEFAULT = List.of("CDXGEN_DEBUG_MODE");
 
+    private static final Pattern SECRET_NAME = Pattern.compile("(?i)TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|APIKEY|API_KEY|PRIVATE_KEY|ACCESS_KEY|CREDENTIAL");
+
     private ChildEnvironment() {
+    }
+
+    /**
+     * Whether the name of an environment variable suggests it holds a secret, like the ones of Technolinators own configuration.
+     * Same convention as the redaction of reports.
+     */
+    public static boolean isSecretName(String name) {
+        return SECRET_NAME.matcher(name).find();
+    }
+
+    /**
+     * @param env variables inherited from Technolinators environment
+     * @param sensitiveNames names of variables to hide explicitly, e.g. the content of {@code SENSITIVE_ENV_VARS}
+     * @return a copy of [env] without the variables that are named sensitive, or look like holding a secret
+     */
+    public static Map<String, String> withoutSecrets(Map<String, String> env, Collection<String> sensitiveNames) {
+        var result = new HashMap<String, String>();
+        env.forEach((name, value) -> {
+            if (!isSecretName(name) && !sensitiveNames.contains(name)) {
+                result.put(name, value);
+            }
+        });
+        return result;
     }
 
     /**

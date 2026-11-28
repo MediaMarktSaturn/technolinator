@@ -64,6 +64,10 @@ class TechnolinatorConfigTest {
                 yea: haa
             jdk:
                 version: 20
+            prepare:
+                script: |
+                    technolinator-flutter 3.44.1 .
+                    echo done
             """;
         var config = configMapper.readValue(value, TechnolinatorConfig.class);
         assertThat(config).isNotNull().satisfies(c -> {
@@ -87,6 +91,7 @@ class TechnolinatorConfigTest {
             assertThat(c.jdk()).satisfies(j -> {
                 assertThat(j.version()).hasToString("20");
             });
+            assertThat(c.prepare().script()).isEqualTo("technolinator-flutter 3.44.1 .\necho done\n");
         });
     }
 }

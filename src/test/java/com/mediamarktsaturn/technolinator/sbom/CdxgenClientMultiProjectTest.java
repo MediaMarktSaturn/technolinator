@@ -8,9 +8,14 @@ import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
@@ -55,4 +60,26 @@ public class CdxgenClientMultiProjectTest {
         assertThat(results).allMatch(r -> r instanceof Result.Success<CdxgenClient.SBOMGenerationResult>);
     }
 
+    @Test
+    void serializesAnalysesOfProjectsWithPrepareScripts(@TempDir Path temp) throws IOException {
+        var root = Files.createDirectory(temp.resolve("repo"));
+        // each analysis marks the checkout while it's running, and fails if it finds the mark of the other one
+        var script = new TechnolinatorConfig.PrepareConfig("""
+            if [ -e busy ]; then echo overlapping; exit 1; fi
+            touch busy
+            sleep 1
+            """);
+        var cdxgen = Files.writeString(temp.resolve("fake-cdxgen"), """
+            #!/bin/sh
+            [ -e busy ] || exit 1
+            rm busy
+            """);
+        assertThat(cdxgen.toFile().setExecutable(true)).isTrue();
+        var first = new CdxgenClient.SbomCreationCommand(root, "first", cdxgen.toString(), Map.of("PATH", "/usr/bin:/bin"), List.of(), "", script);
+        var second = new CdxgenClient.SbomCreationCommand(root, "second", cdxgen.toString(), Map.of("PATH", "/usr/bin:/bin"), List.of(), "", script);
+        var metadata = new Command.Metadata("local", "local/example", "", Optional.empty());
+
+        assertThat(await(executeCommands(List.of(first, second), metadata)))
+            .hasSize(2).allMatch(result -> result instanceof Result.Success<?>);
+    }
 }

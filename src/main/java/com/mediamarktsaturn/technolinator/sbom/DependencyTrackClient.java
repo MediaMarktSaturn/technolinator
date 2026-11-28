@@ -3,6 +3,7 @@ package com.mediamarktsaturn.technolinator.sbom;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import io.quarkus.logging.Log;
+import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.unchecked.Unchecked;
 import io.vertx.core.json.JsonArray;
@@ -40,6 +41,7 @@ public class DependencyTrackClient {
     private static final String API_KEY = "X-API-Key";
     private static final String API_DEPRECATED_HEADER = "X-API-Deprecated";
     private static final int PAGE_SIZE = 100;
+    private static final int METRICS_CONCURRENCY = 4;
 
     private final Set<String> reportedDeprecations = ConcurrentHashMap.newKeySet();
     private final WebClient client;
@@ -619,6 +621,63 @@ public class DependencyTrackClient {
      */
     public Uni<List<DependencyTrackProject>> searchProjects(String searchText) {
         return listPages("/project", searchText, false, 1, new ArrayList<>()).map(DependencyTrackClient::uniqueProjects);
+    }
+
+    /**
+     * Fetches the current metrics Dependency-Track calculated for a project.
+     * Fails if they can't be fetched, but not if there are none (yet), or the project doesn't exist.
+     */
+    public Uni<Optional<ProjectMetrics>> getProjectMetrics(String projectUuid) {
+        return client.getAbs(dtrackApiUrl + "/metrics/project/" + projectUuid + "/current")
+            .putHeader(API_KEY, dtrackApikey)
+            .putHeader("Accept", "application/json")
+            .send()
+            .onFailure().retry().atMost(3)
+            .onFailure().invoke(e -> Log.errorf(e, "Failed to get metrics of project %s", projectUuid))
+            .onItem().invoke(deprecationCheck("GET /metrics/project/{uuid}/current"))
+            .chain(response -> {
+                if (response.statusCode() == 404) {
+                    return Uni.createFrom().item(Optional.<ProjectMetrics>empty());
+                }
+                if (response.statusCode() != 200) {
+                    Log.errorf("Failed to get metrics of project %s, status: %s, message: %s", projectUuid, response.statusCode(), response.bodyAsString());
+                    return Uni.createFrom().failure(new DependencyTrackClientHttpException(response.statusCode(), response.bodyAsString()));
+                }
+                // without any metrics calculated yet, the body is empty
+                var body = response.body();
+                if (body == null || body.length() == 0) {
+                    return Uni.createFrom().item(Optional.<ProjectMetrics>empty());
+                }
+                return Uni.createFrom().item(ProjectMetrics.fromJson(response.bodyAsJsonObject()));
+            });
+    }
+
+    /**
+     * The current metrics of the [projects] summed up, which only exist if Dependency-Track calculated them for every project after
+     * it processed its last BOM, otherwise they still reflect an earlier state (before its vulnerabilities were analysed).
+     * Fails if the metrics of any project can't be fetched.
+     *
+     * @return empty if there are no projects, or the metrics of any of them are not current
+     */
+    public Uni<Optional<ProjectMetrics>> getCurrentMetrics(List<DependencyTrackProject> projects) {
+        if (projects.isEmpty()) {
+            return Uni.createFrom().item(Optional.empty());
+        }
+        return Multi.createFrom().iterable(projects)
+            .onItem().transformToUni(project -> getProjectMetrics(project.uuid())
+                .map(metrics -> metrics.filter(current -> project.lastBomImport().map(imported -> !current.lastOccurrence().isBefore(imported)).orElse(true))))
+            .merge(METRICS_CONCURRENCY)
+            .collect().asList()
+            .map(results -> results.stream().allMatch(Optional::isPresent)
+                ? results.stream().flatMap(Optional::stream).reduce(ProjectMetrics::plus)
+                : Optional.<ProjectMetrics>empty());
+    }
+
+    /**
+     * @return the web URL of the project
+     */
+    public String projectUrl(String projectUuid) {
+        return "%s/projects/%s".formatted(dtrackBaseUrl, projectUuid);
     }
 
     /**

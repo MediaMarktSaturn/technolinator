@@ -3,6 +3,7 @@ package com.mediamarktsaturn.technolinator.events;
 import com.mediamarktsaturn.technolinator.Command;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.report.FailureReporter;
+import com.mediamarktsaturn.technolinator.status.CommitStatuses;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -21,6 +22,8 @@ import java.util.function.Predicate;
 public abstract class DispatcherBase {
 
     public static final String CONFIG_FILE = "technolinator.yml";
+
+    private static final String DTRACK_PROJECT_SEARCH_TMPL = "%s/projects?searchText=%s";
 
     // constructor injection not possible here, because GH app extension requires a no-arg constructor
     @Inject
@@ -44,6 +47,9 @@ public abstract class DispatcherBase {
     @ConfigProperty(name = "app.commit_status_write.enabled")
     Boolean enabledCommitStatusWrite;
 
+    @ConfigProperty(name = "dtrack.url")
+    String dtrackUrl;
+
     String createTraceId() {
         return UUID.randomUUID().toString().substring(0, 8);
     }
@@ -58,6 +64,16 @@ public abstract class DispatcherBase {
         return normalizedEnabledRepos.isEmpty() || normalizedEnabledRepos.contains(repoName);
     }
 
+    /**
+     * @return the search for the Dependency-Track projects of the repository, null if Dependency-Track is not known
+     */
+    String dtrackSearchUrl(GHRepository repo) {
+        if (dtrackUrl == null || dtrackUrl.isBlank() || repo.getName() == null) {
+            return null;
+        }
+        return DTRACK_PROJECT_SEARCH_TMPL.formatted(dtrackUrl.strip(), repo.getName());
+    }
+
     Uni<GHCommitStatus> createGHCommitStatus(String commitSha, GHRepository repo, GHCommitState state, String targetUrl, String description, Command.Metadata metadata) {
         if (!enabledCommitStatusWrite) {
             metadata.writeToMDC();
@@ -65,10 +81,11 @@ public abstract class DispatcherBase {
             return Uni.createFrom().nullItem();
         }
 
+        final var shortDescription = CommitStatuses.limit(description);
         return Uni.createFrom().item(Unchecked.supplier(() -> {
                 metadata.writeToMDC();
                 Log.infof("Setting repo %s commit %s status to %s", repo.getUrl(), commitSha, state);
-                return repo.createCommitStatus(commitSha, state, targetUrl, description, "Supply Chain Security");
+                return repo.createCommitStatus(commitSha, state, targetUrl, shortDescription, CommitStatuses.CONTEXT);
             }))
             .onFailure().invoke(failure -> {
                 metadata.writeToMDC();

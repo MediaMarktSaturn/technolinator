@@ -14,9 +14,9 @@
 
         <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
         <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-        <quarkus.platform.version>3.40.1.2</quarkus.platform.version>
+        <quarkus.platform.version>4.0.1</quarkus.platform.version>
 
-        <quarkus-github-app.version>2.16.0</quarkus-github-app.version>
+        <quarkus-github-app.version>3.0.0.CR1</quarkus-github-app.version>
 
         <cyclonedx-core-java.version>13.5.0</cyclonedx-core-java.version>
         <jruby.jcodings.version>1.0.67</jruby.jcodings.version>
@@ -106,12 +106,12 @@
         <!-- test -->
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5</artifactId>
+            <artifactId>quarkus-junit</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-junit5-mockito</artifactId>
+            <artifactId>quarkus-junit-mockito</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>

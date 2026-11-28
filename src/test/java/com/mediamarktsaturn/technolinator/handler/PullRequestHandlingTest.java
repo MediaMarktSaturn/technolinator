@@ -76,6 +76,8 @@ class PullRequestHandlingTest {
 
         GHCommitPointer head = mock(GHCommitPointer.class);
         when(head.getRef()).thenReturn("main");
+        // a head of the very repository is no fork, which is what the analysis may run prepare scripts for
+        when(head.getRepository()).thenReturn(ghRepo);
         GHCommitPointer base = mock(GHCommitPointer.class);
         when(base.getRef()).thenReturn("main");
         when(pr.getHead()).thenReturn(head);
@@ -102,7 +104,7 @@ class PullRequestHandlingTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommands(any(), eq(projectName), eq(false), eq(Optional.empty()));
+        verify(cdxgenClient).createCommands(any(), eq(projectName), eq(false), eq(Optional.empty()), eq(true));
         verify(reporter).createVulnerabilityReport(any(), eq(projectName));
         verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any(), eq(Optional.empty()));
         verify(newComment).getHtmlUrl();
@@ -127,6 +129,8 @@ class PullRequestHandlingTest {
 
         GHCommitPointer head = mock(GHCommitPointer.class);
         when(head.getRef()).thenReturn("technolinator-test");
+        // a head of the very repository is no fork, which is what the analysis may run prepare scripts for
+        when(head.getRepository()).thenReturn(ghRepo);
         GHCommitPointer base = mock(GHCommitPointer.class);
         when(base.getRef()).thenReturn("main");
         when(pr.getHead()).thenReturn(head);
@@ -153,7 +157,7 @@ class PullRequestHandlingTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommands(any(), eq(projectName), eq(false), eq(Optional.empty()));
+        verify(cdxgenClient).createCommands(any(), eq(projectName), eq(false), eq(Optional.empty()), eq(true));
         verify(reporter).createVulnerabilityReport(any(), eq(projectName));
         verifyNoInteractions(dtrackClient);
         verify(newComment).getHtmlUrl();

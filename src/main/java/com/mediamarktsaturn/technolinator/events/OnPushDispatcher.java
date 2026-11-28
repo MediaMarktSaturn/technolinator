@@ -7,6 +7,8 @@ import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClientHttpException;
 import com.mediamarktsaturn.technolinator.sbom.Project;
+import com.mediamarktsaturn.technolinator.status.CommitStatusMetricsUpdater;
+import com.mediamarktsaturn.technolinator.status.CommitStatuses;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.event.Push;
@@ -14,6 +16,7 @@ import io.quarkus.logging.Log;
 import io.smallrye.mutiny.TimeoutException;
 import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.kohsuke.github.GHCommitState;
 import org.kohsuke.github.GHCommitStatus;
@@ -33,6 +36,9 @@ public class OnPushDispatcher extends DispatcherBase {
 
     @ConfigProperty(name = "app.use_pending_commit_status")
     boolean usePendingCommitStatus;
+
+    @Inject
+    CommitStatusMetricsUpdater metricsUpdater;
 
     /**
      * Called by the quarkus-github-ap extension on any push event of repositories having the app installed.
@@ -195,8 +201,20 @@ public class OnPushDispatcher extends DispatcherBase {
         // without a commit there's nothing to attach the status to, but the outcome is still worth a metric
         return commitSha
             .map(commit -> createGHCommitStatus(commit, repo, state, url, desc, metadata)
+                .invoke(() -> trackDependencyTrackMetrics(repo, commit, state, url, desc))
                 .map(commitStatus -> new PushResult(commitStatus, metricStatus)))
             .orElseGet(() -> Uni.createFrom().item(new PushResult(null, metricStatus)));
+    }
+
+    /**
+     * Dependency-Track analyses the uploaded SBOM after the commit status was written, so it's asked for its risk score and vulnerabilities
+     * later on, to add them to the status, see {@link CommitStatusMetricsUpdater}.
+     */
+    private void trackDependencyTrackMetrics(GHRepository repo, String commitSha, GHCommitState state, String url, String description) {
+        if (metricsUpdater != null && Boolean.TRUE.equals(enabledCommitStatusWrite)
+            && state == GHCommitState.SUCCESS && CommitStatuses.isSbomAvailable(description)) {
+            metricsUpdater.track(new CommitStatusMetricsUpdater.Target(repo.getFullName(), commitSha, url, description));
+        }
     }
 
     static Optional<String> getEventCommit(GHEventPayload.Push pushPayload) {

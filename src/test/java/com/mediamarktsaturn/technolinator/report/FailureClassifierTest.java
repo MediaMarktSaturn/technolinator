@@ -1,6 +1,7 @@
 package com.mediamarktsaturn.technolinator.report;
 
 import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
+import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import org.cyclonedx.exception.ParseException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -38,6 +39,34 @@ class FailureClassifierTest {
         assertThat(result.errorLine()).isNotBlank();
         assertThat(result.summary()).isNotBlank();
         assertThat(result.errorHash()).hasSize(8);
+    }
+
+    @Test
+    void failingPrepareScriptIsAttributedToPrepare() {
+        var failure = new ProcessFailedException(CdxgenClient.PREPARE_COMMAND, 3, List.of("+ ./generate.sh", "generate.sh: line 4: protoc: command not found"));
+
+        var result = FailureClassifier.classify(FailureStage.SBOM_GENERATION, failure);
+
+        assertThat(result.tool()).isEqualTo("prepare");
+        assertThat(result.kind()).isEqualTo(FailureKind.REPO_ACTIONABLE);
+        assertThat(result.summary()).isEqualTo("prepare failed with exit code 3");
+    }
+
+    @Test
+    void failingPrepareScriptStillRecognizesTheToolsItRan() {
+        var failure = new ProcessFailedException(CdxgenClient.PREPARE_COMMAND, 1, List.of("+ mvn -B generate-sources", "[ERROR] Failed to execute goal x"));
+
+        assertThat(FailureClassifier.classify(FailureStage.SBOM_GENERATION, failure).tool()).isEqualTo("maven");
+    }
+
+    @Test
+    void notesOfTheFailureAreAddedToTheHint() {
+        var failure = new ProcessFailedException("cdxgen", 1, List.of("Could not resolve all files for configuration ':app:runtimeClasspath'."))
+            .withNote("The `prepare` script of this project was not run.");
+
+        var result = FailureClassifier.classify(FailureStage.SBOM_GENERATION, failure);
+
+        assertThat(result.hint()).contains("gradle.args").endsWith("The `prepare` script of this project was not run.");
     }
 
     @Test

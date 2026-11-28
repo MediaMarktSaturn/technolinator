@@ -35,6 +35,21 @@ class ChildEnvironmentTest {
     }
 
     @Test
+    void withoutSecretsDropsSecretLookingAndNamedVariables() {
+        var env = Map.of(
+            "PATH", "/usr/bin",
+            "GITHUB_TOKEN", "a",
+            "dtrack_apikey", "b",
+            "MY_PASSWORD", "c",
+            "CUSTOM", "d",
+            "KEEP", "e");
+
+        var result = ChildEnvironment.withoutSecrets(env, List.of("CUSTOM"));
+
+        assertThat(result).containsOnlyKeys("PATH", "KEEP");
+    }
+
+    @Test
     void inheritsAdditionalNamesAndPrefixes() {
         // Given
         var parent = Map.of(

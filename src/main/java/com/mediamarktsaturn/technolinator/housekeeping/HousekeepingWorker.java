@@ -5,15 +5,21 @@ import com.mediamarktsaturn.technolinator.housekeeping.ProjectStatePlanner.Confi
 import com.mediamarktsaturn.technolinator.housekeeping.ProjectStatePlanner.Reason;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.DependencyTrackProject;
+import com.mediamarktsaturn.technolinator.sbom.ProjectMetrics;
 import com.mediamarktsaturn.technolinator.sbom.RepositoryProjectMatcher;
+import com.mediamarktsaturn.technolinator.status.CommitStatuses;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Multi;
 import io.smallrye.mutiny.Uni;
 import io.smallrye.mutiny.infrastructure.Infrastructure;
+import io.smallrye.mutiny.unchecked.Unchecked;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.kohsuke.github.GHCommitState;
+import org.kohsuke.github.GHCommitStatus;
+import org.kohsuke.github.GHRepository;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -43,6 +49,8 @@ import java.util.function.Predicate;
  *     {@code archive-orphaned-projects}, {@code archive-removed-modules} and {@code reactivate-projects}, see {@link ProjectStatePlanner}</li>
  *     <li>{@value #UPDATE_PROJECT_METADATA}: backfills the external references and tags of the projects definitely belonging to an active repository,
  *     the way the BOM upload sets them</li>
+ *     <li>{@value #UPDATE_COMMIT_STATUS}: adds the risk score and vulnerabilities Dependency-Track calculated to the commit status of the head of the
+ *     default branch</li>
  * </ul>
  * Changes of the state of projects all go through the {@link ProjectStateChanger}, and every kind of change is limited per run, see {@link RunBudget}.
  */
@@ -52,6 +60,7 @@ public class HousekeepingWorker {
     public static final String FOLLOW_RENAMED_REPOSITORIES = "follow-renamed-repositories";
     public static final String SYNC_PROJECT_STATES = "sync-project-states";
     public static final String UPDATE_PROJECT_METADATA = "update-project-metadata";
+    public static final String UPDATE_COMMIT_STATUS = "update-commit-status";
 
     /**
      * A switch, and the limit of projects changed per run
@@ -74,6 +83,7 @@ public class HousekeepingWorker {
      * @param archiveRemovedModules     Rule of {@value #SYNC_PROJECT_STATES}: archive the child projects of modules removed from an active repository
      * @param reactivateProjects        Rule of {@value #SYNC_PROJECT_STATES}: reactivate archived projects of an active repository
      * @param updateProjectMetadata     The action {@value #UPDATE_PROJECT_METADATA}, limiting the projects looked at
+     * @param updateCommitStatus        The action {@value #UPDATE_COMMIT_STATUS}, limiting the commit statuses updated
      */
     public record Settings(
         Duration actionTimeout,
@@ -81,8 +91,21 @@ public class HousekeepingWorker {
         Feature archiveOrphanedProjects,
         Feature archiveRemovedModules,
         Feature reactivateProjects,
-        Feature updateProjectMetadata
+        Feature updateProjectMetadata,
+        Feature updateCommitStatus
     ) {
+
+        public Settings(
+            Duration actionTimeout,
+            Feature followRenamedRepositories,
+            Feature archiveOrphanedProjects,
+            Feature archiveRemovedModules,
+            Feature reactivateProjects,
+            Feature updateProjectMetadata
+        ) {
+            this(actionTimeout, followRenamedRepositories, archiveOrphanedProjects, archiveRemovedModules, reactivateProjects,
+                updateProjectMetadata, Feature.off());
+        }
     }
 
     private final DependencyTrackClient dtrackClient;
@@ -112,7 +135,10 @@ public class HousekeepingWorker {
         @ConfigProperty(name = "app.housekeeping.reactivate-projects.enabled") boolean reactivateProjects,
         @ConfigProperty(name = "app.housekeeping.reactivate-projects.max-per-run") int maxReactivatedPerRun,
         @ConfigProperty(name = "app.housekeeping.update-project-metadata.enabled") boolean updateProjectMetadata,
-        @ConfigProperty(name = "app.housekeeping.update-project-metadata.max-per-run") int maxMetadataUpdatesPerRun
+        @ConfigProperty(name = "app.housekeeping.update-project-metadata.max-per-run") int maxMetadataUpdatesPerRun,
+        @ConfigProperty(name = "app.housekeeping.update-commit-status.enabled") boolean updateCommitStatus,
+        @ConfigProperty(name = "app.housekeeping.update-commit-status.max-per-run") int maxCommitStatusUpdatesPerRun,
+        @ConfigProperty(name = "app.commit_status_write.enabled") boolean commitStatusWriteEnabled
     ) {
         this(dtrackClient, repositoryTopics, repositoryConfig, meterRegistry, new Settings(
             actionTimeout,
@@ -120,7 +146,8 @@ public class HousekeepingWorker {
             new Feature(archiveOrphanedProjects, maxArchivedPerRun),
             new Feature(archiveRemovedModules, maxRemovedModulesPerRun),
             new Feature(reactivateProjects, maxReactivatedPerRun),
-            new Feature(updateProjectMetadata, maxMetadataUpdatesPerRun)
+            new Feature(updateProjectMetadata, maxMetadataUpdatesPerRun),
+            new Feature(updateCommitStatus && commitStatusWriteEnabled, maxCommitStatusUpdatesPerRun)
         ));
     }
 
@@ -145,7 +172,8 @@ public class HousekeepingWorker {
         this.actions = List.of(
             new Action(FOLLOW_RENAMED_REPOSITORIES, settings.followRenamedRepositories().enabled(), this::isRenamedRepositoryUnit, this::followRenamedRepository),
             new Action(SYNC_PROJECT_STATES, stateRules.any(), unit -> ProjectStatePlanner.mightApply(unit, stateRules), this::syncProjectStates),
-            new Action(UPDATE_PROJECT_METADATA, settings.updateProjectMetadata().enabled(), this::isActiveRepositoryUnit, this::updateProjectMetadata)
+            new Action(UPDATE_PROJECT_METADATA, settings.updateProjectMetadata().enabled(), this::isActiveRepositoryUnit, this::updateProjectMetadata),
+            new Action(UPDATE_COMMIT_STATUS, settings.updateCommitStatus().enabled(), this::isActiveRepositoryUnit, this::updateCommitStatus)
         );
     }
 
@@ -190,6 +218,10 @@ public class HousekeepingWorker {
         if (settings.updateProjectMetadata().enabled()) {
             Log.infof("%s %d projects lacking references or tags of their repository%s",
                 dry ? "Would have updated" : "Updated", state.metadataUpdated.get(), deferred(state.metadataBudget));
+        }
+        if (settings.updateCommitStatus().enabled()) {
+            Log.infof("%s %d commit statuses of default branches with the Dependency-Track metrics%s",
+                dry ? "Would have updated" : "Updated", state.commitStatusUpdated.get(), deferred(state.commitStatusBudget));
         }
     }
 
@@ -531,6 +563,78 @@ public class HousekeepingWorker {
     }
 
     /**
+     * Adds the risk score and the number of vulnerabilities per severity, as Dependency-Track calculates them, to the commit status of the head of the
+     * default branch, which is what the {@link com.mediamarktsaturn.technolinator.status.CommitStatusMetricsUpdater} does after an analysis, if Technolinator
+     * wasn't restarted since, and while the metrics didn't change since. Without that, the commit status would never learn about vulnerabilities
+     * published later on.
+     * <p>
+     * Only the statuses written by the analysis of the default branch are updated: the latest one of the head commit having the context of Technolinator
+     * needs to state that the SBOM is available, which tells that Dependency-Track knows the head commit. Anything else (a failed or still running analysis,
+     * a commit analysed without commit status) is left alone. A status already telling the current metrics isn't written again.
+     * Metrics are only used if they were calculated after the last BOM of every project was processed, see
+     * {@link DependencyTrackClient#getCurrentMetrics}.
+     * <p>
+     * No more than {@code max-per-run} statuses are written per run.
+     */
+    private Uni<Void> updateCommitStatus(HousekeepingUnit unit) {
+        var state = state(unit.run());
+        var repository = unit.repository().orElseThrow();
+        var projects = RepositoryProjectMatcher.select(unit.projects(), repository.name(), repository.gitUrl(), repository.htmlUrl()).stream()
+            .filter(DependencyTrackProject::active)
+            .toList();
+        if (projects.isEmpty()) {
+            return Uni.createFrom().voidItem();
+        }
+        return dtrackClient.getCurrentMetrics(projects)
+            // GitHub is called with blocking requests
+            .emitOn(Infrastructure.getDefaultWorkerPool())
+            .invoke(Unchecked.consumer(metrics -> {
+                if (metrics.isPresent()) {
+                    updateCommitStatusOfHead(unit, repository, metrics.get(), state);
+                }
+            }))
+            .replaceWithVoid();
+    }
+
+    private void updateCommitStatusOfHead(HousekeepingUnit unit, GitHubRepo repository, ProjectMetrics metrics, RunState state) throws IOException {
+        var github = repository.github().getRepository(repository.fullName());
+        var head = github.getBranch(github.getDefaultBranch()).getSHA1();
+        var latest = latestStatus(github, head);
+        if (latest == null || latest.getState() != GHCommitState.SUCCESS || !CommitStatuses.isSbomAvailable(latest.getDescription())) {
+            Log.debugf("The head commit %s of repository %s doesn't have a commit status of a successful analysis, leaving it alone", head, repository.fullName());
+            return;
+        }
+        var description = CommitStatuses.withMetrics(latest.getDescription(), metrics);
+        if (description.equals(latest.getDescription())) {
+            return;
+        }
+        if (!state.commitStatusBudget.tryReserve(1, unit.subject())) {
+            return;
+        }
+        state.commitStatusUpdated.incrementAndGet();
+        if (unit.dryRun()) {
+            Log.infof("Would update the commit status of the head commit %s of repository %s to: %s", head, repository.fullName(), description);
+            HousekeepingActionLog.repository(UPDATE_COMMIT_STATUS, HousekeepingActionLog.Status.DRY_RUN, unit, "commit", head);
+            return;
+        }
+        Log.infof("Updating the commit status of the head commit %s of repository %s to: %s", head, repository.fullName(), description);
+        github.createCommitStatus(head, GHCommitState.SUCCESS, latest.getTargetUrl(), description, CommitStatuses.CONTEXT);
+        HousekeepingActionLog.repository(UPDATE_COMMIT_STATUS, HousekeepingActionLog.Status.DONE, unit, "commit", head);
+    }
+
+    /**
+     * @return the newest status written by Technolinator for the commit, null if there is none
+     */
+    private static GHCommitStatus latestStatus(GHRepository repository, String commitSha) {
+        for (var status : repository.listCommitStatuses(commitSha)) {
+            if (CommitStatuses.CONTEXT.equals(status.getContext())) {
+                return status;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Failure of an action because of projects it couldn't change, which are logged on their own already.
      */
     private static final class ProjectsFailedException extends IllegalStateException {
@@ -553,10 +657,12 @@ public class HousekeepingWorker {
         final RunBudget removedModulesBudget;
         final RunBudget reactivationBudget;
         final RunBudget metadataBudget;
+        final RunBudget commitStatusBudget;
         // in dry-run mode: would have been changed
         final Map<Reason, AtomicInteger> stateChanges = new EnumMap<>(Reason.class);
         final AtomicInteger renamed = new AtomicInteger();
         final AtomicInteger metadataUpdated = new AtomicInteger();
+        final AtomicInteger commitStatusUpdated = new AtomicInteger();
 
         RunState(Settings settings) {
             renameBudget = new RunBudget("renamed projects", settings.followRenamedRepositories().maxPerRun());
@@ -564,6 +670,7 @@ public class HousekeepingWorker {
             removedModulesBudget = new RunBudget("archived projects of removed modules", settings.archiveRemovedModules().maxPerRun());
             reactivationBudget = new RunBudget("reactivated projects", settings.reactivateProjects().maxPerRun());
             metadataBudget = new RunBudget("projects with updated references and tags", settings.updateProjectMetadata().maxPerRun());
+            commitStatusBudget = new RunBudget("updated commit statuses", settings.updateCommitStatus().maxPerRun());
             for (var reason : Reason.values()) {
                 stateChanges.put(reason, new AtomicInteger());
             }

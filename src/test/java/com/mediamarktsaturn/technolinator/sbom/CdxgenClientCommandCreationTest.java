@@ -47,6 +47,47 @@ class CdxgenClientCommandCreationTest {
     }
 
     @Test
+    void testPrepareConfigurationInheritanceAndOverride() {
+        var inherited = new TechnolinatorConfig.PrepareConfig("echo parent");
+        var overridden = new TechnolinatorConfig.PrepareConfig("echo child");
+        var disabled = new TechnolinatorConfig.PrepareConfig(" ");
+        var config = ConfigBuilder.create().prepare(inherited)
+            .addSubProject(ConfigBuilder.create("one").build())
+            .addSubProject(ConfigBuilder.create("two").prepare(overridden).build())
+            .addSubProject(ConfigBuilder.create("three").prepare(disabled).build())
+            .build();
+
+        var commands = cut.createCommands(Path.of("repo"), "repo", false, Optional.of(config));
+
+        assertThat(commands).hasSize(3);
+        assertThat(commands.get(0).prepare()).isEqualTo(inherited);
+        assertThat(commands.get(1).prepare()).isEqualTo(overridden);
+        assertThat(commands.get(2).prepare()).isNull();
+        assertThat(commands).allSatisfy(command -> assertThat(command.preparationSkipped()).isNull());
+    }
+
+    @Test
+    void testPrepareIsSkippedForUntrustedCode() {
+        var config = ConfigBuilder.create("one").prepare(new TechnolinatorConfig.PrepareConfig("echo hi")).build();
+
+        var commands = cut.createCommands(Path.of("repo"), "repo", false, Optional.of(config), false);
+
+        assertThat(commands).singleElement().satisfies(command -> {
+            assertThat(command.prepare()).isNull();
+            assertThat(command.preparationSkipped()).contains("forks");
+        });
+    }
+
+    @Test
+    void testNothingIsSkippedWithoutPrepareScript() {
+        var config = ConfigBuilder.create("one").build();
+
+        var commands = cut.createCommands(Path.of("repo"), "repo", false, Optional.of(config), false);
+
+        assertThat(commands).singleElement().satisfies(command -> assertThat(command.preparationSkipped()).isNull());
+    }
+
+    @Test
     void testRequiredScopeOnlyFlag() {
         // Given
         var config = ConfigBuilder.create()

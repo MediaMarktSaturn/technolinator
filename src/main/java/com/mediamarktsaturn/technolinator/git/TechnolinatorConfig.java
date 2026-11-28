@@ -16,8 +16,15 @@ public record TechnolinatorConfig(
     JdkConfig jdk,
     Map<String, String> env,
     List<TechnolinatorConfig> projects,
-    ReportingConfig reporting
+    ReportingConfig reporting,
+    PrepareConfig prepare
 ) {
+
+    public TechnolinatorConfig(Boolean enable, Boolean enablePullRequestReport, ProjectConfig project,
+                               AnalysisConfig analysis, GradleConfig gradle, MavenConfig maven, JdkConfig jdk,
+                               Map<String, String> env, List<TechnolinatorConfig> projects, ReportingConfig reporting) {
+        this(enable, enablePullRequestReport, project, analysis, gradle, maven, jdk, env, projects, reporting, null);
+    }
 
     public record ProjectConfig(
         String name
@@ -58,6 +65,17 @@ public record TechnolinatorConfig(
 
     public record JdkConfig(
         String version
+    ) {
+    }
+
+    /**
+     * A script run in the analysed folder ahead of cdxgen, to prepare the repository for it (generate sources, resolve
+     * dependencies of ecosystems cdxgen can't handle on a plain checkout, ...).
+     *
+     * @param script the content of a bash script, run with {@code -euo pipefail}
+     */
+    public record PrepareConfig(
+        String script
     ) {
     }
 }

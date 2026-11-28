@@ -997,6 +997,101 @@ class DependencyTrackClientTest {
     }
 
     @Test
+    void testProjectMetrics() {
+        // Given
+        wiremock.register(
+            get(urlEqualTo("/api/v1/metrics/project/metrics-1/current"))
+                .withHeader("X-API-Key", equalTo(API_KEY))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody("""
+                    {"critical":1,"high":2,"medium":3,"low":4,"unassigned":5,"vulnerabilities":15,"inheritedRiskScore":42.5,"lastOccurrence":1767232800000}
+                    """)));
+
+        // When
+        var metrics = await(cut.getProjectMetrics("metrics-1"));
+
+        // Then
+        assertThat(metrics).contains(new ProjectMetrics(1, 2, 3, 4, 5, 42.5, java.time.Instant.ofEpochMilli(1767232800000L)));
+    }
+
+    @Test
+    void testProjectMetricsNotCalculatedYet() {
+        // Given
+        wiremock.register(
+            get(urlEqualTo("/api/v1/metrics/project/metrics-empty/current"))
+                .willReturn(aResponse().withStatus(200)));
+        wiremock.register(
+            get(urlEqualTo("/api/v1/metrics/project/metrics-missing/current"))
+                .willReturn(aResponse().withStatus(404)));
+
+        // When && Then
+        assertThat(await(cut.getProjectMetrics("metrics-empty"))).isEmpty();
+        assertThat(await(cut.getProjectMetrics("metrics-missing"))).isEmpty();
+    }
+
+    @Test
+    void testProjectMetricsFailing() {
+        // Given
+        wiremock.register(
+            get(urlEqualTo("/api/v1/metrics/project/metrics-failing/current"))
+                .willReturn(aResponse().withStatus(403).withBody("nope")));
+
+        // When
+        var failure = cut.getProjectMetrics("metrics-failing").subscribe().withSubscriber(UniAssertSubscriber.create()).awaitFailure().getFailure();
+
+        // Then
+        assertThat(failure).isInstanceOf(DependencyTrackClientHttpException.class);
+    }
+
+    private static DependencyTrackProject projectImportedAt(String uuid, long lastBomImport) {
+        return new DependencyTrackProject(uuid, "metrics", "main", true, Optional.empty(), List.of(),
+            Optional.of(java.time.Instant.ofEpochMilli(lastBomImport)));
+    }
+
+    private void stubMetrics(String uuid, int critical, double riskScore, long lastOccurrence) {
+        wiremock.register(
+            get(urlEqualTo("/api/v1/metrics/project/" + uuid + "/current"))
+                .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json").withBody(
+                    "{\"critical\":%d,\"high\":0,\"medium\":0,\"low\":0,\"unassigned\":0,\"inheritedRiskScore\":%s,\"lastOccurrence\":%d}"
+                        .formatted(critical, riskScore, lastOccurrence))));
+    }
+
+    @Test
+    void testCurrentMetricsSumUpProjects() {
+        // Given
+        stubMetrics("current-1", 1, 10.0, 2_000L);
+        stubMetrics("current-2", 2, 20.0, 3_000L);
+
+        // When
+        var metrics = await(cut.getCurrentMetrics(List.of(projectImportedAt("current-1", 1_000L), projectImportedAt("current-2", 3_000L))));
+
+        // Then
+        assertThat(metrics).contains(new ProjectMetrics(3, 0, 0, 0, 0, 30.0, java.time.Instant.ofEpochMilli(2_000L)));
+    }
+
+    @Test
+    void testCurrentMetricsAreNotCurrentBeforeTheBomWasProcessed() {
+        // Given
+        stubMetrics("stale-1", 1, 10.0, 2_000L);
+        stubMetrics("stale-2", 2, 20.0, 2_000L);
+
+        // When
+        var metrics = await(cut.getCurrentMetrics(List.of(projectImportedAt("stale-1", 1_000L), projectImportedAt("stale-2", 2_001L))));
+
+        // Then
+        assertThat(metrics).isEmpty();
+    }
+
+    @Test
+    void testCurrentMetricsWithoutProjects() {
+        assertThat(await(cut.getCurrentMetrics(List.of()))).isEmpty();
+    }
+
+    @Test
+    void testProjectUrl() {
+        assertThat(cut.projectUrl("abc")).endsWith("/projects/abc");
+    }
+
+    @Test
     void testListProjectsWithPaging() {
         // Given
         var firstPage = new JsonArray();

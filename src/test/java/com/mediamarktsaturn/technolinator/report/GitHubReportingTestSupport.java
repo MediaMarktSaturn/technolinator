@@ -9,6 +9,7 @@ import com.mediamarktsaturn.technolinator.git.LocalRepository;
 import com.mediamarktsaturn.technolinator.git.RepositoryDetails;
 import com.mediamarktsaturn.technolinator.git.RepositoryService;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
+import com.mediamarktsaturn.technolinator.handler.AnalysisOutcome;
 import com.mediamarktsaturn.technolinator.handler.AnalysisProcessHandler;
 import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
 import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
@@ -42,6 +43,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -121,7 +124,7 @@ abstract class GitHubReportingTestSupport {
         failureReporter = new FailureReporter(new StatusIssueService(), new PrStatusCommentService(), new SecretRedactor(List.of(SECRET)),
             botIdentity, meters, mode, repos, logsOnForks, timeoutsBeforeReport, 1);
         handler = new AnalysisProcessHandler(repoService, cdxgen, dtrack, sbomqs, vulnerabilityReporting, failureReporter,
-            new ObjectMapper(), false, false, "https://dtrack.example.com", true, "");
+            new ObjectMapper(), false, false, "https://dtrack.example.com", true, "", true, true, "high");
     }
 
     /**
@@ -134,7 +137,7 @@ abstract class GitHubReportingTestSupport {
             when(command.execute(any())).thenReturn(Uni.createFrom().item(result));
             return command;
         }).toList();
-        when(cdxgen.createCommands(any(), anyString(), anyBoolean(), any())).thenReturn(commands);
+        when(cdxgen.createCommands(any(), anyString(), anyBoolean(), any(), anyBoolean())).thenReturn(commands);
     }
 
     void checkoutFails(Throwable cause) {
@@ -151,6 +154,20 @@ abstract class GitHubReportingTestSupport {
 
     void uploadWorks() {
         uploadResult = Result.success(Project.none());
+    }
+
+    /**
+     * Scripts what the vulnerability analyzer yields for all following analyses.
+     */
+    void vulnerabilityReport(Result<VulnerabilityReporting.VulnerabilityReport> report) {
+        when(vulnerabilityReporting.createVulnerabilityReport(any(), anyString())).thenReturn(Uni.createFrom().item(report));
+    }
+
+    /**
+     * Verifies the number of vulnerability reports created by the analyzer
+     */
+    void verifyReportsCreated(int times) {
+        verify(vulnerabilityReporting, times(times)).createVulnerabilityReport(any(), anyString());
     }
 
     private Result<LocalRepository> checkoutResult() throws IOException {
@@ -232,6 +249,17 @@ abstract class GitHubReportingTestSupport {
     }
 
     Result<Project> analysePullRequest(FakeGitHubServer.Pull pull, Optional<TechnolinatorConfig> config) throws IOException {
+        return analysePullRequestOutcome(pull, config).project();
+    }
+
+    /**
+     * Analyses the current state of an open pull-request, and tells all about the outcome.
+     */
+    AnalysisOutcome analysePullRequestOutcome(FakeGitHubServer.Pull pull) throws IOException {
+        return analysePullRequestOutcome(pull, Optional.empty());
+    }
+
+    AnalysisOutcome analysePullRequestOutcome(FakeGitHubServer.Pull pull, Optional<TechnolinatorConfig> config) throws IOException {
         var repo = freshRepository();
         var payload = mock(GHEventPayload.PullRequest.class);
         when(payload.getRepository()).thenReturn(repo);

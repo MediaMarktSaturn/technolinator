@@ -16,6 +16,7 @@ import com.mediamarktsaturn.technolinator.sbom.DependencyTrackClient;
 import com.mediamarktsaturn.technolinator.sbom.Project;
 import com.mediamarktsaturn.technolinator.sbom.SbomqsClient;
 import com.mediamarktsaturn.technolinator.sbom.VulnerabilityReporting;
+import com.mediamarktsaturn.technolinator.sbom.VulnerabilitySummary;
 import io.quarkiverse.githubapp.runtime.UtilsProducer;
 import io.quarkus.logging.Log;
 import io.smallrye.mutiny.Uni;
@@ -61,6 +62,10 @@ public class AnalysisProcessHandler {
     private final CdxgenClient cdxgenClient;
     private final String dtrackUrl;
     private final boolean pushFetchLicenses, pullRequestFetchLicenses, pullRequestReportsEnabled;
+    /**
+     * Whether the vulnerabilities of pull-requests are summed up, which their commit status and review tell about.
+     */
+    private final boolean vulnerabilityCheckEnabled;
     private final Pattern backstageCatalogPattern;
 
     private final ObjectMapper yamlMapper;
@@ -83,7 +88,13 @@ public class AnalysisProcessHandler {
         @ConfigProperty(name = "app.pull_requests.enabled")
         boolean pullRequestReportsEnabled,
         @ConfigProperty(name = "app.repo.backstage_annotation_regex")
-        String backstageAnnotationRegex) {
+        String backstageAnnotationRegex,
+        @ConfigProperty(name = "app.commit_status_write.enabled")
+        boolean commitStatusWriteEnabled,
+        @ConfigProperty(name = "app.pull_requests.request_changes.enabled")
+        boolean requestChangesEnabled,
+        @ConfigProperty(name = "app.commit_status.vulnerability_threshold")
+        String vulnerabilityThreshold) {
         this.repoService = repoService;
         this.cdxgenClient = cdxgenClient;
         this.dtrackClient = dtrackClient;
@@ -96,6 +107,8 @@ public class AnalysisProcessHandler {
         this.dtrackUrl = dtrackUrl;
         this.pullRequestReportsEnabled = pullRequestReportsEnabled;
         this.backstageCatalogPattern = compileBackstageAnnotationPattern(backstageAnnotationRegex);
+        this.vulnerabilityCheckEnabled = (commitStatusWriteEnabled || requestChangesEnabled)
+            && VulnerabilitySummary.Severity.parseThreshold(vulnerabilityThreshold).isPresent();
     }
 
     private static Pattern compileBackstageAnnotationPattern(String regex) {
@@ -107,14 +120,17 @@ public class AnalysisProcessHandler {
         }
     }
 
-    public Uni<Result<Project>> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
+    /**
+     * @return the outcome of the analysis, where the vulnerabilities are told if they are asked for by the commit status
+     */
+    public Uni<AnalysisOutcome> onPullRequest(PullRequestEvent event, Command.Metadata metadata) {
         var runningSince = TASKS.get(metadata.uniqueId());
         if (runningSince == null) {
             return handleAnalysis(event, metadata, pullRequestFetchLicenses);
         } else {
             Log.infof("Analysis for repo %s, ref %s, commit %s already running since %s, ignoring PR event.",
-                event.repoUrl(), event.ref(), metadata.commitSha().orElse("-"));
-            return Uni.createFrom().item(Result.success(Project.none()));
+                event.repoUrl(), event.ref(), metadata.commitSha().orElse("-"), runningSince);
+            return Uni.createFrom().item(AnalysisOutcome.withoutVulnerabilities(Result.success(Project.none())));
         }
     }
 
@@ -123,6 +139,7 @@ public class AnalysisProcessHandler {
         TASKS.putIfAbsent(taskKey, Instant.now());
         // deferred, so that a failure while setting up the analysis can't leave the task registered forever
         return Uni.createFrom().deferred(() -> handleAnalysis(event, metadata, pushFetchLicenses))
+            .map(AnalysisOutcome::project)
             .onTermination().invoke(() -> TASKS.remove(taskKey));
     }
 
@@ -170,20 +187,97 @@ public class AnalysisProcessHandler {
         return url.substring(0, idx) + "/" + oldName + url.substring(idx + needle.length());
     }
 
-    Uni<Result<Project>> handleAnalysis(Event event, Command.Metadata metadata, boolean fetchLicenses) {
+    Uni<AnalysisOutcome> handleAnalysis(Event event, Command.Metadata metadata, boolean fetchLicenses) {
         var started = Instant.now();
         var repoDetails = repoService.getRepositoryDetails(event);
         return checkoutAndGenerateSBOMs(event, metadata, fetchLicenses)
-            .call(result -> handlePullRequests(event, result.getItem1(), metadata, started, result.getItem2() == null))
-            .chain(result -> handleDependencyTrack(event, addBackstageManifestTags(repoDetails, result.getItem2()), result.getItem1(), metadata)
-                .call(uploadResult -> reportDefaultBranchAnalysis(event, metadata, started, result.getItem1(), result.getItem2() == null, uploadResult))
-                .onTermination().invoke(() -> {
-                    // there is nothing to clean up if the checkout failed
-                    if (result.getItem2() != null) {
-                        result.getItem2().close();
-                    }
-                })
-            );
+            .chain(result -> {
+                var sbomResults = result.getItem1();
+                var checkoutFailed = result.getItem2() == null;
+                // the reports are needed for the pull-request comments as well as for the commit status, but are created once at most
+                var reports = createReports(event, sbomResults, metadata).memoize().indefinitely();
+                return handlePullRequests(event, sbomResults, reports, metadata, started, checkoutFailed)
+                    .chain(() -> handleVulnerabilities(event, sbomResults, reports, metadata))
+                    .chain(vulnerabilities -> handleDependencyTrack(event, addBackstageManifestTags(repoDetails, result.getItem2()), sbomResults, metadata)
+                        .call(uploadResult -> reportDefaultBranchAnalysis(event, metadata, started, sbomResults, checkoutFailed, uploadResult))
+                        .map(uploadResult -> new AnalysisOutcome(uploadResult, vulnerabilities)))
+                    .onTermination().invoke(() -> {
+                        // there is nothing to clean up if the checkout failed
+                        if (result.getItem2() != null) {
+                            result.getItem2().close();
+                        }
+                    });
+            });
+    }
+
+    /**
+     * Sums up the vulnerabilities of the SBOMs of a pull-request, which its commit status tells about.
+     * They are never a reason for the analysis itself to fail.
+     *
+     * @return empty if the vulnerabilities were not looked at, a failure if they can't be determined (e.g. because the SBOM creation failed)
+     */
+    Uni<Optional<Result<VulnerabilitySummary>>> handleVulnerabilities(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults,
+                                                                       Uni<List<Result<VulnerabilityReporting.VulnerabilityReport>>> reports,
+                                                                       Command.Metadata metadata) {
+        if (!vulnerabilityCheckEnabled || !(event instanceof PullRequestEvent)) {
+            return Uni.createFrom().item(Optional.empty());
+        }
+        return reports
+            .map(reportResults -> summarize(sbomResults, reportResults))
+            .onFailure().recoverWithItem(Result::failure)
+            .invoke(summary -> {
+                metadata.writeToMDC();
+                switch (summary) {
+                    case Result.Success<VulnerabilitySummary> s ->
+                        Log.infof("Vulnerabilities of repo %s, ref %s: %s", event.repoUrl(), metadata.gitRef(), s.result().describe());
+                    case Result.Failure<VulnerabilitySummary> f ->
+                        Log.warnf(f.cause(), "Vulnerabilities of repo %s, ref %s are unknown", event.repoUrl(), metadata.gitRef());
+                }
+            })
+            .map(Optional::of);
+    }
+
+    /**
+     * Sums up the vulnerabilities of all SBOMs, which fails if they can't be determined for any of them.
+     *
+     * @param reports the vulnerability reports of the SBOMs, in the same order
+     */
+    static Result<VulnerabilitySummary> summarize(List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults,
+                                                  List<Result<VulnerabilityReporting.VulnerabilityReport>> reports) {
+        var summary = VulnerabilitySummary.NONE;
+        for (var i = 0; i < sbomResults.size(); i++) {
+            var sbomResult = sbomResults.get(i);
+            if (sbomResult instanceof Result.Failure<CdxgenClient.SBOMGenerationResult> f) {
+                return Result.failure(f.cause());
+            }
+            // there is nothing to look at without an SBOM
+            if (sbomResult instanceof Result.Success<CdxgenClient.SBOMGenerationResult>(var generated) && generated instanceof CdxgenClient.SBOMGenerationResult.None) {
+                continue;
+            }
+            switch (toVulnerabilitySummary(reports.get(i))) {
+                case Result.Success<VulnerabilitySummary> s -> summary = summary.plus(s.result());
+                case Result.Failure<VulnerabilitySummary> f -> {
+                    return Result.failure(f.cause());
+                }
+            }
+        }
+        return Result.success(summary);
+    }
+
+    static Result<VulnerabilitySummary> toVulnerabilitySummary(Result<VulnerabilityReporting.VulnerabilityReport> reportResult) {
+        return switch (reportResult) {
+            case Result.Failure<VulnerabilityReporting.VulnerabilityReport> f -> Result.failure(f.cause());
+            case Result.Success<VulnerabilityReporting.VulnerabilityReport> s -> switch (s.result()) {
+                case VulnerabilityReporting.VulnerabilityReport.None n ->
+                    Result.failure(new IllegalStateException("There's no vulnerability report available"));
+                case VulnerabilityReporting.VulnerabilityReport.Report r ->
+                    VulnerabilitySummary.fromReport(r.text())
+                        .map(Result::success)
+                        .orElseGet(() -> VulnerabilityReporting.hasFindings(r.text())
+                            ? Result.failure(new IllegalStateException("The vulnerability report doesn't tell the severities of its findings"))
+                            : Result.success(VulnerabilitySummary.NONE));
+            };
+        };
     }
 
     /**
@@ -233,7 +327,8 @@ public class AnalysisProcessHandler {
         }
     }
 
-    Uni<Void> handlePullRequests(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata,
+    Uni<Void> handlePullRequests(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults,
+                                 Uni<List<Result<VulnerabilityReporting.VulnerabilityReport>>> reports, Command.Metadata metadata,
                                  Instant started, boolean checkoutFailed) {
         if (!pullRequestReportsEnabled) {
             if (Log.isDebugEnabled()) {
@@ -259,7 +354,8 @@ public class AnalysisProcessHandler {
                 return Uni.createFrom().voidItem();
             }
 
-            return createReport(event, sbomResults, metadata)
+            return reports
+                .map(reportResults -> combine(event, reportResults))
                 .invoke(reportResult -> {
                     if (reportResult instanceof Result.Success<VulnerabilityReporting.VulnerabilityReport>(var report)) {
                         updatePullRequests(event, pullRequests, report, sbomResults, metadata, started, checkoutFailed);
@@ -292,31 +388,46 @@ public class AnalysisProcessHandler {
         }
     }
 
-    Uni<Result<VulnerabilityReporting.VulnerabilityReport>> createReport(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
-        metadata.writeToMDC();
-        return Uni.combine().all().unis(sbomResults.stream().map(sbomResult ->
-                switch (sbomResult) {
-                    case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
-                        case CdxgenClient.SBOMGenerationResult.Yield y ->
-                            reporter.createVulnerabilityReport(y.sbomFile(), y.projectName());
-                        case CdxgenClient.SBOMGenerationResult.None n -> {
-                            Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), metadata.gitRef());
-                            yield Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.none()));
-                        }
-                    };
+    /**
+     * Creates the vulnerability report of every SBOM, in the same order. Fails for the SBOMs which couldn't be created, and has no report for the ones there is nothing to analyse.
+     */
+    @SuppressWarnings("unchecked")
+    Uni<List<Result<VulnerabilityReporting.VulnerabilityReport>>> createReports(Event event, List<Result<CdxgenClient.SBOMGenerationResult>> sbomResults, Command.Metadata metadata) {
+        return Uni.createFrom().deferred(() -> {
+            metadata.writeToMDC();
+            return Uni.combine().all().unis(sbomResults.stream().map(sbomResult ->
+                    switch (sbomResult) {
+                        case Result.Success<CdxgenClient.SBOMGenerationResult> s -> switch (s.result()) {
+                            case CdxgenClient.SBOMGenerationResult.Yield y ->
+                                reporter.createVulnerabilityReport(y.sbomFile(), y.projectName())
+                                    .onFailure().recoverWithItem(Result::failure);
+                            case CdxgenClient.SBOMGenerationResult.None n -> {
+                                Log.infof("Nothing to analyse in repo %s, ref %s", event.repoUrl(), metadata.gitRef());
+                                yield Uni.createFrom().item(Result.success(VulnerabilityReporting.VulnerabilityReport.none()));
+                            }
+                        };
 
-                    case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
-                        Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), metadata.gitRef());
-                        yield Uni.createFrom().item(Result.failure(f.cause()));
-                    }
-                }).toList()).with(Function.identity())
-            .map(results ->
-                results.stream().filter(r -> r instanceof Result.Success)
-                    .map(r -> ((Result.Success<VulnerabilityReporting.VulnerabilityReport>) r).result())
-                    .filter(r -> r instanceof VulnerabilityReporting.VulnerabilityReport.Report)
-                    .map(r -> (VulnerabilityReporting.VulnerabilityReport.Report) r)
-                    .toList()
-            ).map(reports -> Result.success(VulnerabilityReporting.combine(reports, event.getRepoName())));
+                        case Result.Failure<CdxgenClient.SBOMGenerationResult> f -> {
+                            Log.errorf(f.cause(), "Analysis failed for repo %s, ref %s", event.repoUrl(), metadata.gitRef());
+                            yield Uni.createFrom().item(Result.<VulnerabilityReporting.VulnerabilityReport>failure(f.cause()));
+                        }
+                    }).toList())
+                .with(results -> results.stream()
+                    .map(r -> (Result<VulnerabilityReporting.VulnerabilityReport>) r)
+                    .toList());
+        });
+    }
+
+    /**
+     * Combines the reports of the SBOMs into the one of the repository, leaving out the ones which couldn't be created
+     */
+    private static Result<VulnerabilityReporting.VulnerabilityReport> combine(Event event, List<Result<VulnerabilityReporting.VulnerabilityReport>> reportResults) {
+        var reports = reportResults.stream().filter(r -> r instanceof Result.Success)
+            .map(r -> ((Result.Success<VulnerabilityReporting.VulnerabilityReport>) r).result())
+            .filter(r -> r instanceof VulnerabilityReporting.VulnerabilityReport.Report)
+            .map(r -> (VulnerabilityReporting.VulnerabilityReport.Report) r)
+            .toList();
+        return Result.success(VulnerabilityReporting.combine(reports, event.getRepoName()));
     }
 
     @SuppressWarnings("unchecked")
@@ -400,7 +511,7 @@ public class AnalysisProcessHandler {
                 var localRepo = s.result();
                 List<CdxgenClient.SbomCreationCommand> cmds;
                 try {
-                    cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config());
+                    cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config(), !event.fromFork());
                 } catch (RuntimeException e) {
                     // invalid repository config, the checkout still needs to be handed over for cleanup
                     Log.errorf(e, "Aborting analysis of repo %s, branch %s because of invalid configuration", event.repoUrl(), event.branch());
@@ -417,9 +528,14 @@ public class AnalysisProcessHandler {
 
     @SuppressWarnings("unchecked")
     public static Uni<List<Result<CdxgenClient.SBOMGenerationResult>>> executeCommands(List<CdxgenClient.SbomCreationCommand> commands, Command.Metadata metadata) {
-        return Uni.combine().all().unis(
+        var combined = Uni.combine().all().unis(
             commands.stream().map(cmd -> cmd.execute(metadata)).toList()
-        ).with(results -> {
+        );
+        // prepare scripts of the projects may interfere with each other, as they work in the same checkout
+        if (commands.stream().anyMatch(cmd -> cmd.prepare() != null)) {
+            combined = combined.usingConcurrencyOf(1);
+        }
+        return combined.with(results -> {
             metadata.writeToMDC();
             Log.infof("Analysis of repo %s, branch %s for %s projects resulted in %s with SBOMs %s",
                 metadata.repoFullName(), metadata.gitRef(), commands.size(),

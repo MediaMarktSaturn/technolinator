@@ -2,6 +2,7 @@ package com.mediamarktsaturn.technolinator.report;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.mediamarktsaturn.technolinator.os.ProcessFailedException;
+import com.mediamarktsaturn.technolinator.sbom.CdxgenClient;
 import org.cyclonedx.exception.ParseException;
 
 import java.util.List;
@@ -127,6 +128,7 @@ public final class FailureClassifier {
     );
 
     static final String CDXGEN = "cdxgen";
+    static final String PREPARE = "prepare";
 
     private FailureClassifier() {
         // utility
@@ -170,6 +172,17 @@ public final class FailureClassifier {
     }
 
     private static Classification classifyProcess(ProcessFailedException failure, List<String> lines) {
+        var classification = classifyProcessOutput(failure, lines);
+        if (failure.notes().isEmpty()) {
+            return classification;
+        }
+        var hint = (classification.hint().isEmpty() ? "" : classification.hint() + " ") + String.join(" ", failure.notes());
+        return new Classification(classification.kind(), classification.tool(), classification.summary(), classification.errorLine(),
+            hint, classification.errorHash());
+    }
+
+    private static Classification classifyProcessOutput(ProcessFailedException failure, List<String> lines) {
+        var defaultTool = CdxgenClient.PREPARE_COMMAND.equals(failure.command()) ? PREPARE : CDXGEN;
         var bestSignature = -1;
         var bestLine = -1;
         for (var lineIdx = 0; lineIdx < lines.size() && bestSignature != 0; lineIdx++) {
@@ -187,7 +200,7 @@ public final class FailureClassifier {
         if (bestSignature >= 0) {
             var signature = SIGNATURES.get(bestSignature);
             var errorLine = lines.get(bestLine).strip();
-            var tool = signature.tool() != null ? signature.tool() : guessTool(lines, bestLine);
+            var tool = signature.tool() != null ? signature.tool() : guessTool(lines, bestLine, defaultTool);
             return new Classification(signature.kind(), tool, signature.summary(), errorLine, signature.hint(),
                 hash(tool + "|" + normalize(errorLine)));
         }
@@ -196,10 +209,10 @@ public final class FailureClassifier {
         var errorLine = errorLineIdx < 0 ? "" : lines.get(errorLineIdx).strip();
         var exitCode = failure.exitCode();
         if (exitCode != null && exitCode == 137) {
-            return new Classification(REPO_ACTIONABLE, CDXGEN, "The analysis was killed (exit code 137), most probably it ran out of memory",
-                errorLine, SCOPE_HINT, hash(CDXGEN + "|137"));
+            return new Classification(REPO_ACTIONABLE, defaultTool, "The analysis was killed (exit code 137), most probably it ran out of memory",
+                errorLine, SCOPE_HINT, hash(defaultTool + "|137"));
         }
-        var tool = errorLineIdx < 0 ? CDXGEN : guessTool(lines, errorLineIdx);
+        var tool = errorLineIdx < 0 ? defaultTool : guessTool(lines, errorLineIdx, defaultTool);
         var summary = exitCode == null ? "%s failed".formatted(tool) : "%s failed with exit code %s".formatted(tool, exitCode);
         var hashSource = errorLine.isEmpty() ? summary : errorLine;
         return new Classification(REPO_ACTIONABLE, tool, summary, errorLine, "", hash(tool + "|" + normalize(hashSource)));
@@ -209,6 +222,10 @@ public final class FailureClassifier {
      * The most recently invoked tool before the failing line is the best guess, as cdxgen runs one tool after another.
      */
     static String guessTool(List<String> lines, int errorLineIdx) {
+        return guessTool(lines, errorLineIdx, CDXGEN);
+    }
+
+    static String guessTool(List<String> lines, int errorLineIdx, String defaultTool) {
         for (var i = Math.min(errorLineIdx, lines.size() - 1); i >= 0; i--) {
             var tool = toolOf(lines.get(i));
             if (tool != null) {
@@ -221,7 +238,7 @@ public final class FailureClassifier {
                 return tool;
             }
         }
-        return CDXGEN;
+        return defaultTool;
     }
 
     private static String toolOf(String line) {
