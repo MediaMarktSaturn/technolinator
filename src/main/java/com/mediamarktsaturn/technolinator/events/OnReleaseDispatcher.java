@@ -12,7 +12,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import org.kohsuke.github.GHEventPayload;
 import org.kohsuke.github.GHRepository;
 
-import java.io.IOException;
+
 import java.util.Optional;
 import java.util.stream.StreamSupport;
 
@@ -77,13 +77,8 @@ public class OnReleaseDispatcher extends DispatcherBase {
     }
 
     private Optional<String> getTaggedCommit(String tagName, GHRepository repo) {
-        try {
-            return StreamSupport.stream(repo.listTags().spliterator(), false)
-                .filter(t -> t.getName().equals(tagName)).findFirst()
-                .map(t -> t.getCommit().getSHA1());
-        } catch (IOException e) {
-            Log.errorf(e, "Failed to fetch commit referenced by tag %s in repo %s", tagName, repo.getUrl());
-            return Optional.empty();
-        }
+        return StreamSupport.stream(repo.listTags().spliterator(), false)
+            .filter(t -> t.getName().equals(tagName)).findFirst()
+            .map(t -> t.getCommit().getSHA1());
     }
 }

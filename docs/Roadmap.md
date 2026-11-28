@@ -2,6 +2,24 @@
 
 Planned work that is blocked or not started yet.
 
+## Switch to a Quarkus 4 based `quarkus-github-app`
+
+Technolinator runs on Quarkus 4, but still uses `quarkus-github-app` `3.0.0.CR1`, which is built against Quarkus 3.36 and Jackson 2.
+The first release based on Quarkus 4 is expected to use Jackson 3 (`tools.jackson`), as the `main` branch of [quarkus-github-app](https://github.com/quarkiverse/quarkus-github-app) already does.
+
+### Blocked: no release of `quarkus-github-app` for Quarkus 4 yet
+
+As soon as one is available, the following has to be done:
+
+* Update `quarkus-github-app.version` in the `pom.xml`, check `quarkus-github-api` and `org.kohsuke.github` API changes that come with it.
+* Remove `config/JacksonCompatConfig`, the temporary Jackson 2 `ObjectMapper` producer which satisfies the injection of `quarkus-github-app` `3.0.0.CR1`, as Quarkus 4 only provides a Jackson 3 mapper.
+* Migrate the code using the extension's YAML mapper (`@UtilsProducer.Yaml`) to Jackson 3, as its type changes from `com.fasterxml.jackson.databind.ObjectMapper` to `tools.jackson.dataformat.yaml.YAMLMapper`:
+  * `AnalysisProcessHandler` (injection of the mapper)
+  * `TechnolinatorConfigTest`, `CdxgenClientMultiProjectTest`, `LocalRepositoryAnalysis` (`new UtilsProducer().yamlObjectMapper()`)
+* Check the config model classes read through that mapper (`TechnolinatorConfig` and friends) for Jackson 2 annotations or behaviour that differs in Jackson 3 (`com.fasterxml.jackson.annotation` stays, the rest moves to `tools.jackson`), and exceptions: `JsonProcessingException` is gone in Jackson 3, which affects `FailureClassifier` and its tests.
+* Decide on the remaining, extension-independent Jackson 2 usage (`SbomqsClient`, `FakeGitHubServer`, `GitHubReportingTestSupport`, and `cyclonedx-core-java`, which is Jackson 2 based): keep it on Jackson 2 (needs an explicit `com.fasterxml.jackson.core:jackson-databind` dependency) or migrate it to Jackson 3.
+* Verify with the full test suite, including the native build and its reflection config.
+
 ## Sandboxing of `prepare` scripts
 
 The [`prepare` scripts](Repository_Config.md#prepare) of repositories run with the permissions of Technolinator, they are **not sandboxed**: they are expected to work in their own checkout, but nothing enforces that.
