@@ -30,6 +30,7 @@ It's built using [![](https://img.shields.io/badge/dynamic/xml?url=https%3A%2F%2
   * [Housekeeping](docs/Housekeeping.md): automatic and manual cleanup of Dependency-Track projects
   * [Adopting to your needs](docs/Adoption.md): derived container images for private artifact repositories and other customization
 * Maintaining Technolinator
+  * [Roadmap](docs/Roadmap.md): planned work that is blocked or not started yet, e.g. sandboxing of `prepare` scripts
   * [Project structure](docs/Project_Structure.md): how the processing of events works internally
   * [Contribution](docs/Contribution.md): requirements and tools for developing Technolinator
 

@@ -134,7 +134,7 @@ abstract class GitHubReportingTestSupport {
             when(command.execute(any())).thenReturn(Uni.createFrom().item(result));
             return command;
         }).toList();
-        when(cdxgen.createCommands(any(), anyString(), anyBoolean(), any())).thenReturn(commands);
+        when(cdxgen.createCommands(any(), anyString(), anyBoolean(), any(), anyBoolean())).thenReturn(commands);
     }
 
     void checkoutFails(Throwable cause) {

@@ -1,5 +1,6 @@
 package com.mediamarktsaturn.technolinator.os;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -15,6 +16,7 @@ public class ProcessFailedException extends Exception {
     private final List<String> outputLines;
     private final String projectName;
     private final String location;
+    private final List<String> notes;
 
     public ProcessFailedException(String command, Integer exitCode, List<String> outputLines) {
         this(command, exitCode, outputLines, null);
@@ -25,12 +27,17 @@ public class ProcessFailedException extends Exception {
     }
 
     public ProcessFailedException(String command, Integer exitCode, List<String> outputLines, String projectName, String location) {
+        this(command, exitCode, outputLines, projectName, location, List.of());
+    }
+
+    private ProcessFailedException(String command, Integer exitCode, List<String> outputLines, String projectName, String location, List<String> notes) {
         super(command + " exited with " + exitCode);
         this.command = command;
         this.exitCode = exitCode;
         this.outputLines = List.copyOf(outputLines);
         this.projectName = projectName;
         this.location = location;
+        this.notes = List.copyOf(notes);
     }
 
     public String command() {
@@ -62,11 +69,31 @@ public class ProcessFailedException extends Exception {
         return location;
     }
 
+    /**
+     * @return remarks of Technolinator that help to understand the failure, e.g. that a preparation of the analysis was skipped
+     */
+    public List<String> notes() {
+        return notes;
+    }
+
     public ProcessFailedException withProjectName(String projectName) {
-        return new ProcessFailedException(command, exitCode, outputLines, projectName, location);
+        return new ProcessFailedException(command, exitCode, outputLines, projectName, location, notes);
     }
 
     public ProcessFailedException withProject(String projectName, String location) {
-        return new ProcessFailedException(command, exitCode, outputLines, projectName, location);
+        return new ProcessFailedException(command, exitCode, outputLines, projectName, location, notes);
+    }
+
+    public ProcessFailedException withNote(String note) {
+        var all = new ArrayList<>(notes);
+        all.add(note);
+        return new ProcessFailedException(command, exitCode, outputLines, projectName, location, all);
+    }
+
+    /**
+     * @return the same failure, but attributed to another command
+     */
+    public ProcessFailedException withCommand(String command) {
+        return new ProcessFailedException(command, exitCode, outputLines, projectName, location, notes);
     }
 }

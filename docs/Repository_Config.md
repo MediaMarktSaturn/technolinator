@@ -50,12 +50,10 @@ env:
 jdk:
     # select JDK version used by cdxgen on JVM based projects (see below)
     version: 21
-flutter:
-    # Opt in to Flutter preparation and select an installed stable SDK version.
-    version: 3.44.1
-    # Paths to Flutter packages relative to analysis.location; defaults to ["."].
-    directories:
-        - .
+prepare:
+    # a bash script run in 'analysis.location' ahead of cdxgen, to prepare the repository for it (see below)
+    script: |
+        technolinator-flutter 3.44.1 .
 
 # to split up repositories in multiple dependency-track projects, you can recursively configure subprojects.
 # structure is the same like for the single-project config, each distinct project will result in one dependency-track project.
@@ -103,14 +101,58 @@ The JDK versions available for selection need to be provided and configured to t
 Please see the [adoption documentation](Adoption.md) for details, in the default runtime container, there's JDK 25 (default), JDK 21 and JDK 17 built in.
 Requesting a version that isn't available fails the analysis with an explanatory error instead of silently falling back.
 
-### Flutter projects
+### `prepare`
 
-Flutter preparation is opt-in. Set `flutter.version` to an installed SDK version and, for a monorepo, list each Flutter package directory under `flutter.directories`. These paths are relative to `analysis.location`; they must remain inside it and each must contain a `pubspec.yaml`. Use separate `projects` if different packages require different Flutter versions. A child project's `flutter` configuration replaces its parent's.
+Some repositories can't be analysed on a plain checkout: sources have to be generated, or dependencies have to be resolved by a tool cdxgen doesn't run on its own (e.g. `flutter pub get`).
+For that, a repository can provide a `prepare.script`, which Technolinator runs ahead of cdxgen:
 
-Before cdxgen runs, Technolinator runs `flutter --suppress-analytics pub get` in each directory and configures `flutter.sdk` in its `android/local.properties` when an Android directory exists. Other existing properties are retained. The selected Flutter SDK is also available to Gradle via `FLUTTER_ROOT` and `FLUTTER_SDK`, and the Android SDK via `ANDROID_HOME` and `ANDROID_SDK_ROOT`. The checkout must be able to resolve all dependencies from the configured package repositories; a failed preparation or cdxgen command fails the analysis, even if a partial SBOM exists. Android modules and their dependencies are not excluded.
+```yaml
+prepare:
+    script: |
+        bash ./tools/generate-sources.sh
+        mvn -B -ntp -q generate-sources
+```
 
-`flutter pub get` can update `pubspec.lock` when the selected SDK is incompatible with locked versions. The SBOM then reflects the newly resolved dependencies, so use a compatible SDK and commit a compatible lockfile for reproducible results.
+* It's a bash script, run as `bash -euo pipefail` in the folder to analyse (`analysis.location`), so it stops at the first failing command.
+  Files of the repository are checked out without executable permission, so call your own scripts via `bash script.sh`.
+* It may run everything on the `PATH` of the Technolinator image, but is expected to work in its folder only. **There is no sandbox**: the script has the permissions of Technolinator, so it is up to the repository and its reviewers to keep it to that.
+  Network isolation, if required, is up to the runtime environment as well.
+* It's run once for each project, see `projects` above. The `prepare` of a project replaces the one of its parent, an empty script switches an inherited one off.
+  If any project of a repository has a `prepare`, the projects of that repository are analysed one after another, as their scripts work in the same checkout.
+* The environment is the one of cdxgen, including your `env` entries (with `${VAR}` resolved), but without the `GITHUB_TOKEN` and the secrets of Technolinator (variables named in `SENSITIVE_ENV_VARS` or looking like secrets).
+  `HOME`, `TMPDIR` and the like point to a private scratch directory, available as `$TECHNOLINATOR_SCRATCH` and removed after the analysis. Downloads into `$HOME` are therefore not cached between analyses.
+* To pass settings on to cdxgen and the build tools it starts, append `NAME=value` lines to the file `$TECHNOLINATOR_ENV`, e.g. `echo "MY_GENERATED_DIR=$PWD/gen" >> "$TECHNOLINATOR_ENV"`. Values are single-line, a later assignment wins, names starting with `TECHNOLINATOR_` are reserved.
+* The script must not leave symbolic links pointing outside of the repository, nor files Technolinator can't read (both fail the analysis), and a `sbom.json` it creates is removed.
+* Processes the script leaves running in the background (e.g. a Gradle daemon) are killed when it ends. Run things in the foreground, e.g. `./gradlew --no-daemon`.
+* If the script or cdxgen fails, the analysis of the project fails, even if cdxgen created an SBOM: it wouldn't describe the prepared repository. The failure is reported like one of cdxgen, with `prepare` as the failing tool.
+* The script is **not run** for pull-requests from forks, as their code is not trusted, and if the operator switched it off (`APP_PREPARE_ENABLED`, see [runtime configuration](Runtime_Config.md)). The analysis continues without it, and a failure mentions the skipped script.
 
-When any configured project uses Flutter, analyses within the same checkout run sequentially to avoid conflicts over generated files. The original `android/local.properties`, if present, is restored after each analysis.
+#### Flutter projects
 
-The standard image provides Flutter 3.44.1 and Android SDK platform 36, build-tools 36.0.0, and NDK 28.2.13676358. Other Flutter versions or Android SDK packages must be provisioned by the operator; selecting an unavailable Flutter version fails rather than falling back. Select an appropriate `jdk.version` for the project's Android Gradle plugin. The Flutter SDK is copied to a temporary writable directory for each analysis, requiring several gigabytes of free temporary storage and additional startup time. See [Adoption](Adoption.md#flutter-and-android-sdks) for provisioning and isolation details.
+The image provides Flutter 3.44.1 and the Android SDK (platform 36, build-tools 36.0.0, NDK 28.2.13676358), and the helper `technolinator-flutter` to use them in a `prepare` script:
+
+```yaml
+prepare:
+    script: |
+        technolinator-flutter 3.44.1 . packages/app
+jdk:
+    version: 17 # select the JDK the Android Gradle plugin of the project needs
+```
+
+`technolinator-flutter <version> [directory...]` sets up the Flutter version, runs `flutter pub get` in each directory (default `.`), and hands `FLUTTER_ROOT`, `FLUTTER_SDK` and `PUB_CACHE` over to cdxgen, so its Gradle run for the Android part of the project works.
+The directories are relative to `analysis.location`, must stay inside of it, and each must contain a `pubspec.yaml`. Use separate `projects` if packages need different Flutter versions.
+Selecting a version that isn't installed fails the analysis rather than falling back.
+
+To run Flutter on your own, e.g. for code generation, use `eval "$(technolinator-flutter --setup 3.44.1)"`: `flutter` is on the `PATH` afterwards and works against the same setup:
+
+```yaml
+prepare:
+    script: |
+        eval "$(technolinator-flutter --setup 3.44.1)"
+        flutter pub get
+        dart run build_runner build
+```
+
+`flutter pub get` can update `pubspec.lock` when the selected SDK is incompatible with the locked versions. The SBOM then reflects the newly resolved dependencies, so use a compatible SDK and commit a compatible lockfile for reproducible results.
+The checkout must be able to resolve all dependencies from public package repositories. Android modules and their dependencies are not excluded.
+See [Adoption](Adoption.md#flutter-and-android-sdks) for providing further versions and how the SDKs are shared between analyses.

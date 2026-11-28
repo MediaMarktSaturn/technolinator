@@ -26,6 +26,13 @@ public interface Event {
         return branch().equals(defaultBranch());
     }
 
+    /**
+     * Whether the code to analyse originates from another repository (a fork), so it isn't trusted to run anything on its own.
+     */
+    default boolean fromFork() {
+        return false;
+    }
+
     default String getRepoName() {
         var path = repoUrl().getPath();
         return path.substring(path.lastIndexOf('/') + 1);

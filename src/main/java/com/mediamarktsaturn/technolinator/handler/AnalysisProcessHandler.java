@@ -400,7 +400,7 @@ public class AnalysisProcessHandler {
                 var localRepo = s.result();
                 List<CdxgenClient.SbomCreationCommand> cmds;
                 try {
-                    cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config());
+                    cmds = Objects.requireNonNull(cdxgenClient).createCommands(localRepo.dir(), event.getRepoName(), fetchLicenses, event.config(), !event.fromFork());
                 } catch (RuntimeException e) {
                     // invalid repository config, the checkout still needs to be handed over for cleanup
                     Log.errorf(e, "Aborting analysis of repo %s, branch %s because of invalid configuration", event.repoUrl(), event.branch());
@@ -420,7 +420,8 @@ public class AnalysisProcessHandler {
         var combined = Uni.combine().all().unis(
             commands.stream().map(cmd -> cmd.execute(metadata)).toList()
         );
-        if (commands.stream().anyMatch(cmd -> cmd.flutter() != null)) {
+        // prepare scripts of the projects may interfere with each other, as they work in the same checkout
+        if (commands.stream().anyMatch(cmd -> cmd.prepare() != null)) {
             combined = combined.usingConcurrencyOf(1);
         }
         return combined.with(results -> {

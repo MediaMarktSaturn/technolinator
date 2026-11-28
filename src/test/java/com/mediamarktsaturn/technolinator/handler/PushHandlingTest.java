@@ -74,7 +74,7 @@ class PushHandlingTest {
 
         // Then
         verify(repoService).createCheckoutCommand(any(), any());
-        verify(cdxgenClient).createCommands(any(), eq(projectName), anyBoolean(), eq(Optional.empty()));
+        verify(cdxgenClient).createCommands(any(), eq(projectName), anyBoolean(), eq(Optional.empty()), eq(true));
         verify(sbomqsClient).calculateQualityScore(any());
         verify(dtrackClient).uploadSBOM(any(), any(), eq(projectName), any(), eq(Optional.empty()));
 

@@ -41,6 +41,7 @@ COPY --chown=root:root --chmod=a-w src/main/docker/assets/git_askpass.sh $APP_DI
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/run-java.sh $APP_DIR/run-java.sh
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/grype.tmpl $APP_DIR/grype.tmpl
 COPY --chown=root:root --chmod=a-w src/main/docker/assets/depscan.j2 $APP_DIR/depscan.j2
+COPY --chown=root:root --chmod=0555 src/main/docker/assets/technolinator-flutter $APP_DIR/bin/technolinator-flutter
 
 WORKDIR $APP_DATA
 RUN chown $APPLICATION_USER:$APPLICATION_GROUP -R $APP_DATA \
@@ -138,8 +139,11 @@ RUN source "/root/.sdkman/bin/sdkman-init.sh" && \
     chmod a-w -R $SDK_DIR && \
     rm -rf /root/.sdkman
 
-# Flutter updates its own cache even for `pub get`. This is a read-only template;
-# each analysis copies it to an isolated writable directory before running it.
+# Flutter updates its own cache even for `pub get`, so the installed SDKs are read-only templates.
+# `technolinator-flutter` gives each analysis an overlay of symbolic links to them, see docs/Adoption.md.
+# The pub cache the Flutter tool is built with is kept inside of the SDK and readable: the tool refers to it by absolute paths,
+# and would try to rebuild itself (i.e. write to the SDK) if it couldn't read them. Removing the stamp makes the launcher rebuild
+# the tool here with that pub cache, instead of keeping the prebuilt one of the release archive.
 RUN mkdir -p "$SDK_DIR/flutter" && \
     curl -fL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz && \
     echo "$FLUTTER_SHA256  /tmp/flutter.tar.xz" | sha256sum -c - && \
@@ -147,8 +151,17 @@ RUN mkdir -p "$SDK_DIR/flutter" && \
     mv "$SDK_DIR/flutter/flutter" "$SDK_DIR/flutter/$FLUTTER_VERSION" && \
     rm /tmp/flutter.tar.xz && \
     chown -R root:root "$SDK_DIR/flutter" && \
-    CI=true "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/flutter" --suppress-analytics precache --android && \
-    chmod -R a-w "$SDK_DIR/flutter"
+    rm -f "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/flutter_tools.stamp" && \
+    CI=true PUB_CACHE="$SDK_DIR/flutter/$FLUTTER_VERSION/.pub-cache" "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/flutter" --suppress-analytics precache --android && \
+    rm -rf "$SDK_DIR/flutter/$FLUTTER_VERSION/.pub-preload-cache" && \
+    test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/version" && \
+    test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/flutter.version.json" && \
+    test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/flutter_tools.snapshot" && \
+    test -s "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/engine.stamp" && \
+    test -e "$SDK_DIR/flutter/$FLUTTER_VERSION/bin/cache/engine.realm" && \
+    python3 -c 'import json, os, sys, urllib.parse; config, sdk = sys.argv[1], sys.argv[2]; base = "file://" + os.path.dirname(config) + "/"; roots = [urllib.parse.urlparse(urllib.parse.urljoin(base, p["rootUri"])).path for p in json.load(open(config))["packages"]]; bad = [r for r in roots if not os.path.realpath(r).startswith(sdk + "/") or not os.path.isfile(os.path.join(r, "pubspec.yaml"))]; sys.exit("packages of the Flutter tool outside of the SDK or missing: %s" % bad if bad else 0)' \
+        "$SDK_DIR/flutter/$FLUTTER_VERSION/packages/flutter_tools/.dart_tool/package_config.json" "$(realpath "$SDK_DIR/flutter/$FLUTTER_VERSION")" && \
+    chmod -R a+rX,a-w "$SDK_DIR/flutter"
 
 ENV ANDROID_HOME="$SDK_DIR/android" \
     ANDROID_SDK_ROOT="$SDK_DIR/android"
@@ -185,7 +198,7 @@ ENV JAVA17_HOME="$SDK_DIR/java/$JAVA_17_VERSION" \
 ENV GEM_HOME="$APP_DATA/.gem" \
     BUNDLE_USER_HOME="$APP_DATA/.bundle"
 
-ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin:$GO_HOME/bin:$GEM_HOME/bin"
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$NODE_HOME/bin:$JAVA_HOME/bin:$MAVEN_HOME/bin:$GRADLE_HOME/bin:$GO_HOME/bin:$GEM_HOME/bin:$APP_DIR/bin"
 
 ENV JAVA_OPTIONS="-Djava.util.logging.manager=org.jboss.logmanager.LogManager --add-opens java.base/java.lang=ALL-UNNAMED"
 ENV JAVA_APP_JAR="$APP_DIR/quarkus-run.jar"

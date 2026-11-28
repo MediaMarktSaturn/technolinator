@@ -62,6 +62,13 @@ fileExistenceTests:
       uid: 0
       gid: 0
 
+    - name: 'Flutter helper for prepare scripts exists with right permissions'
+      path: /app/bin/technolinator-flutter
+      shouldExist: true
+      permissions: '-r-xr-xr-x'
+      uid: 0
+      gid: 0
+
     - name: 'Android SDK platform exists'
       path: /app/sdks/android/platforms/android-36/android.jar
       shouldExist: true
@@ -184,6 +191,12 @@ commandTests:
       args: ["version"]
       expectedOutput:
           - 'go version go1.27.*'
+
+    - name: "Flutter runs from an overlay of the read-only SDK"
+      command: 'bash'
+      args: ['-c', 'export TECHNOLINATOR_SCRATCH=$(mktemp -d) && eval "$(technolinator-flutter --setup 3.44.1)" && flutter --version']
+      expectedOutput:
+          - 'Flutter 3\.44\.1.*'
 
     - name: "Running as non-root"
       command: 'whoami'

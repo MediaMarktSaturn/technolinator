@@ -17,7 +17,7 @@ public record TechnolinatorConfig(
     Map<String, String> env,
     List<TechnolinatorConfig> projects,
     ReportingConfig reporting,
-    FlutterConfig flutter
+    PrepareConfig prepare
 ) {
 
     public TechnolinatorConfig(Boolean enable, Boolean enablePullRequestReport, ProjectConfig project,
@@ -68,9 +68,14 @@ public record TechnolinatorConfig(
     ) {
     }
 
-    public record FlutterConfig(
-        String version,
-        List<String> directories
+    /**
+     * A script run in the analysed folder ahead of cdxgen, to prepare the repository for it (generate sources, resolve
+     * dependencies of ecosystems cdxgen can't handle on a plain checkout, ...).
+     *
+     * @param script the content of a bash script, run with {@code -euo pipefail}
+     */
+    public record PrepareConfig(
+        String script
     ) {
     }
 }

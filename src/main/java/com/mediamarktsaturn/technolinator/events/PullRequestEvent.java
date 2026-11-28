@@ -42,4 +42,15 @@ public record PullRequestEvent(
 
     @Override
     public String version() {return payload.getPullRequest().getHead().getSha();}
+
+    @Override
+    public boolean fromFork() {
+        try {
+            var head = payload.getPullRequest().getHead().getRepository();
+            return head == null || !payload.getRepository().getFullName().equalsIgnoreCase(head.getFullName());
+        } catch (RuntimeException e) {
+            // unknown origin is treated like an untrusted one
+            return true;
+        }
+    }
 }

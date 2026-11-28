@@ -61,31 +61,25 @@ public class CdxgenClientMultiProjectTest {
     }
 
     @Test
-    void serializesFlutterAnalysesSharingACheckout(@TempDir Path temp) throws IOException {
+    void serializesAnalysesOfProjectsWithPrepareScripts(@TempDir Path temp) throws IOException {
         var root = Files.createDirectory(temp.resolve("repo"));
-        Files.writeString(root.resolve("pubspec.yaml"), "name: example\n");
-        var android = Files.createDirectory(root.resolve("android"));
-        var properties = android.resolve("local.properties");
-        Files.writeString(properties, "existing=value\n");
-        var sdk = Files.createDirectories(temp.resolve("sdks/flutter/3.44.1/bin"));
-        var flutter = Files.writeString(sdk.resolve("flutter"), "#!/bin/sh\nexit 0\n");
-        assertThat(flutter.toFile().setExecutable(true)).isTrue();
-        var androidSdk = Files.createDirectory(temp.resolve("android-sdk"));
+        // each analysis marks the checkout while it's running, and fails if it finds the mark of the other one
+        var script = new TechnolinatorConfig.PrepareConfig("""
+            if [ -e busy ]; then echo overlapping; exit 1; fi
+            touch busy
+            sleep 1
+            """);
         var cdxgen = Files.writeString(temp.resolve("fake-cdxgen"), """
             #!/bin/sh
-            grep -Fq "$FLUTTER_ROOT" android/local.properties || exit 1
-            sleep 1
-            grep -Fq "$FLUTTER_ROOT" android/local.properties || exit 1
+            [ -e busy ] || exit 1
+            rm busy
             """);
         assertThat(cdxgen.toFile().setExecutable(true)).isTrue();
-        var env = Map.of("SDK_DIR", temp.resolve("sdks").toString(), "ANDROID_HOME", androidSdk.toString());
-        var config = new TechnolinatorConfig.FlutterConfig("3.44.1", null);
-        var first = new CdxgenClient.SbomCreationCommand(root, "first", cdxgen.toString(), env, List.of(), "", config);
-        var second = new CdxgenClient.SbomCreationCommand(root, "second", cdxgen.toString(), env, List.of(), "", config);
+        var first = new CdxgenClient.SbomCreationCommand(root, "first", cdxgen.toString(), Map.of("PATH", "/usr/bin:/bin"), List.of(), "", script);
+        var second = new CdxgenClient.SbomCreationCommand(root, "second", cdxgen.toString(), Map.of("PATH", "/usr/bin:/bin"), List.of(), "", script);
         var metadata = new Command.Metadata("local", "local/example", "", Optional.empty());
 
         assertThat(await(executeCommands(List.of(first, second), metadata)))
             .hasSize(2).allMatch(result -> result instanceof Result.Success<?>);
-        assertThat(properties).hasContent("existing=value\n");
     }
 }

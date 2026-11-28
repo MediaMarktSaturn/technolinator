@@ -17,6 +17,11 @@ import java.util.Optional;
 import static com.mediamarktsaturn.technolinator.TestUtil.await;
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Runs the whole chain for a real Flutter project: the {@code technolinator-flutter} helper of the image, installed Flutter and Android SDKs, cdxgen.
+ * Requires the environment of the Technolinator image ({@code SDK_DIR}, {@code ANDROID_HOME}, cdxgen, JDK 17 ...), so it's opt-in:
+ * {@code FLUTTER_INTEGRATION_PROJECT} points to a checkout of a Flutter project.
+ */
 @QuarkusTest
 @EnabledIfEnvironmentVariable(named = "FLUTTER_INTEGRATION_PROJECT", matches = ".+")
 class FlutterIntegrationTest {
@@ -29,8 +34,9 @@ class FlutterIntegrationTest {
         var directory = Path.of(System.getenv("FLUTTER_INTEGRATION_PROJECT"));
         var projectName = System.getenv().getOrDefault("FLUTTER_INTEGRATION_NAME", "flutter-example");
         var version = System.getenv().getOrDefault("FLUTTER_INTEGRATION_VERSION", "3.44.1");
+        var helper = Path.of("src/main/docker/assets/technolinator-flutter").toAbsolutePath();
         var config = ConfigBuilder.create()
-            .flutter(new TechnolinatorConfig.FlutterConfig(version, null))
+            .prepare(new TechnolinatorConfig.PrepareConfig("bash '%s' %s .".formatted(helper, version)))
             .jdk(new TechnolinatorConfig.JdkConfig("17"))
             .build();
         var command = client.createCommands(directory, projectName, false, Optional.of(config)).getFirst();

@@ -38,7 +38,7 @@ They get
 
 Builds needing further values should get them via the `env` of the repository config.
 
-For opted-in Flutter projects, the Flutter preparation command runs with the same isolated environment as cdxgen. See [Flutter projects](Repository_Config.md#flutter-projects) for SDK selection, generated metadata, and temporary storage requirements.
+The `prepare` script of a repository (see [repository config](Repository_Config.md#prepare)) gets the same environment, except for the `GITHUB_TOKEN`, the variables listed in `SENSITIVE_ENV_VARS`, and inherited variables whose names look like secrets (containing `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `PASSPHRASE`, `APIKEY`, `API_KEY`, `PRIVATE_KEY`, `ACCESS_KEY` or `CREDENTIAL`, case-insensitive). Variables explicitly configured by the repository via `env` are kept. `HOME`, `TMPDIR` and the XDG directories point to a private scratch directory of the analysis. The script runs without a sandbox, with the permissions of Technolinator.
 
 ## Failure reporting
 
