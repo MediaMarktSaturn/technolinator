@@ -31,12 +31,20 @@ sequenceDiagram
 
         alt Process succeeded
             OnPushDispatcher -->> GitHub: Commit status 'OK'
+            OnPushDispatcher -->> CommitStatusMetricsUpdater: Track commit status
         else Process failed
-            OnPushDispatcher -->> GitHub: Commit status 'Failed'
+            OnPushDispatcher -->> GitHub: Commit status 'Error'
         end
 
     end
+
+    loop Backoff of 5 minutes, doubled up to 4 hours, until current
+        CommitStatusMetricsUpdater ->> Dependency-Track: Fetch metrics of the projects
+    end
+    CommitStatusMetricsUpdater -->> GitHub: Commit status 'OK' with risk score and vulnerabilities
 ```
+
+The commit status of **pull-requests** tells about the vulnerabilities the analysis found, see [Commit status](Analysis.md#commit-status): `OnPullRequestDispatcher` writes `pending` before the analysis, and `success` or `failure` after it, from the `AnalysisOutcome` of the analysis handler, which sums up the numbers per severity stated by the vulnerability reports of the SBOMs.
 
 ## Manual analysis
 
@@ -61,7 +69,7 @@ sequenceDiagram
 
         OnPushDispatcher -->> GitHub: Commit status 'Pending'
         OnPushDispatcher ->> PushHandler: Start process as for a push event
-        OnPushDispatcher -->> GitHub: Commit status 'OK' or 'Failed'
+        OnPushDispatcher -->> GitHub: Commit status 'OK' or 'Error'
     end
 ```
 

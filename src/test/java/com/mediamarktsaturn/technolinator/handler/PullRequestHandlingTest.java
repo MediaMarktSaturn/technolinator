@@ -76,6 +76,8 @@ class PullRequestHandlingTest {
 
         GHCommitPointer head = mock(GHCommitPointer.class);
         when(head.getRef()).thenReturn("main");
+        // a head of the very repository is no fork, which is what the analysis may run prepare scripts for
+        when(head.getRepository()).thenReturn(ghRepo);
         GHCommitPointer base = mock(GHCommitPointer.class);
         when(base.getRef()).thenReturn("main");
         when(pr.getHead()).thenReturn(head);
@@ -127,6 +129,8 @@ class PullRequestHandlingTest {
 
         GHCommitPointer head = mock(GHCommitPointer.class);
         when(head.getRef()).thenReturn("technolinator-test");
+        // a head of the very repository is no fork, which is what the analysis may run prepare scripts for
+        when(head.getRepository()).thenReturn(ghRepo);
         GHCommitPointer base = mock(GHCommitPointer.class);
         when(base.getRef()).thenReturn("main");
         when(pr.getHead()).thenReturn(head);

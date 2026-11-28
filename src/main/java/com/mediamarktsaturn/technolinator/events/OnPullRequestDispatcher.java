@@ -1,10 +1,12 @@
 package com.mediamarktsaturn.technolinator.events;
 
 import com.mediamarktsaturn.technolinator.Command;
+import com.mediamarktsaturn.technolinator.Commons;
 import com.mediamarktsaturn.technolinator.Result;
 import com.mediamarktsaturn.technolinator.git.TechnolinatorConfig;
 import com.mediamarktsaturn.technolinator.report.FailureReporter;
 import com.mediamarktsaturn.technolinator.sbom.Project;
+import com.mediamarktsaturn.technolinator.sbom.VulnerabilitySummary;
 import io.micrometer.core.instrument.Tag;
 import io.quarkiverse.githubapp.ConfigFile;
 import io.quarkiverse.githubapp.GitHubConfigFileProvider;
@@ -38,6 +40,13 @@ public class OnPullRequestDispatcher extends DispatcherBase {
 
     @ConfigProperty(name = "app.pull_requests.enabled")
     boolean enabled;
+
+    /**
+     * Severity from which vulnerabilities fail the commit status of a pull-request, or {@value VulnerabilitySummary#NO_THRESHOLD}.
+     * The default applies if the dispatcher isn't created by the container.
+     */
+    @ConfigProperty(name = "app.commit_status.vulnerability_threshold")
+    String vulnerabilityThresholdConfig = "high";
 
     @Inject
     GitHubConfigFileProvider configFileProvider;
@@ -93,10 +102,25 @@ public class OnPullRequestDispatcher extends DispatcherBase {
             final var analysisStartedAt = Instant.now();
             final double analysisStart = System.currentTimeMillis();
             DoubleSupplier duration = () -> System.currentTimeMillis() - analysisStart;
+            final var threshold = vulnerabilityThreshold();
+            // the commit status tells about the vulnerabilities, which are not known yet
+            final var commitStatusEnabled = threshold.isPresent() && Boolean.TRUE.equals(enabledCommitStatusWrite);
+            if (commitStatusEnabled) {
+                writeCommitStatus(repo, commitSha, VulnerabilityCommitStatus.pending(), metadata)
+                    .subscribe().withSubscriber(Commons.NOOP_SUBSCRIBER);
+            }
             handler.onPullRequest(new PullRequestEvent(prPayload, config), metadata)
                 .ifNoItem().after(analysisTimeout).fail()
+                .call(outcome -> commitStatusEnabled
+                    ? outcome.vulnerabilities()
+                        .map(vulnerabilities -> writeCommitStatus(repo, commitSha, VulnerabilityCommitStatus.of(vulnerabilities, threshold.get()), metadata))
+                        .orElseGet(() -> Uni.createFrom().voidItem())
+                    : Uni.createFrom().voidItem())
+                .onFailure().call(failure -> commitStatusEnabled
+                    ? writeCommitStatus(repo, commitSha, VulnerabilityCommitStatus.failed(failure), metadata)
+                    : Uni.createFrom().voidItem())
                 .onFailure(TimeoutException.class).call(timeout -> reportTimeout(repo, metadata, analysisStartedAt, config, pullRequest))
-                .map(this::mapToResult)
+                .map(outcome -> mapToResult(outcome.project()))
                 .onFailure().recoverWithItem(f -> new PullRequestResult(MetricStatusAnalysis.ERROR))
                 .onTermination().invoke(() -> {
                     metricsPublisher.reportAnalysisCompletion(repoName, "pull-request");
@@ -144,6 +168,23 @@ public class OnPullRequestDispatcher extends DispatcherBase {
             Log.warnf(e, "Could not read the configuration file of pull-request head %s of repository %s, falling back to the one of the default branch", commitSha, repo.getFullName());
             return defaultBranchConfig;
         }
+    }
+
+    /**
+     * Sets the commit status of the head commit to the PR, linking to the projects of the repository in Dependency-Track.
+     * Never fails, a commit status not written doesn't affect the analysis.
+     */
+    private Uni<Void> writeCommitStatus(GHRepository repo, String commitSha, VulnerabilityCommitStatus status, Command.Metadata metadata) {
+        return createGHCommitStatus(commitSha, repo, status.state(), dtrackSearchUrl(repo), status.description(), metadata)
+            .onFailure().recoverWithNull()
+            .replaceWithVoid();
+    }
+
+    /**
+     * @return the lowest severity of vulnerabilities making the commit status fail, empty if the commit status doesn't tell about vulnerabilities
+     */
+    Optional<VulnerabilitySummary.Severity> vulnerabilityThreshold() {
+        return VulnerabilitySummary.Severity.parseThreshold(vulnerabilityThresholdConfig);
     }
 
     private Uni<Void> reportTimeout(GHRepository repo, Command.Metadata metadata, Instant started, Optional<TechnolinatorConfig> config, GHPullRequest pullRequest) {

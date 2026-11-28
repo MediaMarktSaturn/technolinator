@@ -28,6 +28,13 @@ public class CustomTestProfiles {
         }
     }
 
+    public static class VulnerabilityThresholdHigh implements QuarkusTestProfile {
+        @Override
+        public Map<String, String> getConfigOverrides() {
+            return Collections.singletonMap("app.commit_status.vulnerability_threshold", "high");
+        }
+    }
+
     public static class ArchiveProjectsDisabled implements QuarkusTestProfile {
         @Override
         public Map<String, String> getConfigOverrides() {

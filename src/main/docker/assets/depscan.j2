@@ -1,13 +1,18 @@
 {% if vulnerabilities %}
+{%- set totals = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'unspecified': 0} -%}
 {%- for vuln in vulnerabilities -%}
-{%- set ns = namespace(sort_score=0) -%}
+{%- set ns = namespace(sort_score=0, severity='unspecified') -%}
 {%- for rating in vuln.ratings -%}
 {%- if 'CVSSv3' in rating.method -%}
 {%- set ns.sort_score = rating.score -%}
+{%- set ns.severity = rating.severity -%}
 {%- endif -%}
 {%- endfor -%}
 {%- set x=vuln.__setitem__("sort_score", ns.sort_score) -%}
+{%- set severity = ns.severity if ns.severity in totals else 'unspecified' -%}
+{%- set x=totals.__setitem__(severity, totals[severity] + 1) -%}
 {%- endfor -%}
+<!-- technolinator-severities critical={{ totals['critical'] }} high={{ totals['high'] }} medium={{ totals['medium'] }} low={{ totals['low'] }} unspecified={{ totals['unspecified'] }} -->
 ⚠ **Vulnerability Report**
 
 _Please consider this as a tentative appraisal, consult [Dependency-Track](DEPENDENCY_TRACK_URL) for reliable results._
